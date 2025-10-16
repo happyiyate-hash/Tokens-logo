@@ -1,3 +1,4 @@
+
 import { Badge } from "@/components/ui/badge";
 
 export default function DashboardPage() {
@@ -18,9 +19,9 @@ export default function DashboardPage() {
           <p className="text-primary/80">
             Add new token images with their symbols and decimal values.
           </p>
-          <p className="mt-3 text-sm">
+          <div className="mt-3 text-sm">
             Go to <Badge variant="secondary">Manage Tokens</Badge>
-          </p>
+          </div>
         </div>
         <div className="bg-green-100/10 p-6 rounded-lg shadow-sm">
           <h2 className="text-xl font-semibold text-green-300 mb-2">
@@ -29,9 +30,9 @@ export default function DashboardPage() {
           <p className="text-green-400">
             View, edit, and remove existing token logos.
           </p>
-          <p className="mt-3 text-sm">
+          <div className="mt-3 text-sm">
             Go to <Badge variant="secondary">Manage Tokens</Badge>
-          </p>
+          </div>
         </div>
         <div className="bg-purple-100/10 p-6 rounded-lg shadow-sm">
           <h2 className="text-xl font-semibold text-purple-300 mb-2">
@@ -40,9 +41,9 @@ export default function DashboardPage() {
           <p className="text-purple-400">
             Generate and manage API keys for wallet integration.
           </p>
-          <p className="mt-3 text-sm">
+          <div className="mt-3 text-sm">
             Go to <Badge variant="secondary">API Keys</Badge>
-          </p>
+          </div>
         </div>
       </div>
 
