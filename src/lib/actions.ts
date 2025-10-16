@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import type { ApiKey, Token, Network, TokenMetadata } from "@/lib/types";
 import { PlaceHolderImages } from "./placeholder-images";
 import { randomBytes } from 'crypto';
+import { autoFetchMissingLogo } from "@/ai/flows/auto-fetch-missing-logos";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -80,9 +81,12 @@ export async function addToken(
         }
         logoUrl = publicUrlData.publicUrl;
     } else {
-        // This is where you would call the AI logo fetching service
-        // For now, we'll just use the default placeholder
-        logoUrl = defaultLogo.imageUrl;
+        const result = await autoFetchMissingLogo({ tokenSymbol: symbol });
+        if (result.logoUrl) {
+          logoUrl = result.logoUrl;
+        } else {
+          logoUrl = defaultLogo.imageUrl;
+        }
     }
     
     const dbData = {
@@ -215,7 +219,7 @@ export async function deleteToken(tokenId: string): Promise<{ status: "success" 
     .eq("id", tokenId)
     .single();
 
-  if (token && token.logo_url && !token.logo_url.includes('picsum.photos') && token.logo_url.includes(supabaseUrl!)) {
+  if (token && token.logo_url && !token.logo_url.includes('picsum.photos') && supabaseUrl && token.logo_url.includes(supabaseUrl)) {
     try {
       const path = new URL(token.logo_url).pathname.split('/public/logos/')[1];
       if (path) {

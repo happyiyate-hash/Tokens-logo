@@ -1,18 +1,15 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { PlaceHolderImages } from "@/lib/placeholder-images";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-
-const supabase =
-  supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const isValidApiKey = async (apiKey: string): Promise<boolean> => {
-    if (!supabaseUrl || !supabaseServiceKey) return false;
+    if (!supabaseServiceKey) return false;
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
     const { data, error } = await supabaseAdmin
       .from('api_keys')
@@ -27,12 +24,6 @@ export async function GET(
   request: Request,
   { params }: { params: { network: string } }
 ) {
-  if (!supabase) {
-    return NextResponse.json(
-      { error: "Supabase connection not configured." },
-      { status: 500 }
-    );
-  }
   
   const requestApiKey = request.headers.get('x-api-key');
 
