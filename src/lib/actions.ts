@@ -1,4 +1,3 @@
-
 "use server";
 
 import { z } from "zod";
@@ -30,9 +29,10 @@ export type AddTokenState = {
 const addTokenSchema = z.object({
   name: z.string().min(1, "Token name is required."),
   symbol: z.string().min(1, "Token symbol is required."),
-  chains: z.string().optional(), // Comma-separated string of chains
+  chain: z.string().min(1, "Chain identifier is required."),
   decimals: z.coerce.number().int().min(0, "Decimals must be a positive integer."),
   logo: z.instanceof(File).refine((file) => file.size > 0, "Logo image is required."),
+  contract: z.string().optional(),
 });
 
 export async function addToken(
@@ -51,12 +51,13 @@ export async function addToken(
     return { status: "error", message: firstError || "Invalid input." };
   }
   
-  const { logo, symbol, chains, ...tokenData } = validated.data;
-  const chainsArray = chains ? chains.split(',').map(c => c.trim().toLowerCase()).filter(c => c) : [];
-
+  const { logo, symbol, chain, ...tokenData } = validated.data;
+  
   try {
     const fileContents = await logo.arrayBuffer();
-    const filePath = `logos/${symbol.toLowerCase()}.${logo.name.split('.').pop()}`;
+    // Using contract address + chain for a more unique path
+    const uniquePart = tokenData.contract ? `${chain}-${tokenData.contract}` : `${chain}-${symbol.toLowerCase()}`;
+    const filePath = `logos/${uniquePart}.${logo.name.split('.').pop()}`;
 
     // Upload to Supabase Storage
     const { error: uploadError } = await supabaseAdmin.storage
@@ -83,15 +84,17 @@ export async function addToken(
       ...tokenData,
       symbol: symbol.toUpperCase(),
       logo_url: publicUrlData.publicUrl,
-      chains: chainsArray,
+      chain: chain.trim().toLowerCase(),
       updated_at: new Date().toISOString(),
     };
     
-    // Upsert metadata into Supabase DB
+    // Upsert based on symbol AND chain. This is a simplification.
+    // A true robust solution would use contract address + chain_id.
     const { data: existingToken, error: fetchError } = await supabaseAdmin
       .from("tokens")
       .select('id')
       .eq('symbol', dbData.symbol)
+      .eq('chain', dbData.chain)
       .single();
 
     let message;
@@ -99,15 +102,15 @@ export async function addToken(
        const { error: updateError } = await supabaseAdmin
         .from("tokens")
         .update({ ...dbData, id: undefined }) // id should not be in update payload
-        .eq('symbol', dbData.symbol);
+        .eq('id', existingToken.id);
        if (updateError) throw new Error(`Database error: ${updateError.message}`);
-       message = `${symbol.toUpperCase()} updated successfully!`;
+       message = `${symbol.toUpperCase()} on ${dbData.chain} updated successfully!`;
     } else {
         const { error: insertError } = await supabaseAdmin
         .from("tokens")
         .insert(dbData);
       if (insertError) throw new Error(`Database error: ${insertError.message}`);
-       message = `${symbol.toUpperCase()} added successfully!`;
+       message = `${symbol.toUpperCase()} on ${dbData.chain} added successfully!`;
     }
 
     revalidatePath("/tokens");
@@ -221,9 +224,8 @@ export async function deleteToken(tokenId: string): Promise<DeleteTokenState> {
 
   if (token && token.logo_url && !token.logo_url.includes('picsum.photos')) {
     try {
-      const url = new URL(token.logo_url);
-      // a bit fragile, depends on the exact storage URL structure
-      const path = url.pathname.split('/logos/')[1]; 
+      // This logic is fragile, depends on the exact storage URL structure
+      const path = new URL(token.logo_url).pathname.split('/public/logos/')[1];
       if (path) {
         await supabaseAdmin.storage.from("logos").remove([path]);
       }
@@ -284,6 +286,7 @@ export async function searchToken(
       .from("tokens")
       .select("*")
       .eq("symbol", tokenSymbol.toUpperCase())
+      .limit(1) // Just get one for the card display
       .single();
 
     if (error || !data) {

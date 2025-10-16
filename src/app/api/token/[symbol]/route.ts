@@ -1,7 +1,6 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import type { Token } from "@/lib/types";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -45,6 +44,9 @@ export async function GET(
   }
 
   const tokenSymbol = params.symbol;
+  const { searchParams } = new URL(request.url);
+  const chain = searchParams.get('chain');
+
 
   if (!tokenSymbol) {
     return NextResponse.json(
@@ -54,11 +56,16 @@ export async function GET(
   }
 
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from("tokens")
-      .select("name, symbol, decimals, chains, logo_url")
-      .eq("symbol", tokenSymbol.toUpperCase())
-      .single();
+      .select("name, symbol, decimals, chain, logo_url, contract")
+      .eq("symbol", tokenSymbol.toUpperCase());
+    
+    if (chain) {
+      query = query.eq('chain', chain.toLowerCase());
+    }
+      
+    const { data, error } = await query.limit(1).maybeSingle();
 
     if (error || !data) {
        if (error && error.code !== "PGRST116") { // PGRST116 means no rows found, which is not an error here
@@ -71,7 +78,7 @@ export async function GET(
         symbol: tokenSymbol.toUpperCase(),
         name: "Unknown Token",
         decimals: 0,
-        chains: [],
+        chain: chain || 'unknown',
         logo_url: defaultLogo.imageUrl,
       });
     }

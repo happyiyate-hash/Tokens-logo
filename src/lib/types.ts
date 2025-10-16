@@ -3,7 +3,7 @@ export type Token = {
   id: string;
   name: string;
   symbol: string;
-  chains: string[];
+  chain: string;
   decimals: number;
   logo_url: string;
   contract?: string; // Optional contract address

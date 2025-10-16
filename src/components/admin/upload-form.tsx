@@ -7,7 +7,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/submit-button";
-import { Textarea } from "@/components/ui/textarea";
 
 const initialState: AddTokenState = {
   status: "idle",
@@ -39,7 +38,7 @@ export function UploadForm() {
       <CardHeader>
         <CardTitle>Add or Update Token</CardTitle>
         <CardDescription>
-          Upload a logo and provide the token's metadata. If the symbol already exists, it will be updated.
+          Provide the token's metadata. If a token with the same Symbol & Chain already exists, it will be updated.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -50,7 +49,7 @@ export function UploadForm() {
               <Input id="name" name="name" placeholder="Tether" required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="symbol">Symbol (Mandatory)</Label>
+              <Label htmlFor="symbol">Symbol</Label>
               <Input id="symbol" name="symbol" placeholder="USDT" required />
             </div>
           </div>
@@ -65,16 +64,15 @@ export function UploadForm() {
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="chains">Supported Chains (optional)</Label>
-            <Textarea
-              id="chains"
-              name="chains"
-              placeholder="ethereum, polygon, bsc"
-              className="font-code"
-            />
-             <p className="text-xs text-muted-foreground">
-              Enter a comma-separated list of chain identifiers.
-            </p>
+              <Label htmlFor="chain">Chain Identifier</Label>
+              <Input id="chain" name="chain" placeholder="ethereum" required />
+               <p className="text-xs text-muted-foreground">
+                e.g., 'ethereum', 'bsc', 'polygon'
+              </p>
+          </div>
+          <div className="space-y-2">
+              <Label htmlFor="contract">Contract Address (Optional)</Label>
+              <Input id="contract" name="contract" placeholder="0x..." />
           </div>
           <SubmitButton>Add / Update Token</SubmitButton>
         </form>

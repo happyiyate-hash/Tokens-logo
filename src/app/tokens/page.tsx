@@ -44,13 +44,13 @@ export default async function TokensListPage() {
           Tokens List
         </h1>
         <p className="text-muted-foreground">
-          A list of all the tokens stored in your CDN.
+          A list of all the tokens stored in your CDN, across all networks.
         </p>
       </div>
 
-      <div className="bg-white p-8 rounded-lg shadow-md">
+      <div className="bg-card p-8 rounded-lg shadow-md">
         {tokens.length === 0 ? (
-          <p className="text-gray-600">No tokens uploaded yet. Go to "Upload Token" to add some!</p>
+          <p className="text-muted-foreground">No tokens uploaded yet. Go to "Upload Token" to add some!</p>
         ) : (
           <div className="overflow-x-auto">
             <Table>
@@ -59,8 +59,8 @@ export default async function TokensListPage() {
                   <TableHead className="w-[80px]">Logo</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Symbol</TableHead>
+                  <TableHead>Chain</TableHead>
                   <TableHead>Decimals</TableHead>
-                  <TableHead>Chains</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -81,16 +81,12 @@ export default async function TokensListPage() {
                     <TableCell>
                       <Badge variant="outline">{token.symbol}</Badge>
                     </TableCell>
-                    <TableCell>{token.decimals}</TableCell>
-                    <TableCell>
-                       <div className="flex flex-wrap gap-1">
-                          {token.chains.map((chain) => (
-                          <Badge key={chain} variant="secondary" className="capitalize">
-                              {chain}
-                          </Badge>
-                          ))}
-                      </div>
+                     <TableCell>
+                      <Badge variant="secondary" className="capitalize">
+                          {token.chain}
+                      </Badge>
                     </TableCell>
+                    <TableCell>{token.decimals}</TableCell>
                     <TableCell className="text-right">
                       <DeleteTokenButton tokenId={token.id} />
                     </TableCell>
