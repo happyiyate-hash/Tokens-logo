@@ -20,7 +20,7 @@ export function Sidebar() {
 
   return (
      <aside className="w-64 flex-col border-r bg-sidebar text-sidebar-foreground hidden md:flex">
-      <div className="border-b p-4">
+      <div className="border-b border-sidebar-border p-4">
         <Link href="/" className="flex items-center gap-2 font-semibold">
           <Logo className="h-6 w-6" />
           <span>Token Logo CDN</span>
