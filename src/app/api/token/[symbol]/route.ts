@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { Token } from "@/lib/types";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
+import { autoFetchMissingLogo } from "@/ai/flows/auto-fetch-missing-logos";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -27,11 +28,11 @@ export async function GET(
     );
   }
 
-  // Future: Implement API Key check here
-  // const apiKey = request.headers.get('x-api-key');
-  // if (apiKey !== process.env.API_KEY) {
-  //   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  // }
+  // API Key check
+  const apiKey = request.headers.get('x-api-key');
+  if (apiKey !== process.env.API_KEY) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const tokenSymbol = params.symbol;
 
@@ -66,6 +67,33 @@ export async function GET(
     }
 
     const token: Partial<Token> = data;
+    
+    // If logo is missing, try to fetch it with AI
+    if (!token.logo_url) {
+      try {
+        const { logoUrl } = await autoFetchMissingLogo({
+          tokenSymbol: token.symbol!,
+        });
+
+        if (logoUrl) {
+          token.logo_url = logoUrl;
+           // Update the database in the background, don't block the response
+          supabase
+            .from('tokens')
+            .update({ logo_url: logoUrl })
+            .eq('symbol', token.symbol!)
+            .then(({ error: updateError }) => {
+              if (updateError) console.error("Failed to update logo_url:", updateError);
+            });
+        } else {
+          token.logo_url = defaultLogo.imageUrl;
+        }
+      } catch (e) {
+        console.error("AI logo fetch failed:", e);
+        token.logo_url = defaultLogo.imageUrl;
+      }
+    }
+
 
     return NextResponse.json(token);
 
@@ -77,3 +105,4 @@ export async function GET(
     );
   }
 }
+
