@@ -26,3 +26,9 @@ export type Network = {
   explorer_api_key_env_var: string;
   created_at: string;
 };
+
+export type TokenMetadata = {
+    name: string;
+    symbol: string;
+    decimals: number;
+};

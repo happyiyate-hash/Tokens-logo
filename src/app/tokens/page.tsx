@@ -13,7 +13,6 @@ import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { DeleteTokenButton } from "@/components/admin/delete-token-button";
 import { NetworkSelector } from "@/components/admin/network-selector";
-import { UploadForm } from "@/components/admin/upload-form";
 import {
   Accordion,
   AccordionContent,
@@ -21,6 +20,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { PlusCircle } from "lucide-react";
+import Link from "next/link";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -73,39 +73,26 @@ export default async function TokensListPage({
 
   return (
     <div className="w-full space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl">
-          Manage Tokens by Network
-        </h1>
-        <p className="text-muted-foreground">
-          Select a network to view and manage its tokens.
-        </p>
+      <div className="flex justify-between items-start">
+        <div>
+            <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl">
+            Manage Tokens
+            </h1>
+            <p className="text-muted-foreground">
+            Select a network to view and manage its registered tokens.
+            </p>
+        </div>
+         <Link href="/add-token">
+            <Button>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add New Token
+            </Button>
+        </Link>
       </div>
 
       <div className="flex items-center">
          <NetworkSelector networks={networks} selectedNetworkId={selectedNetworkId} />
       </div>
-
-      <Accordion type="single" collapsible className="w-full">
-        <AccordionItem value="item-1">
-          <AccordionTrigger className="text-lg hover:no-underline">
-            <div className="flex items-center gap-2">
-                <PlusCircle className="h-5 w-5" />
-                Add New Token to {selectedNetwork?.name || 'Selected Network'}
-            </div>
-          </AccordionTrigger>
-          <AccordionContent>
-             <div className="p-4 rounded-lg bg-card/50">
-                 {selectedNetworkId ? (
-                    <UploadForm networkId={selectedNetworkId} />
-                 ) : (
-                    <p className="text-muted-foreground">Please select a network to add a token.</p>
-                 )}
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
-
 
       <div className="bg-card p-8 rounded-lg shadow-md">
         <h3 className="text-xl font-medium mb-4">
@@ -113,7 +100,7 @@ export default async function TokensListPage({
         </h3>
         {tokens.length === 0 ? (
           <p className="text-muted-foreground">
-            No tokens found for this network.
+            No tokens found for this network. Use the 'Add New Token' button to add one.
           </p>
         ) : (
           <div className="overflow-x-auto">

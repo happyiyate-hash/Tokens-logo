@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useActionState } from "react";
@@ -23,7 +24,7 @@ export function TokenSearch() {
         <CardHeader>
           <CardTitle>Search Token</CardTitle>
           <CardDescription>
-            Enter a token symbol to fetch its metadata and logo.
+            Enter a token symbol to fetch its metadata and logo. The first match will be returned.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -33,7 +34,7 @@ export function TokenSearch() {
               <Input
                 id="tokenSymbol"
                 name="tokenSymbol"
-                placeholder="USDT"
+                placeholder="e.g., USDT"
                 className="font-code"
                 required
               />

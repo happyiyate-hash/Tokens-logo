@@ -4,7 +4,7 @@
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
-import type { ApiKey, Token, Network } from "@/lib/types";
+import type { ApiKey, Token, Network, TokenMetadata } from "@/lib/types";
 import { PlaceHolderImages } from "./placeholder-images";
 import { randomBytes } from 'crypto';
 import { autoFetchMissingLogo } from "@/ai/flows/auto-fetch-missing-logos";
@@ -123,6 +123,7 @@ export async function addToken(
     }
 
     revalidatePath("/tokens");
+    revalidatePath("/add-token");
     return { status: "success", message };
 
   } catch (e: any) {
@@ -279,7 +280,7 @@ export async function searchToken(
     const { data, error } = await supabaseAdmin
       .from("tokens")
       .select("*, networks(*)")
-      .eq("symbol", tokenSymbol.toUpperCase())
+      .ilike("symbol", tokenSymbol)
       .limit(1)
       .single();
 
@@ -287,7 +288,6 @@ export async function searchToken(
       return { status: "error", message: `Token "${tokenSymbol}" not found.` };
     }
     
-    // The type from Supabase might be complex, so we map it to our simple Token type
     const resultToken: Token = {
       id: data.id,
       network_id: data.network_id,
@@ -370,4 +370,87 @@ export async function deleteNetwork(networkId: string): Promise<{ status: "succe
   revalidatePath("/networks");
   revalidatePath("/tokens");
   return { status: "success", message: "Network deleted." };
+}
+
+// --- Token Metadata Fetching ---
+
+export type FetchMetadataState = {
+  status: "idle" | "success" | "error";
+  message?: string;
+  metadata?: TokenMetadata;
+  networkId?: string;
+  contractAddress?: string;
+}
+
+const fetchMetadataSchema = z.object({
+  contractAddress: z.string().min(1, "Contract address is required."),
+  networkId: z.string().min(1, "Please select a network."),
+});
+
+export async function fetchTokenMetadata(prevState: FetchMetadataState, formData: FormData): Promise<FetchMetadataState> {
+  if (!supabaseAdmin) {
+    return { status: "error", message: "Supabase connection not configured." };
+  }
+
+  const validated = fetchMetadataSchema.safeParse(Object.fromEntries(formData.entries()));
+
+  if (!validated.success) {
+    return { status: "error", message: "Both contract address and network are required." };
+  }
+
+  const { contractAddress, networkId } = validated.data;
+
+  try {
+    // 1. Get network details from Supabase
+    const { data: network, error: networkError } = await supabaseAdmin
+      .from("networks")
+      .select("explorer_api_base_url, explorer_api_key_env_var")
+      .eq("id", networkId)
+      .single();
+    
+    if (networkError || !network) {
+      throw new Error("Could not find selected network information.");
+    }
+    
+    const apiKey = process.env[network.explorer_api_key_env_var];
+    if (!apiKey) {
+      throw new Error(`API key (${network.explorer_api_key_env_var}) is not set in environment variables.`);
+    }
+
+    // 2. Fetch from explorer API
+    const params = new URLSearchParams({
+      module: "token",
+      action: "tokeninfo",
+      contractaddress: contractAddress,
+      apikey: apiKey,
+    });
+    
+    const response = await fetch(`${network.explorer_api_base_url}?${params.toString()}`);
+    if (!response.ok) {
+        throw new Error(`Explorer API request failed with status ${response.status}.`);
+    }
+
+    const result = await response.json();
+    
+    if (result.status === "0") {
+        throw new Error(`Explorer API Error: ${result.message} - ${result.result}`);
+    }
+    
+    if (!result.result || result.result.length === 0) {
+        throw new Error("No token info found for this contract address on the selected network.");
+    }
+    
+    const tokenInfo = result.result[0];
+
+    const metadata: TokenMetadata = {
+        name: tokenInfo.tokenName,
+        symbol: tokenInfo.symbol,
+        decimals: parseInt(tokenInfo.decimals, 10),
+    };
+
+    return { status: "success", metadata, networkId, contractAddress };
+
+  } catch (e: any) {
+    return { status: "error", message: e.message, networkId, contractAddress };
+  }
 }

@@ -30,7 +30,7 @@ export default function RootLayout({
     <html lang="en" className="dark" suppressHydrationWarning>
       <body
         className={cn(
-          "min-h-screen font-body antialiased",
+          "min-h-screen bg-background font-body antialiased",
           fontInter.variable,
           fontSourceCodePro.variable
         )}
@@ -39,7 +39,7 @@ export default function RootLayout({
             <Sidebar />
             <div className="flex-1 flex flex-col overflow-hidden">
                 <Header />
-                <main className="flex-1 overflow-x-hidden overflow-y-auto p-6 bg-background">
+                <main className="flex-1 overflow-x-hidden overflow-y-auto p-6">
                     {children}
                 </main>
             </div>
