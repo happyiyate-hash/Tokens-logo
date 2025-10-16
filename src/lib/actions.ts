@@ -291,7 +291,7 @@ const addNetworkSchema = z.object({
   name: z.string().min(1, "Network name is required."),
   chain_id: z.coerce.number().int("Chain ID must be an integer."),
   explorer_api_base_url: z.string().url("Must be a valid URL."),
-  explorer_api_key_env_var: z.string().optional(), // Now optional
+  explorer_api_key_env_var: z.string().optional(),
 });
 
 export async function addNetwork(prevState: AddNetworkState, formData: FormData): Promise<AddNetworkState> {
@@ -380,15 +380,13 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
     }
     
     const apiUrl = network.explorer_api_base_url;
-    const apiChainId = network.chain_id;
 
     // 2. Fetch from explorer API
     const endpointTemplate = chainsConfig.endpoints.token.metadata;
     const endpoint = endpointTemplate.replace('{contract}', contractAddress);
 
     const params = new URLSearchParams({
-      [chainsConfig.chainParam]: apiChainId.toString(),
-      ...(apiKey && { [chainsConfig.apiKeyParam]: apiKey }),
+        ...(apiKey && { [chainsConfig.apiKeyParam]: apiKey }),
     });
     
     const response = await fetch(`${apiUrl}${endpoint}&${params.toString()}`);

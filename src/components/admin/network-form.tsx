@@ -46,7 +46,7 @@ export function NetworkForm() {
         <CardHeader>
             <CardTitle>Add New Network</CardTitle>
             <CardDescription>
-                Select a pre-configured network from the Etherscan-supported list. The RPC URL will be pre-filled. You may need to provide an API key environment variable name if the network requires one.
+                Select a pre-configured network from the Etherscan-supported list. The API URL will be pre-filled. You may need to provide an API key environment variable name if the network requires one.
             </CardDescription>
         </CardHeader>
         <CardContent>
@@ -69,7 +69,7 @@ export function NetworkForm() {
                 
                 <input type="hidden" name="name" value={selectedChain?.name || ''} />
                 <input type="hidden" name="chain_id" value={selectedChain?.chainId || ''} />
-                <input type="hidden" name="explorer_api_base_url" value={chainsConfig.baseUrl || ''} />
+                <input type="hidden" name="explorer_api_base_url" value={selectedChain?.api || ''} />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -87,7 +87,7 @@ export function NetworkForm() {
                       id="explorer_api_base_url_display" 
                       placeholder="https://api.etherscan.io/api" 
                       required 
-                      value={chainsConfig.baseUrl}
+                      value={selectedChain?.api || ''}
                       readOnly
                     />
                 </div>
