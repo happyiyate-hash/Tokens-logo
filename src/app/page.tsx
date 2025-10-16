@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 
 export default function DashboardPage() {
   return (
-    <div className="bg-white dark:bg-card p-8 rounded-lg shadow-md">
+    <div className="bg-card p-8 rounded-lg shadow-md">
       <h1 className="text-3xl font-bold mb-6 text-card-foreground">
         Welcome to Your DCDN Dashboard!
       </h1>
@@ -11,7 +11,7 @@ export default function DashboardPage() {
         Decentralized Content Delivery Network.
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
-        <div className="bg-primary/10 dark:bg-primary/20 p-6 rounded-lg shadow-sm">
+        <div className="bg-primary/10 p-6 rounded-lg shadow-sm">
           <h2 className="text-xl font-semibold text-primary mb-2">
             Upload Logos
           </h2>
@@ -19,25 +19,25 @@ export default function DashboardPage() {
             Add new token images with their symbols and decimal values.
           </p>
           <p className="mt-3 text-sm">
-            Go to <Badge variant="secondary">Upload Token</Badge>
+            Go to <Badge variant="secondary">Manage Tokens</Badge>
           </p>
         </div>
-        <div className="bg-green-100 dark:bg-green-900/30 p-6 rounded-lg shadow-sm">
-          <h2 className="text-xl font-semibold text-green-800 dark:text-green-300 mb-2">
+        <div className="bg-green-100/10 p-6 rounded-lg shadow-sm">
+          <h2 className="text-xl font-semibold text-green-300 mb-2">
             Manage Tokens
           </h2>
-          <p className="text-green-700 dark:text-green-400">
+          <p className="text-green-400">
             View, edit, and remove existing token logos.
           </p>
           <p className="mt-3 text-sm">
-            Go to <Badge variant="secondary">Tokens List</Badge>
+            Go to <Badge variant="secondary">Manage Tokens</Badge>
           </p>
         </div>
-        <div className="bg-purple-100 dark:bg-purple-900/30 p-6 rounded-lg shadow-sm">
-          <h2 className="text-xl font-semibold text-purple-800 dark:text-purple-300 mb-2">
+        <div className="bg-purple-100/10 p-6 rounded-lg shadow-sm">
+          <h2 className="text-xl font-semibold text-purple-300 mb-2">
             API Keys
           </h2>
-          <p className="text-purple-700 dark:text-purple-400">
+          <p className="text-purple-400">
             Generate and manage API keys for wallet integration.
           </p>
           <p className="mt-3 text-sm">
@@ -46,7 +46,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="mt-10 p-6 bg-card/50 dark:bg-background rounded-lg border-l-4 border-border">
+      <div className="mt-10 p-6 bg-background rounded-lg border-l-4 border-border">
         <h3 className="text-xl font-semibold text-card-foreground mb-3">
           How it Works:
         </h3>
