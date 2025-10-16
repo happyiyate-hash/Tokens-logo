@@ -28,11 +28,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Source+Code+Pro&display=swap" rel="stylesheet" />
-      </head>
       <body
         className={cn(
           "min-h-screen bg-background font-body antialiased",
@@ -40,12 +35,14 @@ export default function RootLayout({
           fontSourceCodePro.variable
         )}
       >
-        <div className="relative flex min-h-screen flex-col">
-          <Header />
-          <div className="flex flex-1">
+        <div className="flex h-screen bg-gray-100 dark:bg-background">
             <Sidebar />
-            <main className="flex-1 p-6">{children}</main>
-          </div>
+            <div className="flex-1 flex flex-col overflow-hidden">
+                <Header />
+                <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-200 dark:bg-card/20 p-6">
+                    {children}
+                </main>
+            </div>
         </div>
         <Toaster />
       </body>
