@@ -23,7 +23,7 @@ export type Network = {
   name: string;
   chain_id: number;
   explorer_api_base_url: string;
-  explorer_api_key_env_var: string;
+  explorer_api_key_env_var: string | null;
   created_at: string;
 };
 

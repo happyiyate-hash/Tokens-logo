@@ -20,6 +20,7 @@ export function NetworkForm() {
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
   const [selectedChain, setSelectedChain] = useState<any>(null);
+  const [explorerUrl, setExplorerUrl] = useState("");
 
   useEffect(() => {
     if (state.status === "success") {
@@ -29,6 +30,7 @@ export function NetworkForm() {
       });
       formRef.current?.reset();
       setSelectedChain(null);
+      setExplorerUrl("");
     } else if (state.status === "error") {
       toast({
         variant: "destructive",
@@ -41,6 +43,12 @@ export function NetworkForm() {
   const handleChainSelect = (chainId: string) => {
     const chain = chains.find(c => c.chainId.toString() === chainId);
     setSelectedChain(chain);
+    // Use the RPC url as the explorer URL by default if it exists
+    if (chain && (chain as any).rpc) {
+      setExplorerUrl((chain as any).rpc);
+    } else {
+      setExplorerUrl("");
+    }
   };
 
   return (
@@ -48,7 +56,7 @@ export function NetworkForm() {
         <CardHeader>
             <CardTitle>Add New Network</CardTitle>
             <CardDescription>
-                Select a pre-configured network or add one manually. You will still need to provide the block explorer API information.
+                Select a pre-configured network. The RPC URL will be pre-filled. You may need to provide an API key environment variable name if the network requires one.
             </CardDescription>
         </CardHeader>
         <CardContent>
@@ -83,13 +91,20 @@ export function NetworkForm() {
                     </div>
                 </div>
                  <div className="space-y-2">
-                    <Label htmlFor="explorer_api_base_url">Explorer API Base URL</Label>
-                    <Input id="explorer_api_base_url" name="explorer_api_base_url" placeholder="https://api.etherscan.io/api" required />
+                    <Label htmlFor="explorer_api_base_url">RPC / API Base URL</Label>
+                    <Input 
+                      id="explorer_api_base_url" 
+                      name="explorer_api_base_url" 
+                      placeholder="https://mainnet.infura.io/v3/..." 
+                      required 
+                      value={explorerUrl}
+                      onChange={(e) => setExplorerUrl(e.target.value)}
+                    />
                 </div>
                  <div className="space-y-2">
                     <Label htmlFor="explorer_api_key_env_var">API Key Environment Variable Name</Label>
-                    <Input id="explorer_api_key_env_var" name="explorer_api_key_env_var" placeholder="ETHERSCAN_API_KEY" required />
-                     <p className="text-xs text-muted-foreground">The name of the variable in your .env file holding the API key for this network's explorer.</p>
+                    <Input id="explorer_api_key_env_var" name="explorer_api_key_env_var" placeholder="ANKR_API_KEY (or leave blank if none)" />
+                     <p className="text-xs text-muted-foreground">The name of the variable in your .env file holding the API key. Not all RPCs require a key.</p>
                 </div>
                 <SubmitButton disabled={!selectedChain}>Add Network</SubmitButton>
             </form>

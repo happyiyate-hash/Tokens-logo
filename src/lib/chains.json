@@ -3,177 +3,133 @@
   {
     "name": "Ethereum Mainnet",
     "chainId": 1,
-    "nativeCurrency": {
-      "symbol": "ETH",
-      "decimals": 18
-    }
+    "rpc": "https://rpc.ankr.com/eth",
+    "nativeCurrency": { "symbol": "ETH", "decimals": 18 }
   },
   {
     "name": "BNB Smart Chain",
     "chainId": 56,
-    "nativeCurrency": {
-      "symbol": "BNB",
-      "decimals": 18
-    }
+    "rpc": "https://rpc.ankr.com/bsc",
+    "nativeCurrency": { "symbol": "BNB", "decimals": 18 }
   },
   {
     "name": "Polygon (Matic)",
     "chainId": 137,
-    "nativeCurrency": {
-      "symbol": "MATIC",
-      "decimals": 18
-    }
+    "rpc": "https://rpc.ankr.com/polygon",
+    "nativeCurrency": { "symbol": "MATIC", "decimals": 18 }
   },
   {
     "name": "Avalanche C-Chain",
     "chainId": 43114,
-    "nativeCurrency": {
-      "symbol": "AVAX",
-      "decimals": 18
-    }
+    "rpc": "https://rpc.ankr.com/avalanche",
+    "nativeCurrency": { "symbol": "AVAX", "decimals": 18 }
   },
   {
     "name": "Fantom Opera",
     "chainId": 250,
-    "nativeCurrency": {
-      "symbol": "FTM",
-      "decimals": 18
-    }
+    "rpc": "https://rpc.ankr.com/fantom",
+    "nativeCurrency": { "symbol": "FTM", "decimals": 18 }
   },
   {
     "name": "Arbitrum One",
     "chainId": 42161,
-    "nativeCurrency": {
-      "symbol": "ETH",
-      "decimals": 18
-    }
+    "rpc": "https://rpc.ankr.com/arbitrum",
+    "nativeCurrency": { "symbol": "ETH", "decimals": 18 }
   },
   {
     "name": "Optimism",
     "chainId": 10,
-    "nativeCurrency": {
-      "symbol": "ETH",
-      "decimals": 18
-    }
+    "rpc": "https://rpc.ankr.com/optimism",
+    "nativeCurrency": { "symbol": "ETH", "decimals": 18 }
   },
   {
     "name": "Base",
     "chainId": 8453,
-    "nativeCurrency": {
-      "symbol": "ETH",
-      "decimals": 18
-    }
+    "rpc": "https://rpc.ankr.com/base",
+    "nativeCurrency": { "symbol": "ETH", "decimals": 18 }
   },
   {
     "name": "Celo",
     "chainId": 42220,
-    "nativeCurrency": {
-      "symbol": "CELO",
-      "decimals": 18
-    }
+    "rpc": "https://rpc.ankr.com/celo",
+    "nativeCurrency": { "symbol": "CELO", "decimals": 18 }
   },
   {
     "name": "Gnosis Chain",
     "chainId": 100,
-    "nativeCurrency": {
-      "symbol": "xDAI",
-      "decimals": 18
-    }
+    "rpc": "https://rpc.ankr.com/gnosis",
+    "nativeCurrency": { "symbol": "xDAI", "decimals": 18 }
   },
   {
     "name": "Moonbeam",
     "chainId": 1284,
-    "nativeCurrency": {
-      "symbol": "GLMR",
-      "decimals": 18
-    }
+    "rpc": "https://rpc.ankr.com/moonbeam",
+    "nativeCurrency": { "symbol": "GLMR", "decimals": 18 }
   },
   {
     "name": "Cronos",
     "chainId": 25,
-    "nativeCurrency": {
-      "symbol": "CRO",
-      "decimals": 18
-    }
+    "rpc": "https://rpc.ankr.com/cronos",
+    "nativeCurrency": { "symbol": "CRO", "decimals": 18 }
   },
   {
     "name": "Aurora",
     "chainId": 1313161554,
-    "nativeCurrency": {
-      "symbol": "ETH",
-      "decimals": 18
-    }
+    "rpc": "https://rpc.ankr.com/aurora",
+    "nativeCurrency": { "symbol": "ETH", "decimals": 18 }
   },
   {
     "name": "Klaytn",
     "chainId": 8217,
-    "nativeCurrency": {
-      "symbol": "KLAY",
-      "decimals": 18
-    }
+    "rpc": "https://rpc.ankr.com/klaytn",
+    "nativeCurrency": { "symbol": "KLAY", "decimals": 18 }
   },
   {
     "name": "Harmony",
     "chainId": 1666600000,
-    "nativeCurrency": {
-      "symbol": "ONE",
-      "decimals": 18
-    }
+    "rpc": "https://rpc.ankr.com/harmony",
+    "nativeCurrency": { "symbol": "ONE", "decimals": 18 }
   },
   {
     "name": "Metis Andromeda",
     "chainId": 1088,
-    "nativeCurrency": {
-      "symbol": "METIS",
-      "decimals": 18
-    }
+    "rpc": "https://andromeda.metis.io/?owner=1088",
+    "nativeCurrency": { "symbol": "METIS", "decimals": 18 }
   },
   {
     "name": "KCC (KuCoin Community Chain)",
     "chainId": 321,
-    "nativeCurrency": {
-      "symbol": "KCS",
-      "decimals": 18
-    }
+    "rpc": "https://rpc-mainnet.kcc.network",
+    "nativeCurrency": { "symbol": "KCS", "decimals": 18 }
   },
   {
     "name": "Boba Network",
     "chainId": 288,
-    "nativeCurrency": {
-      "symbol": "ETH",
-      "decimals": 18
-    }
+    "rpc": "https://mainnet.boba.network",
+    "nativeCurrency": { "symbol": "ETH", "decimals": 18 }
   },
   {
     "name": "Telos EVM",
     "chainId": 40,
-    "nativeCurrency": {
-      "symbol": "TLOS",
-      "decimals": 18
-    }
+    "rpc": "https://mainnet.telos.net/evm",
+    "nativeCurrency": { "symbol": "TLOS", "decimals": 18 }
   },
   {
     "name": "Fuse",
     "chainId": 122,
-    "nativeCurrency": {
-      "symbol": "FUSE",
-      "decimals": 18
-    }
+    "rpc": "https://rpc.fuse.io",
+    "nativeCurrency": { "symbol": "FUSE", "decimals": 18 }
   },
   {
     "name": "Elastos Smart Chain",
     "chainId": 20,
-    "nativeCurrency": {
-      "symbol": "ELA",
-      "decimals": 18
-    }
+    "rpc": "https://api.elastos.io/eth",
+    "nativeCurrency": { "symbol": "ELA", "decimals": 18 }
   },
   {
     "name": "Palm",
     "chainId": 11297108109,
-    "nativeCurrency": {
-      "symbol": "PALM",
-      "decimals": 18
-    }
+    "rpc": "https://palm-mainnet.public.blastapi.io",
+    "nativeCurrency": { "symbol": "PALM", "decimals": 18 }
   }
 ]
