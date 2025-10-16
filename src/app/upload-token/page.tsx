@@ -1,6 +1,4 @@
 
-import { UploadForm } from "@/components/admin/upload-form";
-
 export default function UploadTokenPage() {
 
   return (
