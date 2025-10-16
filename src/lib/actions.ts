@@ -10,7 +10,7 @@ import { randomBytes } from 'crypto';
 import { autoFetchMissingLogo } from "@/ai/flows/auto-fetch-missing-logos";
 import chainsConfig from "@/lib/chains.json";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 
@@ -413,7 +413,7 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
     }
     
     const apiKey = network.explorer_api_key_env_var ? process.env[network.explorer_api_key_env_var] : null;
-    if (!apiKey) {
+    if (network.explorer_api_key_env_var && !apiKey) {
       console.warn(`API key environment variable '${network.explorer_api_key_env_var}' is not set. Proceeding without an API key.`);
     }
     
