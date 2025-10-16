@@ -13,7 +13,6 @@ import chainsConfig from "@/lib/chains.json";
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-
 // Note: Using the service_role key should only be done in server-side environments.
 const supabaseAdmin =
   supabaseUrl && supabaseServiceKey
@@ -454,3 +453,5 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
     return { status: "error", message: e.message, networkId, contractAddress };
   }
 }
+
+    

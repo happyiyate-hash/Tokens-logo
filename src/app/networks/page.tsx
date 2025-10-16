@@ -11,6 +11,9 @@ import {
 } from "@/components/ui/table";
 import { NetworkForm } from "@/components/admin/network-form";
 import { DeleteNetworkButton } from "@/components/admin/delete-network-button";
+import Image from "next/image";
+import { Button } from "@/components/ui/button";
+import { Upload } from "lucide-react";
 
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -54,8 +57,10 @@ export default async function NetworkManagementPage() {
                         <Table>
                         <TableHeader>
                             <TableRow>
+                            <TableHead className="w-[60px]">Logo</TableHead>
                             <TableHead>Name</TableHead>
                             <TableHead>Chain ID</TableHead>
+                            <TableHead>Network ID</TableHead>
                             <TableHead>Explorer API URL</TableHead>
                              <TableHead>API Key ENV Var</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
@@ -64,8 +69,14 @@ export default async function NetworkManagementPage() {
                         <TableBody>
                             {networks.map((network) => (
                             <TableRow key={network.id}>
+                                 <TableCell>
+                                    <Button variant="ghost" size="icon" title="Upload logo">
+                                        <Upload className="h-4 w-4" />
+                                    </Button>
+                                </TableCell>
                                 <TableCell className="font-medium">{network.name}</TableCell>
                                 <TableCell>{network.chain_id}</TableCell>
+                                <TableCell className="font-code text-xs">{network.id}</TableCell>
                                 <TableCell className="font-code text-xs">{network.explorer_api_base_url}</TableCell>
                                 <TableCell className="font-code text-xs">{network.explorer_api_key_env_var}</TableCell>
                                 <TableCell className="text-right">
@@ -81,3 +92,5 @@ export default async function NetworkManagementPage() {
         </div>
     );
 }
+
+    

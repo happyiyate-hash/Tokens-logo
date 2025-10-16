@@ -11,7 +11,7 @@ const supabase =
 
 async function getNetworks(): Promise<Network[]> {
   if (!supabase) {
-    console.error("Supabase client not initialized");
+    console.error("Supabase client not initialized on page");
     return [];
   }
   const { data, error } = await supabase.from("networks").select("*").order('name', { ascending: true });
@@ -39,3 +39,5 @@ export default async function AddTokenPage() {
         </div>
     )
 }
+
+    
