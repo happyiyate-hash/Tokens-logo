@@ -7,15 +7,27 @@ import { autoFetchMissingLogo } from "@/ai/flows/auto-fetch-missing-logos";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const defaultLogo = PlaceHolderImages.find(
   (img) => img.id === "default-token-logo"
 )!;
 
-// Note: Using the anon key is safe for client-side/public API access
-// as long as you have Row Level Security (RLS) enabled on your tables.
 const supabase =
   supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+
+const getApiKey = async (): Promise<string | null> => {
+    if (!supabaseUrl || !supabaseServiceKey) return null;
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    const { data, error } = await supabaseAdmin
+      .from('settings')
+      .select('value')
+      .eq('key', 'api_key')
+      .single();
+    if (error || !data) return null;
+    return data.value;
+}
+
 
 export async function GET(
   request: Request,
@@ -27,12 +39,13 @@ export async function GET(
       { status: 500 }
     );
   }
+  
+  const apiKey = await getApiKey();
+  const requestApiKey = request.headers.get('x-api-key');
 
-  // TODO: Replace with dynamic API key check from database
-  // const apiKey = request.headers.get('x-api-key');
-  // if (apiKey !== process.env.API_KEY) {
-  //   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  // }
+  if (!apiKey || requestApiKey !== apiKey) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const tokenSymbol = params.symbol;
 

@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import type { Token } from "@/lib/types";
 import { autoFetchMissingLogo } from "@/ai/flows/auto-fetch-missing-logos";
 import { PlaceHolderImages } from "./placeholder-images";
+import { randomBytes } from 'crypto';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -18,112 +19,9 @@ const supabaseAdmin =
     ? createClient(supabaseUrl, supabaseServiceKey)
     : null;
 
-// --- MOCK DATA until a real DB is connected ---
-const MOCK_TOKENS: Token[] = [
-  {
-    id: "1",
-    name: "Tether",
-    symbol: "USDT",
-    contract: "0xdac17f958d2ee523a2206206994597c13d831ec7",
-    chains: ["ethereum", "polygon"],
-    decimals: 6,
-    logo_url: "https://assets.coingecko.com/coins/images/325/large/Tether.png",
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "2",
-    name: "USD Coin",
-    symbol: "USDC",
-    contract: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
-    chains: ["ethereum", "avalanche"],
-    decimals: 6,
-    logo_url: "https://assets.coingecko.com/coins/images/6319/large/usdc.png",
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "3",
-    name: "Wrapped liquid staked Ether 2.0",
-    symbol: "wstETH",
-    contract: "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
-    chains: ["ethereum"],
-    decimals: 18,
-    logo_url: "", // No logo to test fallback and AI fetch
-    updated_at: new Date().toISOString(),
-  },
-];
-// --- END MOCK DATA ---
-
 const defaultLogo = PlaceHolderImages.find(
   (img) => img.id === "default-token-logo"
 )!;
-
-export type SearchState = {
-  status: "idle" | "loading" | "success" | "error";
-  message?: string;
-  token?: Token;
-};
-
-export async function searchToken(
-  prevState: SearchState,
-  formData: FormData
-): Promise<SearchState> {
-  const schema = z.object({
-    tokenSymbol: z.string().min(1, "Token symbol is required."),
-  });
-
-  const validated = schema.safeParse({
-    tokenSymbol: formData.get("tokenSymbol"),
-  });
-
-  if (!validated.success) {
-    return { status: "error", message: validated.error.errors[0].message };
-  }
-
-  const { tokenSymbol } = validated.data;
-
-  let token: Token | undefined;
-
-  if (supabaseAdmin) {
-    const { data } = await supabaseAdmin
-      .from('tokens')
-      .select('*')
-      .eq('symbol', tokenSymbol.toUpperCase())
-      .single();
-    token = data ?? undefined;
-  } else {
-    console.warn("Supabase not configured. Using mock data.");
-    token = MOCK_TOKENS.find((t) => t.symbol.toLowerCase() === tokenSymbol.toLowerCase());
-  }
-
-
-  if (!token) {
-    // This is where you would fetch from the blockchain if not in your DB
-    // For this demo, we'll just say it's not found.
-    return { status: "error", message: "Token not found in our database." };
-  }
-
-  if (!token.logo_url) {
-    try {
-      const { logoUrl } = await autoFetchMissingLogo({
-        tokenSymbol: token.symbol,
-      });
-
-      if (logoUrl) {
-        token.logo_url = logoUrl;
-        if (supabaseAdmin) {
-          await supabaseAdmin.from('tokens').update({ logo_url: logoUrl }).eq('id', token.id);
-        }
-      } else {
-        token.logo_url = defaultLogo.imageUrl;
-      }
-    } catch (e) {
-      console.error("AI logo fetch failed:", e);
-      token.logo_url = defaultLogo.imageUrl;
-    }
-  }
-
-  return { status: "success", token };
-}
 
 export type AddTokenState = {
   status: "idle" | "success" | "error";
@@ -143,11 +41,7 @@ export async function addToken(
   formData: FormData
 ): Promise<AddTokenState> {
     if (!supabaseAdmin) {
-    console.warn("Supabase not configured. Simulating success for demo purposes.");
-    revalidatePath("/");
-    revalidatePath("/admin");
-    const symbol = formData.get("symbol") as string;
-    return { status: "success", message: `${symbol} added successfully! (Simulated)` };
+    return { status: "error", message: "Supabase connection not configured." };
   }
 
   const validated = addTokenSchema.safeParse(Object.fromEntries(formData.entries()));
@@ -186,40 +80,71 @@ export async function addToken(
       throw new Error("Could not get public URL for the uploaded logo.");
     }
     
-    // Insert metadata into Supabase DB
-    const { error: insertError } = await supabaseAdmin.from("tokens").insert({
+    const dbData = {
       ...tokenData,
       symbol: symbol.toUpperCase(),
       logo_url: publicUrlData.publicUrl,
       chains: chainsArray,
-    });
+      updated_at: new Date().toISOString(),
+    };
+    
+    // Upsert metadata into Supabase DB
+    const { error: upsertError } = await supabaseAdmin.from("tokens").upsert(
+      dbData,
+      { onConflict: 'symbol' }
+    );
 
-    if (insertError) {
-      // Handle potential duplicate symbol error (code 23505 for unique constraint violation)
-       if (insertError.code === '23505') {
-         // Instead of inserting, update the existing token
-         const { error: updateError } = await supabaseAdmin.from('tokens')
-           .update({
-              ...tokenData,
-              logo_url: publicUrlData.publicUrl,
-              chains: chainsArray,
-              updated_at: new Date().toISOString(),
-           })
-           .eq('symbol', symbol.toUpperCase());
-        
-        if (updateError) {
-          throw new Error(`Database update error: ${updateError.message}`);
-        }
-      } else {
-        throw new Error(`Database error: ${insertError.message}`);
-      }
+    if (upsertError) {
+      throw new Error(`Database error: ${upsertError.message}`);
     }
     
     revalidatePath("/");
-    revalidatePath("/admin");
     return { status: "success", message: `${symbol.toUpperCase()} added or updated successfully!` };
 
   } catch (e: any) {
     return { status: "error", message: e.message };
   }
+}
+
+// --- API Key Management ---
+
+export async function getApiKey(): Promise<string | null> {
+  if (!supabaseAdmin) return null;
+  const { data, error } = await supabaseAdmin
+    .from('settings')
+    .select('value')
+    .eq('key', 'api_key')
+    .single();
+
+  if (error || !data) {
+    return null;
+  }
+  return data.value;
+}
+
+export type GenerateApiKeyState = {
+  status: "idle" | "success" | "error";
+  apiKey?: string | null;
+  message?: string;
+};
+
+export async function generateNewApiKey(
+  prevState: GenerateApiKeyState
+): Promise<GenerateApiKeyState> {
+  if (!supabaseAdmin) {
+    return { status: "error", message: "Supabase connection not configured." };
+  }
+
+  const newApiKey = randomBytes(32).toString('hex');
+
+  const { error } = await supabaseAdmin
+    .from('settings')
+    .upsert({ key: 'api_key', value: newApiKey }, { onConflict: 'key' });
+
+  if (error) {
+    return { status: "error", message: `Failed to generate key: ${error.message}` };
+  }
+  
+  revalidatePath('/settings');
+  return { status: "success", apiKey: newApiKey };
 }

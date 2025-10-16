@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
+import { Settings } from "lucide-react";
 
 export function Header() {
   return (
@@ -16,7 +17,12 @@ export function Header() {
           </Link>
         </div>
         <div className="flex flex-1 items-center justify-end space-x-2">
-          {/* Add any additional header items here, like a theme toggle or user profile */}
+          <Button variant="ghost" size="icon" asChild>
+            <Link href="/settings">
+              <Settings className="h-5 w-5" />
+              <span className="sr-only">Settings</span>
+            </Link>
+          </Button>
         </div>
       </div>
     </header>

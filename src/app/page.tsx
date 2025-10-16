@@ -54,7 +54,7 @@ export default function AdminPage() {
           </div>
           <div>
             <h3 className="font-semibold mb-1">Example Success Response</h3>
-            <pre className="w-full break-all rounded-lg border bg-secondary/50 p-3 font-code textxs">
+            <pre className="w-full break-all rounded-lg border bg-secondary/50 p-3 font-code text-xs">
               <code>
                 {JSON.stringify(
                   {
