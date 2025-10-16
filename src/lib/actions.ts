@@ -7,7 +7,6 @@ import { revalidatePath } from "next/cache";
 import type { ApiKey, Token, Network, TokenMetadata } from "@/lib/types";
 import { PlaceHolderImages } from "./placeholder-images";
 import { randomBytes } from 'crypto';
-import { autoFetchMissingLogo } from "@/ai/flows/auto-fetch-missing-logos";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -81,13 +80,9 @@ export async function addToken(
         }
         logoUrl = publicUrlData.publicUrl;
     } else {
-        // No logo uploaded, try to fetch it with AI
-        const aiResult = await autoFetchMissingLogo({ tokenSymbol: symbol });
-        if (aiResult.logoUrl) {
-            logoUrl = aiResult.logoUrl;
-        } else {
-            logoUrl = defaultLogo.imageUrl;
-        }
+        // This is where you would call the AI logo fetching service
+        // For now, we'll just use the default placeholder
+        logoUrl = defaultLogo.imageUrl;
     }
     
     const dbData = {

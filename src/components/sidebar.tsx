@@ -20,8 +20,8 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-     <aside className="w-64 flex-col border-r bg-sidebar text-sidebar-foreground hidden md:flex">
-      <div className="border-b border-sidebar-border p-4">
+     <aside className="w-64 flex-col border-r bg-background hidden md:flex">
+      <div className="border-b p-4">
         <Link href="/" className="flex items-center gap-2 font-semibold">
           <Logo className="h-6 w-6" />
           <span>Token Logo CDN</span>
@@ -36,8 +36,8 @@ export function Sidebar() {
                 className={cn(
                   "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                   pathname === item.href
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    ? "bg-accent text-accent-foreground"
+                    : "hover:bg-accent/80"
                 )}
               >
                 <item.icon className="h-4 w-4" />

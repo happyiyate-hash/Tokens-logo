@@ -11,14 +11,9 @@ import {
 } from "@/components/ui/table";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { DeleteTokenButton } from "@/components/admin/delete-token-button";
 import { NetworkSelector } from "@/components/admin/network-selector";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { PlusCircle } from "lucide-react";
 import Link from "next/link";
 
