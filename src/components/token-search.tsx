@@ -23,17 +23,17 @@ export function TokenSearch() {
         <CardHeader>
           <CardTitle>Search Token</CardTitle>
           <CardDescription>
-            Enter a contract address to fetch its metadata and logo.
+            Enter a token symbol to fetch its metadata and logo.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form action={formAction} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="contractAddress">Contract Address</Label>
+              <Label htmlFor="tokenSymbol">Token Symbol</Label>
               <Input
-                id="contractAddress"
-                name="contractAddress"
-                placeholder="0x..."
+                id="tokenSymbol"
+                name="tokenSymbol"
+                placeholder="USDT"
                 className="font-code"
                 required
               />

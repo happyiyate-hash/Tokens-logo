@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/submit-button";
+import { Textarea } from "@/components/ui/textarea";
 
 const initialState: AddTokenState = {
   status: "idle",
@@ -37,9 +38,9 @@ export function UploadForm() {
   return (
     <Card className="w-full max-w-lg">
       <CardHeader>
-        <CardTitle>Add New Token</CardTitle>
+        <CardTitle>Add or Update Token</CardTitle>
         <CardDescription>
-          Upload a logo and provide the token's metadata.
+          Upload a logo and provide the token's metadata. If the symbol already exists, it will be updated.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -50,29 +51,33 @@ export function UploadForm() {
               <Input id="name" name="name" placeholder="Tether" required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="symbol">Symbol</Label>
+              <Label htmlFor="symbol">Symbol (Mandatory)</Label>
               <Input id="symbol" name="symbol" placeholder="USDT" required />
             </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="contract">Contract Address</Label>
-            <Input id="contract" name="contract" placeholder="0x..." className="font-code" required />
-          </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="chain">Chain</Label>
-              <Input id="chain" name="chain" placeholder="ethereum" required />
-            </div>
-            <div className="space-y-2">
+             <div className="space-y-2">
               <Label htmlFor="decimals">Decimals</Label>
               <Input id="decimals" name="decimals" type="number" placeholder="6" required />
             </div>
+             <div className="space-y-2">
+              <Label htmlFor="logo">Logo Image</Label>
+              <Input id="logo" name="logo" type="file" required accept="image/png, image/jpeg, image/svg+xml" />
+            </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="logo">Logo Image</Label>
-            <Input id="logo" name="logo" type="file" required accept="image/png, image/jpeg, image/svg+xml" />
+            <Label htmlFor="chains">Supported Chains (optional)</Label>
+            <Textarea
+              id="chains"
+              name="chains"
+              placeholder="ethereum, polygon, bsc"
+              className="font-code"
+            />
+             <p className="text-xs text-muted-foreground">
+              Enter a comma-separated list of chain identifiers.
+            </p>
           </div>
-          <SubmitButton>Add Token</SubmitButton>
+          <SubmitButton>Add / Update Token</SubmitButton>
         </form>
       </CardContent>
     </Card>

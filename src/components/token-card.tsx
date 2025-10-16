@@ -35,21 +35,27 @@ export function TokenCard({ token }: TokenCardProps) {
       </CardHeader>
       <CardContent className="grid gap-4">
         <div className="flex items-center justify-between rounded-lg border p-3">
-          <span className="text-sm text-muted-foreground">Chain</span>
-          <Badge variant="secondary" className="capitalize">
-            {token.chain}
-          </Badge>
+          <span className="text-sm text-muted-foreground">Chains</span>
+           <div className="flex flex-wrap gap-2 justify-end">
+            {token.chains.map((chain) => (
+              <Badge key={chain} variant="secondary" className="capitalize">
+                {chain}
+              </Badge>
+            ))}
+          </div>
         </div>
         <div className="flex items-center justify-between rounded-lg border p-3">
           <span className="text-sm text-muted-foreground">Decimals</span>
           <span className="font-mono text-sm font-medium">{token.decimals}</span>
         </div>
-        <div className="space-y-2">
-          <p className="text-sm text-muted-foreground">Contract Address</p>
-          <p className="w-full break-all rounded-lg border bg-secondary/50 p-3 font-code text-xs">
-            {token.contract}
-          </p>
-        </div>
+        {token.contract && (
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">Contract Address (Example)</p>
+            <p className="w-full break-all rounded-lg border bg-secondary/50 p-3 font-code text-xs">
+              {token.contract}
+            </p>
+          </div>
+        )}
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">Logo URL</p>
           <p className="w-full break-all rounded-lg border bg-secondary/50 p-3 font-code text-xs">
