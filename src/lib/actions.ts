@@ -1,3 +1,4 @@
+
 "use server";
 
 import { z } from "zod";
@@ -51,7 +52,7 @@ export async function addToken(
   }
   
   const { logo, symbol, chains, ...tokenData } = validated.data;
-  const chainsArray = chains ? chains.split(',').map(c => c.trim().toLowerCase()) : [];
+  const chainsArray = chains ? chains.split(',').map(c => c.trim().toLowerCase()).filter(c => c) : [];
 
   try {
     const fileContents = await logo.arrayBuffer();
@@ -87,18 +88,31 @@ export async function addToken(
     };
     
     // Upsert metadata into Supabase DB
-    const { error: upsertError } = await supabaseAdmin.from("tokens").upsert(
-      dbData,
-      { onConflict: 'symbol' }
-    );
+    const { data: existingToken, error: fetchError } = await supabaseAdmin
+      .from("tokens")
+      .select('id')
+      .eq('symbol', dbData.symbol)
+      .single();
 
-    if (upsertError) {
-      throw new Error(`Database error: ${upsertError.message}`);
+    let message;
+    if (existingToken) {
+       const { error: updateError } = await supabaseAdmin
+        .from("tokens")
+        .update({ ...dbData, id: undefined }) // id should not be in update payload
+        .eq('symbol', dbData.symbol);
+       if (updateError) throw new Error(`Database error: ${updateError.message}`);
+       message = `${symbol.toUpperCase()} updated successfully!`;
+    } else {
+        const { error: insertError } = await supabaseAdmin
+        .from("tokens")
+        .insert(dbData);
+      if (insertError) throw new Error(`Database error: ${insertError.message}`);
+       message = `${symbol.toUpperCase()} added successfully!`;
     }
-    
+
     revalidatePath("/tokens");
     revalidatePath("/upload-token");
-    return { status: "success", message: `${symbol.toUpperCase()} added or updated successfully!` };
+    return { status: "success", message };
 
   } catch (e: any) {
     return { status: "error", message: e.message };
@@ -124,6 +138,7 @@ export async function getApiKeys(): Promise<ApiKey[]> {
 export type GenerateApiKeyState = {
   status: "idle" | "success" | "error";
   message?: string;
+  newKey?: ApiKey;
 };
 
 const generateApiKeySchema = z.object({
@@ -145,18 +160,21 @@ export async function generateNewApiKey(
     return { status: "error", message: "Key name is required." };
   }
 
-  const newApiKey = `dcdn_${randomBytes(32).toString('hex')}`;
+  const newApiKeyString = `dcdn_${randomBytes(24).toString('hex')}`;
+  const keyData = { name: validated.data.name, key: newApiKeyString };
 
-  const { error } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from('api_keys')
-    .insert({ name: validated.data.name, key: newApiKey });
+    .insert(keyData)
+    .select()
+    .single();
 
   if (error) {
     return { status: "error", message: `Failed to generate key: ${error.message}` };
   }
   
   revalidatePath('/api-keys');
-  return { status: "success", message: "API Key generated successfully." };
+  return { status: "success", message: "API Key generated successfully.", newKey: data };
 }
 
 export type DeleteApiKeyState = {
@@ -201,12 +219,18 @@ export async function deleteToken(tokenId: string): Promise<DeleteTokenState> {
     .eq("id", tokenId)
     .single();
 
-  if (token && token.logo_url) {
-    const path = new URL(token.logo_url).pathname.split("/logos/")[1];
-    if (path) {
-      await supabaseAdmin.storage.from("logos").remove([`logos/${path}`]);
+  if (token && token.logo_url && !token.logo_url.includes('picsum.photos')) {
+    try {
+      const url = new URL(token.logo_url);
+      const path = url.pathname.split('/logos/')[1];
+      if (path) {
+        await supabaseAdmin.storage.from("logos").remove([path]);
+      }
+    } catch (e) {
+      console.error("Could not parse or delete storage object for logo_url:", token.logo_url, e);
     }
   }
+
 
   const { error } = await supabaseAdmin
     .from("tokens")

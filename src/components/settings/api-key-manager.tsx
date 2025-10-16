@@ -1,15 +1,20 @@
+
 "use client";
 
-import { useState, useTransition } from "react";
-import { generateNewApiKey, deleteApiKey } from "@/lib/actions";
+import { useEffect, useState, useTransition } from "react";
+import { generateNewApiKey, deleteApiKey, type GenerateApiKeyState } from "@/lib/actions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { SubmitButton } from "@/components/submit-button";
-import { Copy, Check, Trash2, Loader2 } from "lucide-react";
+import { Copy, Check, Trash2, Loader2, Eye, EyeOff } from "lucide-react";
 import { Button } from "../ui/button";
 import type { ApiKey } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
+import { useFormState } from "react-dom";
+
+const initialGenerateState: GenerateApiKeyState = {
+  status: "idle",
+};
 
 type ApiKeyManagerProps = {
   initialApiKeys: ApiKey[];
@@ -17,30 +22,34 @@ type ApiKeyManagerProps = {
 
 export function ApiKeyManager({ initialApiKeys: initialKeys }: ApiKeyManagerProps) {
   const [apiKeys, setApiKeys] = useState<ApiKey[]>(initialKeys);
-  const [newKeyName, setNewKeyName] = useState("");
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [isGenerating, startGenerateTransition] = useTransition();
+  const [newlyGeneratedKey, setNewlyGeneratedKey] = useState<ApiKey | null>(null);
+
+  const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
+  const [visibleKeyId, setVisibleKeyId] = useState<string | null>(null);
+
   const [isDeleting, startDeleteTransition] = useTransition();
   const { toast } = useToast();
 
-  const handleGenerateKey = async (e: React.FormEvent) => {
-    e.preventDefault();
-    startGenerateTransition(async () => {
-      const formData = new FormData();
-      formData.append("name", newKeyName);
-      const result = await generateNewApiKey(undefined as any, formData);
-      if (result.status === "error") {
-        toast({ variant: "destructive", title: "Error", description: result.message });
-      } else {
-        toast({ title: "Success", description: result.message });
-        setNewKeyName("");
-        // Manually refetch or update state since server actions don't auto-update client state
-        // For simplicity, we'll just show a success message and let revalidatePath handle it on next navigation
+  const [generateState, generateAction] = useFormState(generateNewApiKey, initialGenerateState);
+
+
+  useEffect(() => {
+    if (generateState.status === "error") {
+      toast({ variant: "destructive", title: "Error", description: generateState.message });
+    } else if (generateState.status === "success") {
+      toast({ title: "Success", description: generateState.message });
+      if (generateState.newKey) {
+        setApiKeys(currentKeys => [generateState.newKey!, ...currentKeys]);
+        setNewlyGeneratedKey(generateState.newKey);
+        setVisibleKeyId(generateState.newKey.id);
       }
-    });
-  };
-  
+      // Reset form if needed, though useFormState doesn't automatically do this
+    }
+  }, [generateState, toast]);
+
   const handleDeleteKey = async (keyId: string) => {
+    if (!window.confirm("Are you sure you want to delete this API key?")) return;
+    
     startDeleteTransition(async () => {
       const result = await deleteApiKey(keyId);
       if (result.status === "error") {
@@ -52,11 +61,15 @@ export function ApiKeyManager({ initialApiKeys: initialKeys }: ApiKeyManagerProp
     });
   };
 
-  const handleCopy = (key: string) => {
+  const handleCopy = (key: string, keyId: string) => {
     navigator.clipboard.writeText(key);
-    setCopiedKey(key);
-    setTimeout(() => setCopiedKey(null), 2000);
+    setCopiedKeyId(keyId);
+    setTimeout(() => setCopiedKeyId(null), 2000);
   };
+  
+  const toggleVisibility = (keyId: string) => {
+    setVisibleKeyId(currentId => currentId === keyId ? null : keyId);
+  }
 
   return (
     <div className="space-y-8">
@@ -68,7 +81,7 @@ export function ApiKeyManager({ initialApiKeys: initialKeys }: ApiKeyManagerProp
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleGenerateKey} className="flex items-end gap-4">
+          <form action={generateAction} className="flex items-end gap-4">
             <div className="flex-grow">
               <Label htmlFor="newKeyName">Key Name / Description</Label>
               <Input
@@ -76,12 +89,10 @@ export function ApiKeyManager({ initialApiKeys: initialKeys }: ApiKeyManagerProp
                 name="name"
                 placeholder="e.g., My Crypto Wallet"
                 required
-                value={newKeyName}
-                onChange={(e) => setNewKeyName(e.target.value)}
               />
             </div>
-            <Button type="submit" disabled={isGenerating}>
-              {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Button type="submit" disabled={generateState.status === "executing"}>
+              {generateState.status === "executing" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Generate Key
             </Button>
           </form>
@@ -98,21 +109,34 @@ export function ApiKeyManager({ initialApiKeys: initialKeys }: ApiKeyManagerProp
            </Card>
         ) : (
           <ul className="space-y-4">
-            {apiKeys.map((apiKey) => (
-              <li key={apiKey.id} className="bg-white p-4 border rounded-md shadow-sm flex items-center justify-between">
-                <div>
-                  <p className="font-semibold text-lg">{apiKey.name}</p>
-                  <p className="text-gray-700 font-mono text-sm break-all">{apiKey.key}</p>
-                  <p className="text-gray-500 text-xs mt-1">Generated: {new Date(apiKey.created_at).toLocaleString()}</p>
-                </div>
-                <div className="flex space-x-2">
+            {apiKeys.map((apiKey) => {
+              const isVisible = visibleKeyId === apiKey.id;
+              const displayKey = isVisible ? apiKey.key : `${apiKey.key.substring(0, 5)}...${apiKey.key.slice(-4)}`;
+              const isNewlyGenerated = newlyGeneratedKey?.id === apiKey.id;
+
+              return (
+                <li key={apiKey.id} className={`bg-card p-4 border rounded-lg shadow-sm flex items-center justify-between transition-all ${isNewlyGenerated ? 'ring-2 ring-green-500' : ''}`}>
+                  <div className="flex-1 overflow-hidden">
+                    <p className="font-semibold text-lg">{apiKey.name}</p>
+                    <p className="text-muted-foreground font-mono text-sm break-all pr-4">{displayKey}</p>
+                    <p className="text-muted-foreground text-xs mt-1">Generated: {new Date(apiKey.created_at).toLocaleString()}</p>
+                  </div>
+                  <div className="flex space-x-1">
+                   <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => toggleVisibility(apiKey.id)}
+                      title={isVisible ? "Hide Key" : "Show Key"}
+                    >
+                      {isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
                    <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => handleCopy(apiKey.key)}
+                    onClick={() => handleCopy(apiKey.key, apiKey.id)}
                     title="Copy Key"
                   >
-                    {copiedKey === apiKey.key ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                    {copiedKeyId === apiKey.id ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
                   </Button>
                   <Button
                     variant="ghost"
@@ -120,12 +144,13 @@ export function ApiKeyManager({ initialApiKeys: initialKeys }: ApiKeyManagerProp
                     onClick={() => handleDeleteKey(apiKey.id)}
                     disabled={isDeleting}
                     title="Delete Key"
+                    className="text-destructive hover:text-destructive/80"
                   >
-                    {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4 text-destructive" />}
+                    {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                   </Button>
                 </div>
               </li>
-            ))}
+            )})}
           </ul>
         )}
       </div>
