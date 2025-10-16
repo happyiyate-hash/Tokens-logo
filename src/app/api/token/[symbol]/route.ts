@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { Token } from "@/lib/types";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
-import { autoFetchMissingLogo } from "@/ai/flows/auto-fetch-missing-logos";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -62,10 +61,10 @@ export async function GET(
       .single();
 
     if (error || !data) {
-      if (error && error.code !== "PGRST116") {
+       if (error && error.code !== "PGRST116") { // PGRST116 means no rows found, which is not an error here
          console.error("Supabase error:", error.message);
          throw error;
-      }
+       }
       
       // Token not found, return default response
       return NextResponse.json({
@@ -77,36 +76,8 @@ export async function GET(
       });
     }
 
-    const token: Partial<Token> = data;
-    
-    // If logo is missing, try to fetch it with AI
-    if (!token.logo_url) {
-      try {
-        const { logoUrl } = await autoFetchMissingLogo({
-          tokenSymbol: token.symbol!,
-        });
-
-        if (logoUrl) {
-          token.logo_url = logoUrl;
-           // Update the database in the background, don't block the response
-          supabase
-            .from('tokens')
-            .update({ logo_url: logoUrl })
-            .eq('symbol', token.symbol!)
-            .then(({ error: updateError }) => {
-              if (updateError) console.error("Failed to update logo_url:", updateError);
-            });
-        } else {
-          token.logo_url = defaultLogo.imageUrl;
-        }
-      } catch (e) {
-        console.error("AI logo fetch failed:", e);
-        token.logo_url = defaultLogo.imageUrl;
-      }
-    }
-
-
-    return NextResponse.json(token);
+    // Return found token
+    return NextResponse.json(data);
 
   } catch (e: any) {
      console.error("API route error:", e.message);

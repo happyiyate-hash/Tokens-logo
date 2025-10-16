@@ -16,7 +16,7 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-64 bg-sidebar text-sidebar-foreground p-4">
+    <aside className="w-64 bg-gray-800 text-white p-4">
       <div className="text-2xl font-bold mb-6">DCDN Dashboard</div>
       <nav>
         <ul>
@@ -27,8 +27,8 @@ export function Sidebar() {
                 className={cn(
                   "flex items-center gap-3 py-2 px-4 rounded transition duration-200",
                   pathname === item.href
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    ? "bg-gray-700"
+                    : "hover:bg-gray-700"
                 )}
               >
                 <item.icon className="h-5 w-5" />

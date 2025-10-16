@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/table";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
+import { DeleteTokenButton } from "@/components/admin/delete-token-button";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -47,56 +48,58 @@ export default async function TokensListPage() {
         </p>
       </div>
 
-      <div className="rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[80px]">Logo</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Symbol</TableHead>
-              <TableHead>Decimals</TableHead>
-              <TableHead>Chains</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {tokens.length > 0 ? (
-              tokens.map((token) => (
-                <TableRow key={token.id}>
-                  <TableCell>
-                    <Image
-                      src={token.logo_url}
-                      alt={`${token.name} logo`}
-                      width={40}
-                      height={40}
-                      className="rounded-full bg-muted"
-                      unoptimized
-                    />
-                  </TableCell>
-                  <TableCell className="font-medium">{token.name}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{token.symbol}</Badge>
-                  </TableCell>
-                  <TableCell>{token.decimals}</TableCell>
-                  <TableCell>
-                     <div className="flex flex-wrap gap-1">
-                        {token.chains.map((chain) => (
-                        <Badge key={chain} variant="secondary" className="capitalize">
-                            {chain}
-                        </Badge>
-                        ))}
-                    </div>
-                  </TableCell>
+      <div className="bg-white p-8 rounded-lg shadow-md">
+        {tokens.length === 0 ? (
+          <p className="text-gray-600">No tokens uploaded yet. Go to "Upload Token" to add some!</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[80px]">Logo</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Symbol</TableHead>
+                  <TableHead>Decimals</TableHead>
+                  <TableHead>Chains</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={5} className="h-24 text-center">
-                  No tokens found.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+              </TableHeader>
+              <TableBody>
+                {tokens.map((token) => (
+                  <TableRow key={token.id}>
+                    <TableCell>
+                      <Image
+                        src={token.logo_url}
+                        alt={`${token.name} logo`}
+                        width={40}
+                        height={40}
+                        className="rounded-full bg-muted"
+                        unoptimized
+                      />
+                    </TableCell>
+                    <TableCell className="font-medium">{token.name}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{token.symbol}</Badge>
+                    </TableCell>
+                    <TableCell>{token.decimals}</TableCell>
+                    <TableCell>
+                       <div className="flex flex-wrap gap-1">
+                          {token.chains.map((chain) => (
+                          <Badge key={chain} variant="secondary" className="capitalize">
+                              {chain}
+                          </Badge>
+                          ))}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DeleteTokenButton tokenId={token.id} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -4,12 +4,10 @@ import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import type { ApiKey, Token } from "@/lib/types";
-import { autoFetchMissingLogo } from "@/ai/flows/auto-fetch-missing-logos";
 import { PlaceHolderImages } from "./placeholder-images";
 import { randomBytes } from 'crypto';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 
@@ -167,7 +165,6 @@ export type DeleteApiKeyState = {
 };
 
 export async function deleteApiKey(
-  prevState: DeleteApiKeyState,
   keyId: string,
 ): Promise<DeleteApiKeyState> {
    if (!supabaseAdmin) {
@@ -185,4 +182,44 @@ export async function deleteApiKey(
   
   revalidatePath('/api-keys');
   return { status: "success", message: "API Key deleted." };
+}
+
+export type DeleteTokenState = {
+  status: "idle" | "success" | "error";
+  message?: string;
+};
+
+export async function deleteToken(tokenId: string): Promise<DeleteTokenState> {
+  if (!supabaseAdmin) {
+    return { status: "error", message: "Supabase connection not configured." };
+  }
+
+  // Optional: Also delete the logo from storage
+  const { data: token } = await supabaseAdmin
+    .from("tokens")
+    .select("logo_url")
+    .eq("id", tokenId)
+    .single();
+
+  if (token && token.logo_url) {
+    const path = new URL(token.logo_url).pathname.split("/logos/")[1];
+    if (path) {
+      await supabaseAdmin.storage.from("logos").remove([`logos/${path}`]);
+    }
+  }
+
+  const { error } = await supabaseAdmin
+    .from("tokens")
+    .delete()
+    .eq("id", tokenId);
+
+  if (error) {
+    return {
+      status: "error",
+      message: `Failed to delete token: ${error.message}`,
+    };
+  }
+
+  revalidatePath("/tokens");
+  return { status: "success", message: "Token deleted." };
 }
