@@ -9,15 +9,28 @@ import { PlaceHolderImages } from "./placeholder-images";
 import { randomBytes } from 'crypto';
 import { autoFetchMissingLogo } from "@/ai/flows/auto-fetch-missing-logos";
 import chainsConfig from "@/lib/chains.json";
+import { ethers } from "ethers";
 
 // Consistent server-side Supabase client initialization
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
+const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY;
+const COINGECKO_API_URL = process.env.COINGECKO_API_URL || "https://api.coingecko.com/api/v3";
+
 const defaultLogo = PlaceHolderImages.find(
   (img) => img.id === "default-token-logo"
 )!;
+
+// --- ERC20 ABI for RPC fallback ---
+const ERC20_ABI = [
+  "function name() view returns (string)",
+  "function symbol() view returns (string)",
+  "function decimals() view returns (uint8)",
+];
+
+// --- Add/Update Token ---
 
 export type AddTokenState = {
   status: "idle" | "success" | "error";
@@ -30,7 +43,7 @@ const addTokenSchema = z.object({
   networkId: z.string().min(1, "Network ID is required."),
   decimals: z.coerce.number().int().min(0, "Decimals must be a positive integer."),
   logo: z.instanceof(File).optional(),
-  logo_url: z.string().optional(), // Can come from the fetch step
+  logo_url: z.string().optional(),
   contract: z.string().min(1, "Contract address is required."),
 });
 
@@ -74,11 +87,9 @@ export async function addToken(
         }
         finalLogoUrl = publicUrlData.publicUrl;
     } else if (logo_url) {
-        // Use the logo URL fetched from CoinGecko in the previous step
         finalLogoUrl = logo_url;
     }
     else {
-        // Fallback if no logo was uploaded and none was found
         const result = await autoFetchMissingLogo({ tokenSymbol: symbol });
         if (result.logoUrl) {
           finalLogoUrl = result.logoUrl;
@@ -87,11 +98,14 @@ export async function addToken(
         }
     }
     
+    const { data: network } = await supabaseAdmin.from("networks").select('id').eq('id', networkId).single();
+    if (!network) throw new Error("Network not found.");
+
     const dbData = {
       ...tokenData,
       symbol: symbol.toUpperCase(),
       logo_url: finalLogoUrl,
-      network_id: networkId,
+      network_id: network.id,
       contract: contract,
       updated_at: new Date().toISOString(),
     };
@@ -231,7 +245,6 @@ export async function deleteToken(tokenId: string): Promise<{ status: "success" 
   return { status: "success", message: "Token deleted." };
 }
 
-
 // --- Token Search ---
 
 export type SearchState = {
@@ -326,7 +339,6 @@ export async function addNetwork(prevState: AddNetworkState, formData: FormData)
 }
 
 export async function deleteNetwork(networkId: string): Promise<{ status: "success" | "error", message: string }> {
-  // With CASCADE configured in the database, this will also delete associated tokens.
   const { error } = await supabaseAdmin
     .from("networks")
     .delete()
@@ -344,37 +356,8 @@ export async function deleteNetwork(networkId: string): Promise<{ status: "succe
   return { status: "success", message: "Network deleted." };
 }
 
-// --- Universal Token Data Fetcher ---
 
-/**
- * Fetches a token's logo from CoinGecko.
- * A real implementation would cache this in a Supabase table.
- */
-async function fetchTokenLogo(symbol: string): Promise<string | null> {
-  if (!symbol) return null;
-  const coingeckoApiUrl = process.env.COINGECKO_API_URL;
-  if (!coingeckoApiUrl) {
-    console.warn("COINGECKO_API_URL is not set. Skipping logo fetch.");
-    return null;
-  }
-  
-  try {
-    const searchUrl = `${coingeckoApiUrl}/search?query=${symbol}`;
-    const searchRes = await fetch(searchUrl);
-    if (!searchRes.ok) {
-      console.error(`CoinGecko search failed with status ${searchRes.status}`);
-      return null;
-    }
-    const searchData = await searchRes.json();
-    const match = searchData.coins?.find((c: any) => c.symbol.toLowerCase() === symbol.toLowerCase());
-    
-    return match?.thumb || null;
-  } catch (e: any) {
-    console.error("Error fetching from CoinGecko:", e.message);
-    return null;
-  }
-}
-
+// --- Universal Token Data Fetcher (Production-Grade) ---
 
 export type FetchMetadataState = {
   status: "idle" | "success" | "error";
@@ -389,6 +372,83 @@ const fetchMetadataSchema = z.object({
   networkId: z.string().min(1, "Please select a network."),
 });
 
+async function fetchFromExplorer(contract: string, chain: any): Promise<TokenMetadata | null> {
+  if (!chain.api) return null;
+  try {
+    const url = `${chain.api}?module=token&action=tokeninfo&contractaddress=${contract}&apikey=${ETHERSCAN_API_KEY}`;
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    if (data.status === "0" || !data.result || data.result.length === 0) {
+      return null;
+    }
+    const token = data.result[0];
+    return {
+      name: token.tokenName || token.name || "",
+      symbol: token.symbol || "",
+      decimals: token.decimals ? parseInt(token.decimals, 10) : 18,
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+async function fetchFromRpc(contract: string, chain: any): Promise<TokenMetadata | null> {
+  if (!chain.rpc) return null;
+  try {
+    const provider = new ethers.providers.JsonRpcProvider(chain.rpc);
+    const tokenContract = new ethers.Contract(contract, ERC20_ABI, provider);
+
+    const [name, symbol, decimals] = await Promise.allSettled([
+      tokenContract.name(),
+      tokenContract.symbol(),
+      tokenContract.decimals(),
+    ]);
+
+    return {
+      name: name.status === "fulfilled" ? name.value : "",
+      symbol: symbol.status === "fulfilled" ? symbol.value : "",
+      decimals: decimals.status === "fulfilled" ? decimals.value : 18,
+    };
+  } catch (err) {
+    return null;
+  }
+}
+
+async function fetchLogoFromCoinGecko(contractAddress: string, symbol: string, chain: any): Promise<string | null> {
+  // 1. Try platform-specific endpoint first
+  if (chain.cgPlatform) {
+    try {
+      const url = `${COINGECKO_API_URL}/coins/${chain.cgPlatform}/contract/${contractAddress.toLowerCase()}`;
+      const response = await fetch(url);
+      if (response.ok) {
+        const data = await response.json();
+        if (data?.image?.large) return data.image.large;
+      }
+    } catch (e) {
+      // Ignore error and fall through
+    }
+  }
+
+  // 2. Fallback to symbol search
+  if (symbol) {
+    try {
+      const url = `${COINGECKO_API_URL}/search?query=${encodeURIComponent(symbol)}`;
+      const response = await fetch(url);
+      if (response.ok) {
+        const data = await response.json();
+        const match = data.coins?.find((c: any) => c.symbol.toLowerCase() === symbol.toLowerCase());
+        return match?.large || match?.thumb || null;
+      }
+    } catch (e) {
+        // Ignore error
+    }
+  }
+  
+  return null;
+}
+
 export async function fetchTokenMetadata(prevState: FetchMetadataState, formData: FormData): Promise<FetchMetadataState> {
   const validated = fetchMetadataSchema.safeParse(Object.fromEntries(formData.entries()));
 
@@ -397,42 +457,27 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
   }
 
   const { contractAddress, networkId } = validated.data;
-
+  
   try {
-    const { data: network, error: networkError } = await supabaseAdmin
-      .from("networks")
-      .select("explorer_api_base_url, explorer_api_key_env_var")
-      .eq("id", networkId)
-      .single();
+    const { data: networkDb } = await supabaseAdmin.from("networks").select("*").eq("id", networkId).single();
+    if (!networkDb) throw new Error("Could not find selected network information in DB.");
     
-    if (networkError || !network) throw new Error("Could not find selected network information.");
-    
-    const apiKey = network.explorer_api_key_env_var ? process.env[network.explorer_api_key_env_var] : null;
-    if (network.explorer_api_key_env_var && !apiKey) {
-      console.warn(`API key environment variable '${network.explorer_api_key_env_var}' is not set.`);
+    // Find the chain config from the JSON file
+    const chainConfig = chainsConfig.chains.find(c => c.chainId === networkDb.chain_id);
+    if (!chainConfig) throw new Error("Could not find chain configuration in chains.json.");
+
+    // 1. Fetch metadata (Explorer -> RPC fallback)
+    let metadata: TokenMetadata | null = await fetchFromExplorer(contractAddress, chainConfig);
+    if (!metadata || !metadata.symbol) {
+      metadata = await fetchFromRpc(contractAddress, chainConfig);
     }
-
-    const endpoint = `${network.explorer_api_base_url}?module=token&action=tokeninfo&contractaddress=${contractAddress}${apiKey ? `&apikey=${apiKey}` : ''}`;
-    const response = await fetch(endpoint);
     
-    if (!response.ok) throw new Error(`Explorer API request failed with status ${response.status}.`);
-
-    const result = await response.json();
-    
-    if (result.status === "0" || !result.result || result.result.length === 0) {
-        throw new Error(`Explorer API Error: ${result.message} - ${result.result || 'No data found.'}`);
+    if (!metadata || !metadata.symbol) {
+      throw new Error("Could not fetch token metadata from explorer or RPC.");
     }
-
-    const tokenDetails = result.result[0];
-
-    const metadata: TokenMetadata = {
-        name: tokenDetails.tokenName || 'Unknown Token',
-        symbol: tokenDetails.symbol || '???',
-        decimals: parseInt(tokenDetails.decimals, 10),
-    };
-
-    // Now fetch the logo
-    const logoUrl = await fetchTokenLogo(metadata.symbol);
+    
+    // 2. Fetch logo
+    const logoUrl = await fetchLogoFromCoinGecko(contractAddress, metadata.symbol, chainConfig);
 
     return { status: "success", metadata: { ...metadata, logoUrl }, networkId, contractAddress };
 
@@ -440,3 +485,5 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
     return { status: "error", message: e.message, networkId, contractAddress };
   }
 }
+
+    

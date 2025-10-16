@@ -1,144 +1,29 @@
 
 {
-  "baseUrl": "https://api.etherscan.io/api",
-  "apiKeyParam": "apikey",
   "chains": [
-    {
-      "name": "Ethereum Mainnet",
-      "chainId": 1,
-      "api": "https://api.etherscan.io/api",
-      "nativeCurrency": { "symbol": "ETH", "decimals": 18 }
-    },
-    {
-      "name": "BNB Smart Chain",
-      "chainId": 56,
-      "api": "https://api.bscscan.com/api",
-      "nativeCurrency": { "symbol": "BNB", "decimals": 18 }
-    },
-    {
-      "name": "Polygon (Matic)",
-      "chainId": 137,
-      "api": "https://api.polygonscan.com/api",
-      "nativeCurrency": { "symbol": "MATIC", "decimals": 18 }
-    },
-    {
-      "name": "Avalanche C-Chain",
-      "chainId": 43114,
-      "api": "https://api.snowtrace.io/api",
-      "nativeCurrency": { "symbol": "AVAX", "decimals": 18 }
-    },
-    {
-      "name": "Fantom Opera",
-      "chainId": 250,
-      "api": "https://api.ftmscan.com/api",
-      "nativeCurrency": { "symbol": "FTM", "decimals": 18 }
-    },
-    {
-      "name": "Arbitrum One",
-      "chainId": 42161,
-      "api": "https://api.arbiscan.io/api",
-      "nativeCurrency": { "symbol": "ETH", "decimals": 18 }
-    },
-    {
-      "name": "Optimism",
-      "chainId": 10,
-      "api": "https://api-optimistic.etherscan.io/api",
-      "nativeCurrency": { "symbol": "ETH", "decimals": 18 }
-    },
-    {
-      "name": "Base",
-      "chainId": 8453,
-      "api": "https://api.basescan.org/api",
-      "nativeCurrency": { "symbol": "ETH", "decimals": 18 }
-    },
-    {
-      "name": "Celo",
-      "chainId": 42220,
-      "api": "https://api.celoscan.io/api",
-      "nativeCurrency": { "symbol": "CELO", "decimals": 18 }
-    },
-    {
-      "name": "Gnosis Chain",
-      "chainId": 100,
-      "api": "https://api.gnosisscan.io/api",
-      "nativeCurrency": { "symbol": "xDAI", "decimals": 18 }
-    },
-    {
-      "name": "Moonbeam",
-      "chainId": 1284,
-      "api": "https://api-moonbeam.moonscan.io/api",
-      "nativeCurrency": { "symbol": "GLMR", "decimals": 18 }
-    },
-    {
-      "name": "Cronos",
-      "chainId": 25,
-      "api": "https://api.cronoscan.com/api",
-      "nativeCurrency": { "symbol": "CRO", "decimals": 18 }
-    },
-    {
-      "name": "Aurora",
-      "chainId": 1313161554,
-      "api": "https://api.aurorascan.dev/api",
-      "nativeCurrency": { "symbol": "ETH", "decimals": 18 }
-    },
-    {
-      "name": "Klaytn",
-      "chainId": 8217,
-      "api": "https://scope.klaytn.com/api",
-      "nativeCurrency": { "symbol": "KLAY", "decimals": 18 }
-    },
-    {
-      "name": "Harmony",
-      "chainId": 1666600000,
-      "api": "https://api.hmny.io",
-      "nativeCurrency": { "symbol": "ONE", "decimals": 18 }
-    },
-    {
-      "name": "Metis Andromeda",
-      "chainId": 1088,
-      "api": "https://andromeda-explorer.metis.io/api",
-      "nativeCurrency": { "symbol": "METIS", "decimals": 18 }
-    },
-    {
-      "name": "KCC (KuCoin Community Chain)",
-      "chainId": 321,
-      "api": "https://api.kccscan.com/api",
-      "nativeCurrency": { "symbol": "KCS", "decimals": 18 }
-    },
-    {
-      "name": "Boba Network",
-      "chainId": 288,
-      "api": "https://api.bobascan.com/api",
-      "nativeCurrency": { "symbol": "ETH", "decimals": 18 }
-    },
-    {
-      "name": "Telos EVM",
-      "chainId": 40,
-      "api": "https://api.teloscan.io/api",
-      "nativeCurrency": { "symbol": "TLOS", "decimals": 18 }
-    },
-    {
-      "name": "Fuse",
-      "chainId": 122,
-      "api": "https://explorer.fuse.io/api",
-      "nativeCurrency": { "symbol": "FUSE", "decimals": 18 }
-    },
-    {
-      "name": "Elastos Smart Chain",
-      "chainId": 20,
-      "api": "https://esc.elastos.io/api",
-      "nativeCurrency": { "symbol": "ELA", "decimals": 18 }
-    },
-    {
-      "name": "Palm",
-      "chainId": 11297108109,
-      "api": "https://explorer.palm.io/api",
-      "nativeCurrency": { "symbol": "PALM", "decimals": 18 }
-    }
-  ],
-  "endpoints": {
-    "token": {
-      "metadata": "?module=token&action=tokeninfo&contractaddress={contract}"
-    }
-  }
+    { "name": "Ethereum Mainnet", "chainId": 1, "api": "https://api.etherscan.io/api", "rpc": "https://rpc.ankr.com/eth", "cgPlatform": "ethereum" },
+    { "name": "BNB Smart Chain", "chainId": 56, "api": "https://api.bscscan.com/api", "rpc": "https://rpc.ankr.com/bsc", "cgPlatform": "binance-smart-chain" },
+    { "name": "Polygon (Matic)", "chainId": 137, "api": "https://api.polygonscan.com/api", "rpc": "https://rpc.ankr.com/polygon", "cgPlatform": "polygon-pos" },
+    { "name": "Avalanche C-Chain", "chainId": 43114, "api": "https://api.snowtrace.io/api", "rpc": "https://rpc.ankr.com/avalanche", "cgPlatform": "avalanche" },
+    { "name": "Fantom Opera", "chainId": 250, "api": "https://api.ftmscan.com/api", "rpc": "https://rpc.ankr.com/fantom", "cgPlatform": "fantom" },
+    { "name": "Arbitrum One", "chainId": 42161, "api": "https://api.arbiscan.io/api", "rpc": "https://rpc.ankr.com/arbitrum", "cgPlatform": "arbitrum-one" },
+    { "name": "Optimism", "chainId": 10, "api": "https://api-optimistic.etherscan.io/api", "rpc": "https://rpc.ankr.com/optimism", "cgPlatform": "optimistic-ethereum" },
+    { "name": "Base", "chainId": 8453, "api": "https://api.basescan.org/api", "rpc": "https://rpc.ankr.com/base", "cgPlatform": "base" },
+    { "name": "Celo", "chainId": 42220, "api": "https://api.celoscan.io/api", "rpc": "https://rpc.ankr.com/celo", "cgPlatform": "celo" },
+    { "name": "Gnosis Chain", "chainId": 100, "api": "https://api.gnosisscan.io/api", "rpc": "https://rpc.ankr.com/gnosis", "cgPlatform": "gnosis" },
+    { "name": "Moonbeam", "chainId": 1284, "api": "https://api-moonbeam.moonscan.io/api", "rpc": "https://rpc.ankr.com/moonbeam", "cgPlatform": "moonbeam" },
+    { "name": "Cronos", "chainId": 25, "api": "https://api.cronoscan.com/api", "rpc": "https://rpc.ankr.com/cronos", "cgPlatform": "cronos" },
+    { "name": "Aurora", "chainId": 1313161554, "api": "https://api.aurorascan.dev/api", "rpc": "https://rpc.ankr.com/aurora", "cgPlatform": "aurora" },
+    { "name": "Klaytn", "chainId": 8217, "api": "https://scope.klaytn.com/api", "rpc": "https://public-node-api.klaytnapi.com/v1/cypress", "cgPlatform": null },
+    { "name": "Harmony", "chainId": 1666600000, "api": "https://api.hmny.io", "rpc": "https://rpc.ankr.com/harmony", "cgPlatform": "harmony" },
+    { "name": "Metis Andromeda", "chainId": 1088, "api": "https://andromeda-explorer.metis.io/api", "rpc": "https://rpc.ankr.com/metis", "cgPlatform": "metis-andromeda" },
+    { "name": "KCC (KuCoin Community Chain)", "chainId": 321, "api": "https://api.kccscan.com/api", "rpc": "https://rpc.ankr.com/kcc", "cgPlatform": null },
+    { "name": "Boba Network", "chainId": 288, "api": "https://api.bobascan.com/api", "rpc": "https://rpc.ankr.com/boba", "cgPlatform": "boba" },
+    { "name": "Telos EVM", "chainId": 40, "api": "https://api.teloscan.io/api", "rpc": "https://rpc.ankr.com/telos", "cgPlatform": null },
+    { "name": "Fuse", "chainId": 122, "api": "https://explorer.fuse.io/api", "rpc": "https://rpc.ankr.com/fuse", "cgPlatform": null },
+    { "name": "Elastos Smart Chain", "chainId": 20, "api": "https://esc.elastos.io/api", "rpc": "https://api.elastos.io/eth", "cgPlatform": null },
+    { "name": "Palm", "chainId": 11297108109, "api": "https://explorer.palm.io/api", "rpc": "https://rpc.ankr.com/palm", "cgPlatform": "palm" }
+  ]
 }
+
+    
