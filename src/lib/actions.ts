@@ -10,14 +10,10 @@ import { randomBytes } from 'crypto';
 import { autoFetchMissingLogo } from "@/ai/flows/auto-fetch-missing-logos";
 import chainsConfig from "@/lib/chains.json";
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-// Note: Using the service_role key should only be done in server-side environments.
-const supabaseAdmin =
-  supabaseUrl && supabaseServiceKey
-    ? createClient(supabaseUrl, supabaseServiceKey)
-    : null;
+// Consistent server-side Supabase client initialization
+const supabaseUrl = process.env.SUPABASE_URL!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 const defaultLogo = PlaceHolderImages.find(
   (img) => img.id === "default-token-logo"
@@ -41,10 +37,6 @@ export async function addToken(
   prevState: AddTokenState,
   formData: FormData
 ): Promise<AddTokenState> {
-    if (!supabaseAdmin) {
-    return { status: "error", message: "Supabase connection not configured." };
-  }
-
   const validated = addTokenSchema.safeParse(Object.fromEntries(formData.entries()));
 
   if (!validated.success) {
@@ -133,7 +125,6 @@ export async function addToken(
 // --- API Key Management ---
 
 export async function getApiKeys(): Promise<ApiKey[]> {
-  if (!supabaseAdmin) return [];
   const { data, error } = await supabaseAdmin
     .from('api_keys')
     .select('*')
@@ -161,10 +152,6 @@ export async function generateNewApiKey(
   prevState: GenerateApiKeyState,
   formData: FormData
 ): Promise<GenerateApiKeyState> {
-  if (!supabaseAdmin) {
-    return { status: "error", message: "Supabase connection not configured." };
-  }
-
   const validated = generateApiKeySchema.safeParse(Object.fromEntries(formData.entries()));
 
   if (!validated.success) {
@@ -191,10 +178,6 @@ export async function generateNewApiKey(
 export async function deleteApiKey(
   keyId: string,
 ): Promise<{ status: "success" | "error", message: string }> {
-   if (!supabaseAdmin) {
-    return { status: "error", message: "Supabase connection not configured." };
-  }
-
   const { error } = await supabaseAdmin
     .from('api_keys')
     .delete()
@@ -209,10 +192,6 @@ export async function deleteApiKey(
 }
 
 export async function deleteToken(tokenId: string): Promise<{ status: "success" | "error", message: string }> {
-  if (!supabaseAdmin) {
-    return { status: "error", message: "Supabase connection not configured." };
-  }
-
   const { data: token } = await supabaseAdmin
     .from("tokens")
     .select("logo_url")
@@ -263,10 +242,6 @@ export async function searchToken(
   prevState: SearchState,
   formData: FormData
 ): Promise<SearchState> {
-  if (!supabaseAdmin) {
-    return { status: "error", message: "Supabase connection not configured." };
-  }
-
   const validated = searchTokenSchema.safeParse(Object.fromEntries(formData.entries()));
 
   if (!validated.success) {
@@ -320,10 +295,6 @@ const addNetworkSchema = z.object({
 });
 
 export async function addNetwork(prevState: AddNetworkState, formData: FormData): Promise<AddNetworkState> {
-  if (!supabaseAdmin) {
-    return { status: "error", message: "Supabase connection not configured." };
-  }
-  
   const validated = addNetworkSchema.safeParse(Object.fromEntries(formData.entries()));
 
   if (!validated.success) {
@@ -349,10 +320,6 @@ export async function addNetwork(prevState: AddNetworkState, formData: FormData)
 }
 
 export async function deleteNetwork(networkId: string): Promise<{ status: "success" | "error", message: string }> {
-  if (!supabaseAdmin) {
-    return { status: "error", message: "Supabase connection not configured." };
-  }
-
   // With CASCADE configured in the database, this will also delete associated tokens.
   const { error } = await supabaseAdmin
     .from("networks")
@@ -387,10 +354,6 @@ const fetchMetadataSchema = z.object({
 });
 
 export async function fetchTokenMetadata(prevState: FetchMetadataState, formData: FormData): Promise<FetchMetadataState> {
-  if (!supabaseAdmin) {
-    return { status: "error", message: "Supabase connection not configured." };
-  }
-
   const validated = fetchMetadataSchema.safeParse(Object.fromEntries(formData.entries()));
 
   if (!validated.success) {
@@ -453,5 +416,3 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
     return { status: "error", message: e.message, networkId, contractAddress };
   }
 }
-
-    

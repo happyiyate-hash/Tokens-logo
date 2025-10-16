@@ -17,14 +17,13 @@ import { NetworkSelector } from "@/components/admin/network-selector";
 import { PlusCircle } from "lucide-react";
 import Link from "next/link";
 
+// Consistent server-side Supabase client initialization
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabase =
-  supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function getTokens(networkId: string): Promise<Token[]> {
-  if (!supabase || !networkId) {
+  if (!networkId) {
     return [];
   }
   const { data, error } = await supabase
@@ -42,7 +41,6 @@ async function getTokens(networkId: string): Promise<Token[]> {
 }
 
 async function getNetworks(): Promise<Network[]> {
-  if (!supabase) return [];
   const { data, error } = await supabase
     .from("networks")
     .select("id, name")

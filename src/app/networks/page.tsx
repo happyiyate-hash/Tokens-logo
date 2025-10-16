@@ -15,17 +15,12 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Upload } from "lucide-react";
 
+// Consistent server-side Supabase client initialization
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabase =
-  supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function getNetworks(): Promise<Network[]> {
-  if (!supabase) {
-    console.error("Supabase client not initialized");
-    return [];
-  }
   const { data, error } = await supabase.from("networks").select("*").order('name', { ascending: true });
 
   if (error) {
@@ -92,5 +87,3 @@ export default async function NetworkManagementPage() {
         </div>
     );
 }
-
-    

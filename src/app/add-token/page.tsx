@@ -3,17 +3,12 @@ import { createClient } from "@supabase/supabase-js";
 import { AddTokenWizard } from "@/components/admin/add-token-wizard";
 import type { Network } from "@/lib/types";
 
+// Consistent server-side Supabase client initialization
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabase =
-  supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function getNetworks(): Promise<Network[]> {
-  if (!supabase) {
-    console.error("Supabase client not initialized on page");
-    return [];
-  }
   const { data, error } = await supabase.from("networks").select("*").order('name', { ascending: true });
 
   if (error) {
@@ -39,5 +34,3 @@ export default async function AddTokenPage() {
         </div>
     )
 }
-
-    
