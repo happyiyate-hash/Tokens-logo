@@ -4,8 +4,7 @@
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
-import type { ApiKey, Token, Network, TokenMetadata } from "@/lib/types";
-import { PlaceHolderImages } from "./placeholder-images";
+import type { ApiKey, Network, TokenFetchResult, TokenDetails, TokenMetadata } from "@/lib/types";
 import { randomBytes } from 'crypto';
 import { autoFetchMissingLogo } from "@/ai/flows/auto-fetch-missing-logos";
 import chainsConfig from "@/lib/chains.json";
@@ -16,12 +15,10 @@ const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
+
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY;
 const COINGECKO_API_URL = process.env.COINGECKO_API_URL || "https://api.coingecko.com/api/v3";
-
-const defaultLogo = PlaceHolderImages.find(
-  (img) => img.id === "default-token-logo"
-)!;
+const STORAGE_BUCKET = "logos";
 
 // --- ERC20 ABI for RPC fallback ---
 const ERC20_ABI = [
@@ -40,18 +37,59 @@ export type AddTokenState = {
 const addTokenSchema = z.object({
   name: z.string().min(1, "Token name is required."),
   symbol: z.string().min(1, "Token symbol is required."),
-  networkId: z.string().min(1, "Network ID is required."),
+  networkId: z.string().min(1, "Network ID is required."), // This is the UUID from our networks table
   decimals: z.coerce.number().int().min(0, "Decimals must be a positive integer."),
-  logo: z.instanceof(File).optional(),
-  logo_url: z.string().optional(),
+  logoFile: z.instanceof(File).optional(),
+  logo_url: z.string().optional(), // This can be a URL from CoinGecko fetch
   contract: z.string().min(1, "Contract address is required."),
 });
+
+async function uploadLogo(
+    logoFile: File,
+    contract: string,
+    networkName: string
+): Promise<{ storage_path: string; public_url: string } | null> {
+    if (!logoFile || logoFile.size === 0) return null;
+
+    const fileContents = await logoFile.arrayBuffer();
+    const ext = logoFile.name.split('.').pop() || 'png';
+    const filename = `${contract.toLowerCase()}_${networkName.toLowerCase()}.${ext}`;
+
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from(STORAGE_BUCKET)
+      .upload(filename, fileContents, {
+        contentType: logoFile.type,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      throw new Error(`Storage error: ${uploadError.message}`);
+    }
+
+    const { data: publicUrlData } = supabaseAdmin.storage
+      .from(STORAGE_BUCKET)
+      .getPublicUrl(filename);
+
+    if (!publicUrlData) {
+      throw new Error("Could not get public URL for the uploaded logo.");
+    }
+
+    return { storage_path: filename, public_url: publicUrlData.publicUrl };
+}
 
 export async function addToken(
   prevState: AddTokenState,
   formData: FormData
 ): Promise<AddTokenState> {
-  const validated = addTokenSchema.safeParse(Object.fromEntries(formData.entries()));
+  const validated = addTokenSchema.safeParse({
+      name: formData.get('name'),
+      symbol: formData.get('symbol'),
+      networkId: formData.get('networkId'),
+      decimals: formData.get('decimals'),
+      logoFile: formData.get('logo'),
+      logo_url: formData.get('logo_url'),
+      contract: formData.get('contract'),
+  });
 
   if (!validated.success) {
     const fieldErrors = validated.error.flatten().fieldErrors;
@@ -59,83 +97,62 @@ export async function addToken(
     return { status: "error", message: firstError || "Invalid input." };
   }
   
-  const { logo, symbol, networkId, contract, logo_url, ...tokenData } = validated.data;
-  let finalLogoUrl = "";
+  const { logoFile, symbol, networkId, contract, name, decimals, logo_url } = validated.data;
   
   try {
-    if (logo && logo.size > 0) {
-        const fileContents = await logo.arrayBuffer();
-        const filePath = `logos/${networkId}-${contract}.${logo.name.split('.').pop()}`;
-
-        const { error: uploadError } = await supabaseAdmin.storage
-          .from("logos")
-          .upload(filePath, fileContents, {
-            contentType: logo.type,
-            upsert: true,
-          });
-
-        if (uploadError) {
-          throw new Error(`Storage error: ${uploadError.message}`);
-        }
-
-        const { data: publicUrlData } = supabaseAdmin.storage
-          .from("logos")
-          .getPublicUrl(filePath);
-
-        if (!publicUrlData) {
-          throw new Error("Could not get public URL for the uploaded logo.");
-        }
-        finalLogoUrl = publicUrlData.publicUrl;
-    } else if (logo_url) {
-        finalLogoUrl = logo_url;
-    }
-    else {
-        const result = await autoFetchMissingLogo({ tokenSymbol: symbol });
-        if (result.logoUrl) {
-          finalLogoUrl = result.logoUrl;
-        } else {
-          finalLogoUrl = defaultLogo.imageUrl;
-        }
-    }
-    
-    const { data: network } = await supabaseAdmin.from("networks").select('id').eq('id', networkId).single();
+    const { data: network } = await supabaseAdmin.from("networks").select('name').eq('id', networkId).single();
     if (!network) throw new Error("Network not found.");
 
-    const dbData = {
-      ...tokenData,
-      symbol: symbol.toUpperCase(),
-      logo_url: finalLogoUrl,
-      network_id: network.id,
-      contract: contract,
-      updated_at: new Date().toISOString(),
+    let logoKey: string | undefined;
+    let finalLogoUrl: string | undefined;
+
+    if (logoFile && logoFile.size > 0) {
+        const uploadedLogo = await uploadLogo(logoFile, contract, network.name);
+        if (uploadedLogo) {
+            logoKey = uploadedLogo.storage_path;
+            finalLogoUrl = uploadedLogo.public_url;
+            
+            // Upsert into token_logos
+             await supabaseAdmin.rpc('upsert_token_logo', {
+                p_contract: contract,
+                p_symbol: symbol,
+                p_network: network.name.toLowerCase(),
+                p_storage_path: logoKey,
+                p_public_url: finalLogoUrl
+            });
+        }
+    } else if (logo_url) {
+        finalLogoUrl = logo_url;
+        // The logo key might be derived or known if we fetched it, but for simplicity, we'll leave it null if not directly uploaded.
+        // In a real scenario, we might import the URL into our storage.
+    }
+
+    const tokenDetails: TokenDetails = {
+        name,
+        symbol,
+        decimals,
+        network: network.name.toLowerCase(),
+        contract_address: contract.toLowerCase(),
+        logo_key: logoKey
     };
     
-    const { data: existingToken } = await supabaseAdmin
-      .from("tokens")
-      .select('id')
-      .eq('network_id', dbData.network_id)
-      .eq('contract', dbData.contract)
-      .single();
+    const { error: upsertError } = await supabaseAdmin.rpc('upsert_token_metadata', {
+        p_contract: contract,
+        p_network: network.name.toLowerCase(),
+        p_token_details: tokenDetails,
+        p_logo_key: logoKey || null,
+        p_logo_url: finalLogoUrl || null,
+        p_source: "manual",
+        p_verified: true,
+    });
 
-    let message;
-    if (existingToken) {
-       const { error: updateError } = await supabaseAdmin
-        .from("tokens")
-        .update(dbData)
-        .eq('id', existingToken.id);
-       if (updateError) throw new Error(`Database error: ${updateError.message}`);
-       message = `${symbol.toUpperCase()} on network updated successfully!`;
-    } else {
-        const { error: insertError } = await supabaseAdmin
-        .from("tokens")
-        .insert(dbData);
-      if (insertError) throw new Error(`Database error: ${insertError.message}`);
-       message = `${symbol.toUpperCase()} added successfully!`;
+    if (upsertError) {
+      throw new Error(`Database upsert error: ${upsertError.message}`);
     }
 
     revalidatePath("/tokens");
     revalidatePath("/add-token");
-    return { status: "success", message };
+    return { status: "success", message: `${symbol.toUpperCase()} on ${network.name} saved successfully!` };
 
   } catch (e: any) {
     return { status: "error", message: e.message };
@@ -166,7 +183,6 @@ export type GenerateApiKeyState = {
 const generateApiKeySchema = z.object({
   name: z.string().min(1, "Key name is required."),
 });
-
 
 export async function generateNewApiKey(
   prevState: GenerateApiKeyState,
@@ -213,24 +229,17 @@ export async function deleteApiKey(
 
 export async function deleteToken(tokenId: string): Promise<{ status: "success" | "error", message: string }> {
   const { data: token } = await supabaseAdmin
-    .from("tokens")
-    .select("logo_url")
+    .from("token_metadata")
+    .select("logo_key")
     .eq("id", tokenId)
     .single();
 
-  if (token && token.logo_url && !token.logo_url.includes('picsum.photos') && supabaseUrl && token.logo_url.includes(supabaseUrl)) {
-    try {
-      const path = new URL(token.logo_url).pathname.split('/public/logos/')[1];
-      if (path) {
-        await supabaseAdmin.storage.from("logos").remove([path]);
-      }
-    } catch (e) {
-      console.error("Could not parse or delete storage object for logo_url:", token.logo_url, e);
-    }
+  if (token && token.logo_key) {
+    await supabaseAdmin.storage.from(STORAGE_BUCKET).remove([token.logo_key]);
   }
 
   const { error } = await supabaseAdmin
-    .from("tokens")
+    .from("token_metadata")
     .delete()
     .eq("id", tokenId);
 
@@ -250,7 +259,7 @@ export async function deleteToken(tokenId: string): Promise<{ status: "success" 
 export type SearchState = {
   status: "idle" | "success" | "error";
   message?: string;
-  token?: Token;
+  token?: TokenMetadata;
 };
 
 const searchTokenSchema = z.object({
@@ -271,9 +280,10 @@ export async function searchToken(
 
   try {
     const { data, error } = await supabaseAdmin
-      .from("tokens")
-      .select("*, networks(*)")
-      .ilike("symbol", tokenSymbol)
+      .from("token_metadata")
+      .select("*")
+      // This is a simplified search. A real implementation might need a more complex query on the JSONB field.
+      .ilike("token_details->>symbol", tokenSymbol)
       .limit(1)
       .single();
 
@@ -281,19 +291,7 @@ export async function searchToken(
       return { status: "error", message: `Token "${tokenSymbol}" not found.` };
     }
     
-    const resultToken: Token = {
-      id: data.id,
-      network_id: data.network_id,
-      name: data.name,
-      symbol: data.symbol,
-      decimals: data.decimals,
-      logo_url: data.logo_url,
-      contract: data.contract,
-      created_at: data.created_at,
-      updated_at: data.updated_at,
-    };
-
-    return { status: "success", token: resultToken };
+    return { status: "success", token: data };
   } catch (e: any) {
     return { status: "error", message: e.message };
   }
@@ -356,26 +354,26 @@ export async function deleteNetwork(networkId: string): Promise<{ status: "succe
   return { status: "success", message: "Network deleted." };
 }
 
-
 // --- Universal Token Data Fetcher (Production-Grade) ---
 
 export type FetchMetadataState = {
   status: "idle" | "success" | "error";
   message?: string;
-  metadata?: TokenMetadata & { logoUrl?: string | null };
+  metadata?: TokenFetchResult;
   networkId?: string;
   contractAddress?: string;
 }
 
 const fetchMetadataSchema = z.object({
   contractAddress: z.string().min(1, "Contract address is required."),
-  networkId: z.string().min(1, "Please select a network."),
+  networkId: z.string().min(1, "Please select a network."), // This is the UUID from our networks table
 });
 
-async function fetchFromExplorer(contract: string, chain: any): Promise<TokenMetadata | null> {
-  if (!chain.api) return null;
+
+async function fetchFromExplorer(contract: string, chain: any): Promise<Partial<TokenFetchResult> | null> {
+  if (!chain.explorerApi) return null;
   try {
-    const url = `${chain.api}?module=token&action=tokeninfo&contractaddress=${contract}&apikey=${ETHERSCAN_API_KEY}`;
+    const url = `${chain.explorerApi}?module=token&action=tokeninfo&contractaddress=${contract}&apikey=${ETHERSCAN_API_KEY}`;
     const response = await fetch(url);
     if (!response.ok) return null;
     
@@ -394,10 +392,10 @@ async function fetchFromExplorer(contract: string, chain: any): Promise<TokenMet
   }
 }
 
-async function fetchFromRpc(contract: string, chain: any): Promise<TokenMetadata | null> {
+async function fetchFromRpc(contract: string, chain: any): Promise<Partial<TokenFetchResult> | null> {
   if (!chain.rpc) return null;
   try {
-    const provider = new ethers.providers.JsonRpcProvider(chain.rpc);
+    const provider = new ethers.JsonRpcProvider(chain.rpc);
     const tokenContract = new ethers.Contract(contract, ERC20_ABI, provider);
 
     const [name, symbol, decimals] = await Promise.allSettled([
@@ -409,7 +407,7 @@ async function fetchFromRpc(contract: string, chain: any): Promise<TokenMetadata
     return {
       name: name.status === "fulfilled" ? name.value : "",
       symbol: symbol.status === "fulfilled" ? symbol.value : "",
-      decimals: decimals.status === "fulfilled" ? decimals.value : 18,
+      decimals: decimals.status === "fulfilled" ? Number(decimals.value) : 18,
     };
   } catch (err) {
     return null;
@@ -463,27 +461,30 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
     if (!networkDb) throw new Error("Could not find selected network information in DB.");
     
     // Find the chain config from the JSON file
-    const chainConfig = chainsConfig.chains.find(c => c.chainId === networkDb.chain_id);
+    const chainConfig = chainsConfig.find(c => c.chainId === networkDb.chain_id);
     if (!chainConfig) throw new Error("Could not find chain configuration in chains.json.");
 
     // 1. Fetch metadata (Explorer -> RPC fallback)
-    let metadata: TokenMetadata | null = await fetchFromExplorer(contractAddress, chainConfig);
+    let metadata: Partial<TokenFetchResult> | null = await fetchFromExplorer(contractAddress, chainConfig);
     if (!metadata || !metadata.symbol) {
       metadata = await fetchFromRpc(contractAddress, chainConfig);
     }
     
-    if (!metadata || !metadata.symbol) {
-      throw new Error("Could not fetch token metadata from explorer or RPC.");
+    if (!metadata || !metadata.symbol || !metadata.name || metadata.decimals === null) {
+      throw new Error("Could not fetch complete token metadata from explorer or RPC.");
     }
     
     // 2. Fetch logo
     const logoUrl = await fetchLogoFromCoinGecko(contractAddress, metadata.symbol, chainConfig);
 
-    return { status: "success", metadata: { ...metadata, logoUrl }, networkId, contractAddress };
+    return { 
+        status: "success", 
+        metadata: { ...metadata as TokenFetchResult, logoUrl }, 
+        networkId, 
+        contractAddress 
+    };
 
   } catch (e: any) {
     return { status: "error", message: e.message, networkId, contractAddress };
   }
 }
-
-    

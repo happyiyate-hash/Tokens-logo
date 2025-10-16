@@ -22,7 +22,7 @@ export function NetworkForm() {
   
   const [selectedChainId, setSelectedChainId] = useState<string>("");
   
-  const selectedChain = chainsConfig.chains.find(c => c.chainId.toString() === selectedChainId);
+  const selectedChain = chainsConfig.find(c => c.chainId.toString() === selectedChainId);
 
   useEffect(() => {
     if (state.status === "success") {
@@ -58,7 +58,7 @@ export function NetworkForm() {
                       <SelectValue placeholder="Select a network..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {chainsConfig.chains.map((chain) => (
+                      {chainsConfig.map((chain) => (
                         <SelectItem key={chain.chainId} value={chain.chainId.toString()}>
                           {chain.name} (ID: {chain.chainId})
                         </SelectItem>
@@ -69,7 +69,7 @@ export function NetworkForm() {
                 
                 <input type="hidden" name="name" value={selectedChain?.name || ''} />
                 <input type="hidden" name="chain_id" value={selectedChain?.chainId || ''} />
-                <input type="hidden" name="explorer_api_base_url" value={selectedChain?.api || ''} />
+                <input type="hidden" name="explorer_api_base_url" value={selectedChain?.explorerApi || ''} />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -78,7 +78,7 @@ export function NetworkForm() {
                     </div>
                      <div className="space-y-2">
                         <Label htmlFor="chain_id_display">Chain ID</Label>
-                        <Input id="chain_id_display" type="number" placeholder="e.g., 1" required value={selectedChain?.chainId || ''} readOnly />
+                        <Input id="chain_id_display" type="number" placeholder="e.g., 1" required value={selectedChain?.chainId.toString() || ''} readOnly />
                     </div>
                 </div>
                  <div className="space-y-2">
@@ -87,7 +87,7 @@ export function NetworkForm() {
                       id="explorer_api_base_url_display" 
                       placeholder="https://api.etherscan.io/api" 
                       required 
-                      value={selectedChain?.api || ''}
+                      value={selectedChain?.explorerApi || ''}
                       readOnly
                     />
                 </div>

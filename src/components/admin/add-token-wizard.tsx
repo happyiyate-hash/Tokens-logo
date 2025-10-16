@@ -70,14 +70,16 @@ export function AddTokenWizard({ networks }: { networks: Network[] }) {
     const form = document.createElement('form');
     fetchAction(new FormData(form));
     
-    // Reset save state
-    const saveForm = document.createElement('form');
-    saveAction(new FormData(saveForm));
+    // Reset save state by creating a new form data and calling the action.
+    // This is a workaround for the lack of a built-in reset for useActionState.
+    const emptySaveForm = new FormData();
+    saveAction(emptySaveForm);
     
     formRef.current?.reset();
     setPreviewUrl(null);
     if(fileInputRef.current) fileInputRef.current.value = "";
   }
+
 
   return (
     <Card className="w-full max-w-2xl mx-auto">
@@ -156,7 +158,7 @@ export function AddTokenWizard({ networks }: { networks: Network[] }) {
                     <div className="flex gap-6 items-center">
                         <div className="space-y-2 flex-1">
                             <Label htmlFor="logo">Logo Image (Optional)</Label>
-                            <Input id="logo" name="logo" type="file" ref={fileInputRef} accept="image/png, image/jpeg, image/svg+xml" onChange={handleFileChange} />
+                            <Input id="logo" name="logo" type="file" ref={fileInputRef} accept="image/png, image/jpeg, image/svg+xml, image/webp, image/gif" onChange={handleFileChange} />
                              <p className="text-xs text-muted-foreground">You can override the logo found by uploading a new image.</p>
                         </div>
                         {previewUrl && (

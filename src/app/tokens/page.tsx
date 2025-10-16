@@ -1,6 +1,6 @@
 
 import { createClient } from "@supabase/supabase-js";
-import type { Token, Network } from "@/lib/types";
+import type { TokenMetadata, Network } from "@/lib/types";
 import {
   Table,
   TableBody,
@@ -22,14 +22,27 @@ const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-async function getTokens(networkId: string): Promise<Token[]> {
+async function getTokens(networkId: string): Promise<TokenMetadata[]> {
   if (!networkId) {
     return [];
   }
+  
+  // First, get the network name from its ID
+  const { data: networkData, error: networkError } = await supabase
+    .from("networks")
+    .select("name")
+    .eq("id", networkId)
+    .single();
+    
+  if (networkError || !networkData) {
+      console.error("Error fetching network name:", networkError);
+      return [];
+  }
+  
   const { data, error } = await supabase
-    .from("tokens")
+    .from("token_metadata")
     .select("*")
-    .eq("network_id", networkId)
+    .eq("network", networkData.name.toLowerCase())
     .order("updated_at", { ascending: false });
 
   if (error) {
@@ -113,22 +126,22 @@ export default async function TokensListPage({
                   <TableRow key={token.id}>
                     <TableCell>
                       <Image
-                        src={token.logo_url}
-                        alt={`${token.name} logo`}
+                        src={token.logo_url || `https://picsum.photos/seed/${token.id}/40/40`}
+                        alt={`${token.token_details.name} logo`}
                         width={40}
                         height={40}
                         className="rounded-full bg-muted"
                         unoptimized
                       />
                     </TableCell>
-                    <TableCell className="font-medium">{token.name}</TableCell>
+                    <TableCell className="font-medium">{token.token_details.name}</TableCell>
                     <TableCell>
-                      <Badge variant="outline">{token.symbol}</Badge>
+                      <Badge variant="outline">{token.token_details.symbol}</Badge>
                     </TableCell>
                     <TableCell className="font-code text-xs">
-                        {token.contract.substring(0, 10)}...{token.contract.substring(token.contract.length - 8)}
+                        {token.contract_address.substring(0, 10)}...{token.contract_address.substring(token.contract_address.length - 8)}
                     </TableCell>
-                    <TableCell>{token.decimals}</TableCell>
+                    <TableCell>{token.token_details.decimals}</TableCell>
                     <TableCell className="text-right">
                       <DeleteTokenButton tokenId={token.id} />
                     </TableCell>

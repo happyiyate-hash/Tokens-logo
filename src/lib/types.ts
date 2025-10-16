@@ -1,15 +1,39 @@
 
-export type Token = {
-  id: string;
-  network_id: string; // Foreign key to networks table
+export type TokenDetails = {
   name: string;
   symbol: string;
   decimals: number;
-  logo_url: string;
-  contract: string;
-  created_at: string;
+  network: string;
+  contract_address: string;
+  logo_key?: string;
+  extra?: {
+    coingecko_id?: string;
+    links?: { [key: string]: string };
+  };
+};
+
+export type TokenMetadata = {
+  id: string;
+  contract_address: string;
+  network: string;
+  token_details: TokenDetails;
+  logo_key: string | null;
+  logo_url: string | null;
+  verified: boolean;
+  source: string;
+  fetched_at: string;
   updated_at: string;
 };
+
+export type TokenLogo = {
+    id: string;
+    contract: string | null;
+    symbol: string | null;
+    network: string;
+    storage_path: string;
+    public_url: string;
+    uploaded_at: string;
+}
 
 export type ApiKey = {
   id: string;
@@ -27,8 +51,9 @@ export type Network = {
   created_at: string;
 };
 
-export type TokenMetadata = {
+export type TokenFetchResult = {
     name: string;
     symbol: string;
     decimals: number;
+    logoUrl?: string | null;
 };
