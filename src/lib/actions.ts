@@ -7,11 +7,14 @@ import type { Token } from "@/lib/types";
 import { autoFetchMissingLogo } from "@/ai/flows/auto-fetch-missing-logos";
 import { PlaceHolderImages } from "./placeholder-images";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Note: Using the service_role key should only be done in server-side environments.
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+const supabaseAdmin =
+  supabaseUrl && supabaseServiceKey
+    ? createClient(supabaseUrl, supabaseServiceKey)
+    : null;
 
 // --- MOCK DATA until a real DB is connected ---
 const MOCK_TOKENS: Token[] = [
@@ -76,13 +79,20 @@ export async function searchToken(
 
   const { contractAddress } = validated.data;
 
-  // In a real app, you'd query your Supabase DB here.
-  // const { data: token, error } = await supabaseAdmin
-  //   .from('tokens')
-  //   .select('*')
-  //   .eq('contract', contractAddress)
-  //   .single();
-  let token = MOCK_TOKENS.find((t) => t.contract === contractAddress.toLowerCase());
+  let token: Token | undefined;
+
+  if (supabaseAdmin) {
+    const { data } = await supabaseAdmin
+      .from('tokens')
+      .select('*')
+      .eq('contract', contractAddress.toLowerCase())
+      .single();
+    token = data ?? undefined;
+  } else {
+    console.warn("Supabase not configured. Using mock data.");
+    token = MOCK_TOKENS.find((t) => t.contract === contractAddress.toLowerCase());
+  }
+
 
   if (!token) {
     // This is where you would fetch from the blockchain if not in your DB
@@ -98,7 +108,9 @@ export async function searchToken(
 
       if (logoUrl) {
         token.logo_url = logoUrl;
-        // You would update your DB here with the new logo URL
+        if (supabaseAdmin) {
+          await supabaseAdmin.from('tokens').update({ logo_url: logoUrl }).eq('id', token.id);
+        }
       } else {
         token.logo_url = defaultLogo.imageUrl;
       }
@@ -129,6 +141,14 @@ export async function addToken(
   prevState: AddTokenState,
   formData: FormData
 ): Promise<AddTokenState> {
+    if (!supabaseAdmin) {
+    console.warn("Supabase not configured. Simulating success for demo purposes.");
+    revalidatePath("/");
+    revalidatePath("/admin");
+    const symbol = formData.get("symbol") as string;
+    return { status: "success", message: `${symbol} added successfully! (Simulated)` };
+  }
+
   const validated = addTokenSchema.safeParse(Object.fromEntries(formData.entries()));
 
   if (!validated.success) {
@@ -178,14 +198,6 @@ export async function addToken(
     return { status: "success", message: `${symbol} added successfully!` };
 
   } catch (e: any) {
-    // In a real app, you wouldn't get these errors because the DB would be connected.
-    // This is for demonstration.
-    if (e.message.includes("fetch failed") || e.message.includes("Missing")) {
-      console.warn("Supabase not configured. Simulating success for demo purposes.");
-      revalidatePath("/");
-      revalidatePath("/admin");
-      return { status: "success", message: `${symbol} added successfully! (Simulated)` };
-    }
     return { status: "error", message: e.message };
   }
 }
