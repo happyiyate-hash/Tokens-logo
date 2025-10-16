@@ -14,6 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal, CheckCircle, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
+import { Button } from "@/components/ui/button";
 
 const initialFetchState: FetchMetadataState = {
   status: "idle",
@@ -42,6 +43,13 @@ export function AddTokenWizard({ networks }: { networks: Network[] }) {
         toast({ variant: "destructive", title: "Error Saving Token", description: saveState.message });
     }
   }, [saveState, toast]);
+  
+  // Set preview URL from fetched data
+  useEffect(() => {
+    if (fetchState.status === 'success' && fetchState.metadata?.logoUrl) {
+      setPreviewUrl(fetchState.metadata.logoUrl);
+    }
+  }, [fetchState]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -52,7 +60,8 @@ export function AddTokenWizard({ networks }: { networks: Network[] }) {
       };
       reader.readAsDataURL(file);
     } else {
-      setPreviewUrl(null);
+      // If user deselects file, revert to the fetched logo if available
+      setPreviewUrl(fetchState.metadata?.logoUrl || null);
     }
   };
 
@@ -90,7 +99,7 @@ export function AddTokenWizard({ networks }: { networks: Network[] }) {
                 <form action={fetchAction} className="space-y-6">
                     <div className="space-y-2">
                         <Label htmlFor="networkId">Blockchain Network</Label>
-                        <Select name="networkId" required defaultValue={fetchState.networkId}>
+                        <Select name="networkId" required>
                             <SelectTrigger>
                                 <SelectValue placeholder="Select a network" />
                             </SelectTrigger>
@@ -103,7 +112,7 @@ export function AddTokenWizard({ networks }: { networks: Network[] }) {
                     </div>
                      <div className="space-y-2">
                         <Label htmlFor="contractAddress">Token Contract Address</Label>
-                        <Input id="contractAddress" name="contractAddress" placeholder="0x..." required defaultValue={fetchState.contractAddress} />
+                        <Input id="contractAddress" name="contractAddress" placeholder="0x..." required />
                     </div>
                     <SubmitButton className="w-full">Fetch Metadata</SubmitButton>
 
@@ -119,12 +128,13 @@ export function AddTokenWizard({ networks }: { networks: Network[] }) {
                 <form ref={formRef} action={saveAction} className="space-y-6">
                     <input type="hidden" name="contract" value={fetchState.contractAddress} />
                     <input type="hidden" name="networkId" value={fetchState.networkId} />
+                    {fetchState.metadata?.logoUrl && <input type="hidden" name="logo_url" value={fetchState.metadata.logoUrl} />}
 
                     {fetchState.status === "success" && (
                         <Alert>
                             <CheckCircle className="h-4 w-4" />
                             <AlertTitle>Metadata Found!</AlertTitle>
-                            <AlertDescription>Verify the details below before saving.</AlertDescription>
+                            <AlertDescription>Verify the details below before saving. You can override the fetched logo by uploading a new one.</AlertDescription>
                         </Alert>
                     )}
 
@@ -147,12 +157,12 @@ export function AddTokenWizard({ networks }: { networks: Network[] }) {
                         <div className="space-y-2 flex-1">
                             <Label htmlFor="logo">Logo Image (Optional)</Label>
                             <Input id="logo" name="logo" type="file" ref={fileInputRef} accept="image/png, image/jpeg, image/svg+xml" onChange={handleFileChange} />
-                             <p className="text-xs text-muted-foreground">If no logo is uploaded, an AI will try to find one.</p>
+                             <p className="text-xs text-muted-foreground">You can override the logo found by uploading a new image.</p>
                         </div>
                         {previewUrl && (
                             <div className="flex-shrink-0">
                                 <Label>Preview</Label>
-                                <Image src={previewUrl} alt="Logo preview" width={64} height={64} className="rounded-full mt-2 bg-muted" />
+                                <Image src={previewUrl} alt="Logo preview" width={64} height={64} className="rounded-full mt-2 bg-muted" unoptimized />
                             </div>
                         )}
                     </div>

@@ -30,6 +30,7 @@ const addTokenSchema = z.object({
   networkId: z.string().min(1, "Network ID is required."),
   decimals: z.coerce.number().int().min(0, "Decimals must be a positive integer."),
   logo: z.instanceof(File).optional(),
+  logo_url: z.string().optional(), // Can come from the fetch step
   contract: z.string().min(1, "Contract address is required."),
 });
 
@@ -45,8 +46,8 @@ export async function addToken(
     return { status: "error", message: firstError || "Invalid input." };
   }
   
-  const { logo, symbol, networkId, contract, ...tokenData } = validated.data;
-  let logoUrl = "";
+  const { logo, symbol, networkId, contract, logo_url, ...tokenData } = validated.data;
+  let finalLogoUrl = "";
   
   try {
     if (logo && logo.size > 0) {
@@ -71,20 +72,25 @@ export async function addToken(
         if (!publicUrlData) {
           throw new Error("Could not get public URL for the uploaded logo.");
         }
-        logoUrl = publicUrlData.publicUrl;
-    } else {
+        finalLogoUrl = publicUrlData.publicUrl;
+    } else if (logo_url) {
+        // Use the logo URL fetched from CoinGecko in the previous step
+        finalLogoUrl = logo_url;
+    }
+    else {
+        // Fallback if no logo was uploaded and none was found
         const result = await autoFetchMissingLogo({ tokenSymbol: symbol });
         if (result.logoUrl) {
-          logoUrl = result.logoUrl;
+          finalLogoUrl = result.logoUrl;
         } else {
-          logoUrl = defaultLogo.imageUrl;
+          finalLogoUrl = defaultLogo.imageUrl;
         }
     }
     
     const dbData = {
       ...tokenData,
       symbol: symbol.toUpperCase(),
-      logo_url: logoUrl,
+      logo_url: finalLogoUrl,
       network_id: networkId,
       contract: contract,
       updated_at: new Date().toISOString(),
@@ -338,12 +344,42 @@ export async function deleteNetwork(networkId: string): Promise<{ status: "succe
   return { status: "success", message: "Network deleted." };
 }
 
-// --- Token Metadata Fetching ---
+// --- Universal Token Data Fetcher ---
+
+/**
+ * Fetches a token's logo from CoinGecko.
+ * A real implementation would cache this in a Supabase table.
+ */
+async function fetchTokenLogo(symbol: string): Promise<string | null> {
+  if (!symbol) return null;
+  const coingeckoApiUrl = process.env.COINGECKO_API_URL;
+  if (!coingeckoApiUrl) {
+    console.warn("COINGECKO_API_URL is not set. Skipping logo fetch.");
+    return null;
+  }
+  
+  try {
+    const searchUrl = `${coingeckoApiUrl}/search?query=${symbol}`;
+    const searchRes = await fetch(searchUrl);
+    if (!searchRes.ok) {
+      console.error(`CoinGecko search failed with status ${searchRes.status}`);
+      return null;
+    }
+    const searchData = await searchRes.json();
+    const match = searchData.coins?.find((c: any) => c.symbol.toLowerCase() === symbol.toLowerCase());
+    
+    return match?.thumb || null;
+  } catch (e: any) {
+    console.error("Error fetching from CoinGecko:", e.message);
+    return null;
+  }
+}
+
 
 export type FetchMetadataState = {
   status: "idle" | "success" | "error";
   message?: string;
-  metadata?: TokenMetadata;
+  metadata?: TokenMetadata & { logoUrl?: string | null };
   networkId?: string;
   contractAddress?: string;
 }
@@ -363,36 +399,23 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
   const { contractAddress, networkId } = validated.data;
 
   try {
-    // 1. Get network details from Supabase
     const { data: network, error: networkError } = await supabaseAdmin
       .from("networks")
-      .select("chain_id, explorer_api_base_url, explorer_api_key_env_var")
+      .select("explorer_api_base_url, explorer_api_key_env_var")
       .eq("id", networkId)
       .single();
     
-    if (networkError || !network) {
-      throw new Error("Could not find selected network information.");
-    }
+    if (networkError || !network) throw new Error("Could not find selected network information.");
     
     const apiKey = network.explorer_api_key_env_var ? process.env[network.explorer_api_key_env_var] : null;
     if (network.explorer_api_key_env_var && !apiKey) {
-      console.warn(`API key environment variable '${network.explorer_api_key_env_var}' is not set. Proceeding without an API key.`);
+      console.warn(`API key environment variable '${network.explorer_api_key_env_var}' is not set.`);
     }
-    
-    const apiUrl = network.explorer_api_base_url;
 
-    // 2. Fetch from explorer API
-    const endpointTemplate = chainsConfig.endpoints.token.metadata;
-    const endpoint = endpointTemplate.replace('{contract}', contractAddress);
-
-    const params = new URLSearchParams({
-        ...(apiKey && { [chainsConfig.apiKeyParam]: apiKey }),
-    });
+    const endpoint = `${network.explorer_api_base_url}?module=token&action=tokeninfo&contractaddress=${contractAddress}${apiKey ? `&apikey=${apiKey}` : ''}`;
+    const response = await fetch(endpoint);
     
-    const response = await fetch(`${apiUrl}${endpoint}&${params.toString()}`);
-    if (!response.ok) {
-        throw new Error(`Explorer API request failed with status ${response.status}.`);
-    }
+    if (!response.ok) throw new Error(`Explorer API request failed with status ${response.status}.`);
 
     const result = await response.json();
     
@@ -408,7 +431,10 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
         decimals: parseInt(tokenDetails.decimals, 10),
     };
 
-    return { status: "success", metadata, networkId, contractAddress };
+    // Now fetch the logo
+    const logoUrl = await fetchTokenLogo(metadata.symbol);
+
+    return { status: "success", metadata: { ...metadata, logoUrl }, networkId, contractAddress };
 
   } catch (e: any) {
     return { status: "error", message: e.message, networkId, contractAddress };
