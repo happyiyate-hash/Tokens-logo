@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { Header } from "@/components/header";
+import { Sidebar } from "@/components/sidebar";
 
 const fontInter = Inter({
   subsets: ["latin"],
@@ -41,7 +42,10 @@ export default function RootLayout({
       >
         <div className="relative flex min-h-screen flex-col">
           <Header />
-          <main className="flex-1">{children}</main>
+          <div className="flex flex-1">
+            <Sidebar />
+            <main className="flex-1 p-6">{children}</main>
+          </div>
         </div>
         <Toaster />
       </body>
