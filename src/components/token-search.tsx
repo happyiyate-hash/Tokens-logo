@@ -1,6 +1,6 @@
 "use client";
 
-import { useFormState } from "react-dom";
+import { useActionState } from "react";
 import { searchToken, type SearchState } from "@/lib/actions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -15,7 +15,7 @@ const initialState: SearchState = {
 };
 
 export function TokenSearch() {
-  const [state, formAction] = useFormState(searchToken, initialState);
+  const [state, formAction] = useActionState(searchToken, initialState);
 
   return (
     <div className="w-full max-w-md space-y-6">

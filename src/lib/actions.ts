@@ -222,11 +222,13 @@ export async function deleteToken(tokenId: string): Promise<DeleteTokenState> {
   if (token && token.logo_url && !token.logo_url.includes('picsum.photos')) {
     try {
       const url = new URL(token.logo_url);
-      const path = url.pathname.split('/logos/')[1];
+      // a bit fragile, depends on the exact storage URL structure
+      const path = url.pathname.split('/logos/')[1]; 
       if (path) {
         await supabaseAdmin.storage.from("logos").remove([path]);
       }
     } catch (e) {
+      // If parsing or deleting fails, log it but don't block the DB deletion
       console.error("Could not parse or delete storage object for logo_url:", token.logo_url, e);
     }
   }
@@ -246,4 +248,50 @@ export async function deleteToken(tokenId: string): Promise<DeleteTokenState> {
 
   revalidatePath("/tokens");
   return { status: "success", message: "Token deleted." };
+}
+
+
+// --- Token Search ---
+
+export type SearchState = {
+  status: "idle" | "success" | "error";
+  message?: string;
+  token?: Token;
+};
+
+const searchTokenSchema = z.object({
+  tokenSymbol: z.string().min(1, "Token symbol is required."),
+});
+
+export async function searchToken(
+  prevState: SearchState,
+  formData: FormData
+): Promise<SearchState> {
+  if (!supabaseAdmin) {
+    return { status: "error", message: "Supabase connection not configured." };
+  }
+
+  const validated = searchTokenSchema.safeParse(Object.fromEntries(formData.entries()));
+
+  if (!validated.success) {
+    return { status: "error", message: "Token symbol is required." };
+  }
+  
+  const { tokenSymbol } = validated.data;
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("tokens")
+      .select("*")
+      .eq("symbol", tokenSymbol.toUpperCase())
+      .single();
+
+    if (error || !data) {
+      return { status: "error", message: `Token "${tokenSymbol}" not found.` };
+    }
+
+    return { status: "success", token: data };
+  } catch (e: any) {
+    return { status: "error", message: e.message };
+  }
 }

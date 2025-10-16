@@ -6,6 +6,7 @@ export type Token = {
   chains: string[];
   decimals: number;
   logo_url: string;
+  contract?: string; // Optional contract address
   created_at: string;
   updated_at: string;
 };

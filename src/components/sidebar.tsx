@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Upload, List, KeyRound, LayoutDashboard } from "lucide-react";
+import { Upload, List, KeyRound, LayoutDashboard, Search } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
+  { name: "Search", href: "/search", icon: Search },
   { name: "Upload Token", href: "/upload-token", icon: Upload },
   { name: "Tokens List", href: "/tokens", icon: List },
   { name: "API Keys", href: "/api-keys", icon: KeyRound },
