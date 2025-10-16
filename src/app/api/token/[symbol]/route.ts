@@ -45,7 +45,7 @@ export async function GET(
 
   const tokenSymbol = params.symbol;
   const { searchParams } = new URL(request.url);
-  const chain = searchParams.get('chain');
+  const networkId = searchParams.get('network');
 
 
   if (!tokenSymbol) {
@@ -58,11 +58,11 @@ export async function GET(
   try {
     let query = supabase
       .from("tokens")
-      .select("name, symbol, decimals, chain, logo_url, contract")
+      .select("name, symbol, decimals, network_id, logo_url, contract")
       .eq("symbol", tokenSymbol.toUpperCase());
     
-    if (chain) {
-      query = query.eq('chain', chain.toLowerCase());
+    if (networkId) {
+      query = query.eq('network_id', networkId);
     }
       
     const { data, error } = await query.limit(1).maybeSingle();
@@ -78,7 +78,7 @@ export async function GET(
         symbol: tokenSymbol.toUpperCase(),
         name: "Unknown Token",
         decimals: 0,
-        chain: chain || 'unknown',
+        chain: networkId || 'unknown',
         logo_url: defaultLogo.imageUrl,
       });
     }

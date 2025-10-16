@@ -1,6 +1,5 @@
-
 import { createClient } from "@supabase/supabase-js";
-import type { Token } from "@/lib/types";
+import type { Token, Network } from "@/lib/types";
 import {
   Table,
   TableBody,
@@ -12,6 +11,15 @@ import {
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { DeleteTokenButton } from "@/components/admin/delete-token-button";
+import { NetworkSelector } from "@/components/admin/network-selector";
+import { UploadForm } from "@/components/admin/upload-form";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { PlusCircle } from "lucide-react";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -19,12 +27,15 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase =
   supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
-async function getTokens(): Promise<Token[]> {
-  if (!supabase) {
-    console.error("Supabase client not initialized");
+async function getTokens(networkId: string): Promise<Token[]> {
+  if (!supabase || !networkId) {
     return [];
   }
-  const { data, error } = await supabase.from("tokens").select("*").order('updated_at', { ascending: false });
+  const { data, error } = await supabase
+    .from("tokens")
+    .select("*")
+    .eq("network_id", networkId)
+    .order("updated_at", { ascending: false });
 
   if (error) {
     console.error("Error fetching tokens:", error);
@@ -34,23 +45,75 @@ async function getTokens(): Promise<Token[]> {
   return data;
 }
 
-export default async function TokensListPage() {
-  const tokens = await getTokens();
+async function getNetworks(): Promise<Network[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from("networks")
+    .select("id, name")
+    .order("name");
+  if (error) {
+    console.error("Error fetching networks:", error);
+    return [];
+  }
+  return data;
+}
+
+export default async function TokensListPage({
+  searchParams,
+}: {
+  searchParams: { [key: string]: string | string[] | undefined };
+}) {
+  const networks = await getNetworks();
+  const selectedNetworkId =
+    (searchParams.network as string) ?? (networks[0]?.id || "");
+  const tokens = await getTokens(selectedNetworkId);
+  const selectedNetwork = networks.find(n => n.id === selectedNetworkId);
+
 
   return (
-    <div className="w-full">
-      <div className="space-y-2 mb-8">
+    <div className="w-full space-y-8">
+      <div>
         <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl">
-          Tokens List
+          Manage Tokens by Network
         </h1>
         <p className="text-muted-foreground">
-          A list of all the tokens stored in your CDN, across all networks.
+          Select a network to view and manage its tokens.
         </p>
       </div>
 
+      <div className="flex items-center">
+         <NetworkSelector networks={networks} selectedNetworkId={selectedNetworkId} />
+      </div>
+
+      <Accordion type="single" collapsible className="w-full">
+        <AccordionItem value="item-1">
+          <AccordionTrigger className="text-lg hover:no-underline">
+            <div className="flex items-center gap-2">
+                <PlusCircle className="h-5 w-5" />
+                Add New Token to {selectedNetwork?.name || 'Selected Network'}
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+             <div className="p-4 rounded-lg bg-card/50">
+                 {selectedNetworkId ? (
+                    <UploadForm networkId={selectedNetworkId} />
+                 ) : (
+                    <p className="text-muted-foreground">Please select a network to add a token.</p>
+                 )}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+
+
       <div className="bg-card p-8 rounded-lg shadow-md">
+        <h3 className="text-xl font-medium mb-4">
+            Tokens on {selectedNetwork?.name || 'Selected Network'}
+        </h3>
         {tokens.length === 0 ? (
-          <p className="text-muted-foreground">No tokens uploaded yet. Go to "Upload Token" to add some!</p>
+          <p className="text-muted-foreground">
+            No tokens found for this network.
+          </p>
         ) : (
           <div className="overflow-x-auto">
             <Table>
@@ -59,7 +122,7 @@ export default async function TokensListPage() {
                   <TableHead className="w-[80px]">Logo</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Symbol</TableHead>
-                  <TableHead>Chain</TableHead>
+                  <TableHead>Contract Address</TableHead>
                   <TableHead>Decimals</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -81,10 +144,8 @@ export default async function TokensListPage() {
                     <TableCell>
                       <Badge variant="outline">{token.symbol}</Badge>
                     </TableCell>
-                     <TableCell>
-                      <Badge variant="secondary" className="capitalize">
-                          {token.chain}
-                      </Badge>
+                    <TableCell className="font-code text-xs">
+                        {token.contract.substring(0, 10)}...{token.contract.substring(token.contract.length - 8)}
                     </TableCell>
                     <TableCell>{token.decimals}</TableCell>
                     <TableCell className="text-right">

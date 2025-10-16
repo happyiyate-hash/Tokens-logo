@@ -1,12 +1,12 @@
 
 export type Token = {
   id: string;
+  network_id: string; // Foreign key to networks table
   name: string;
   symbol: string;
-  chain: string;
   decimals: number;
   logo_url: string;
-  contract?: string; // Optional contract address
+  contract: string;
   created_at: string;
   updated_at: string;
 };

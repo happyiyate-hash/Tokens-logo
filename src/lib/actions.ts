@@ -30,10 +30,10 @@ export type AddTokenState = {
 const addTokenSchema = z.object({
   name: z.string().min(1, "Token name is required."),
   symbol: z.string().min(1, "Token symbol is required."),
-  chain: z.string().min(1, "Chain identifier is required."),
+  networkId: z.string().min(1, "Network ID is required."),
   decimals: z.coerce.number().int().min(0, "Decimals must be a positive integer."),
   logo: z.instanceof(File).refine((file) => file.size > 0, "Logo image is required."),
-  contract: z.string().optional(),
+  contract: z.string().min(1, "Contract address is required."),
 });
 
 export async function addToken(
@@ -52,13 +52,12 @@ export async function addToken(
     return { status: "error", message: firstError || "Invalid input." };
   }
   
-  const { logo, symbol, chain, ...tokenData } = validated.data;
+  const { logo, symbol, networkId, contract, ...tokenData } = validated.data;
   
   try {
     const fileContents = await logo.arrayBuffer();
-    // Using contract address + chain for a more unique path
-    const uniquePart = tokenData.contract ? `${chain}-${tokenData.contract}` : `${chain}-${symbol.toLowerCase()}`;
-    const filePath = `logos/${uniquePart}.${logo.name.split('.').pop()}`;
+    // Using networkId + contract address for a unique path
+    const filePath = `logos/${networkId}-${contract}.${logo.name.split('.').pop()}`;
 
     // Upload to Supabase Storage
     const { error: uploadError } = await supabaseAdmin.storage
@@ -85,37 +84,36 @@ export async function addToken(
       ...tokenData,
       symbol: symbol.toUpperCase(),
       logo_url: publicUrlData.publicUrl,
-      chain: chain.trim().toLowerCase(),
+      network_id: networkId,
+      contract: contract,
       updated_at: new Date().toISOString(),
     };
     
-    // Upsert based on symbol AND chain. This is a simplification.
-    // A true robust solution would use contract address + chain_id.
+    // Upsert based on networkId AND contract address.
     const { data: existingToken, error: fetchError } = await supabaseAdmin
       .from("tokens")
       .select('id')
-      .eq('symbol', dbData.symbol)
-      .eq('chain', dbData.chain)
+      .eq('network_id', dbData.network_id)
+      .eq('contract', dbData.contract)
       .single();
 
     let message;
     if (existingToken) {
        const { error: updateError } = await supabaseAdmin
         .from("tokens")
-        .update({ ...dbData, id: undefined }) // id should not be in update payload
+        .update(dbData)
         .eq('id', existingToken.id);
        if (updateError) throw new Error(`Database error: ${updateError.message}`);
-       message = `${symbol.toUpperCase()} on ${dbData.chain} updated successfully!`;
+       message = `${symbol.toUpperCase()} on network updated successfully!`;
     } else {
         const { error: insertError } = await supabaseAdmin
         .from("tokens")
         .insert(dbData);
       if (insertError) throw new Error(`Database error: ${insertError.message}`);
-       message = `${symbol.toUpperCase()} on ${dbData.chain} added successfully!`;
+       message = `${symbol.toUpperCase()} added successfully!`;
     }
 
     revalidatePath("/tokens");
-    revalidatePath("/upload-token");
     return { status: "success", message };
 
   } catch (e: any) {
