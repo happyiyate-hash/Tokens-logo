@@ -10,10 +10,9 @@ export default function UploadTokenPage() {
           Upload Token
         </h1>
         <p className="max-w-[700px] text-muted-foreground md:text-xl">
-          Upload a new token logo and its metadata.
+          This page is deprecated. Please use the "Manage Tokens" page to add new tokens to a specific network.
         </p>
       </div>
-      <UploadForm />
     </div>
   );
 }

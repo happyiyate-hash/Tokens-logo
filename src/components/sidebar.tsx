@@ -10,8 +10,7 @@ import { Logo } from "@/components/logo";
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Search", href: "/search", icon: Search },
-  { name: "Upload Token", href: "/upload-token", icon: Upload },
-  { name: "Tokens List", href: "/tokens", icon: List },
+  { name: "Manage Tokens", href: "/tokens", icon: List },
   { name: "Manage Networks", href: "/networks", icon: NetworkIcon },
   { name: "API Keys", href: "/api-keys", icon: KeyRound },
 ];
