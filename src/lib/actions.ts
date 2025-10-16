@@ -8,6 +8,7 @@ import type { ApiKey, Token, Network, TokenMetadata } from "@/lib/types";
 import { PlaceHolderImages } from "./placeholder-images";
 import { randomBytes } from 'crypto';
 import { autoFetchMissingLogo } from "@/ai/flows/auto-fetch-missing-logos";
+import chainsConfig from "@/lib/chains.json";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -403,7 +404,7 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
     // 1. Get network details from Supabase
     const { data: network, error: networkError } = await supabaseAdmin
       .from("networks")
-      .select("explorer_api_base_url, explorer_api_key_env_var")
+      .select("chain_id, explorer_api_base_url, explorer_api_key_env_var")
       .eq("id", networkId)
       .single();
     
@@ -412,74 +413,38 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
     }
     
     const apiKey = network.explorer_api_key_env_var ? process.env[network.explorer_api_key_env_var] : null;
-    
-    const apiUrl = network.explorer_api_base_url;
-
-    // This logic assumes an Etherscan-compatible API.
-    // This could be made more robust to handle different API formats or direct RPC calls.
-    if (apiUrl.includes('ankr.com')) {
-       // Logic for Ankr RPC (or other direct RPC) would go here.
-       // This would involve using ethers.js or a similar library.
-       // For now, we'll throw an error if it's not a known explorer format.
-       throw new Error("Direct RPC fetching not yet implemented. Please use a block explorer API endpoint.");
-    }
-
     if (!apiKey) {
       console.warn(`API key environment variable '${network.explorer_api_key_env_var}' is not set. Proceeding without an API key.`);
     }
+    
+    const apiUrl = network.explorer_api_base_url;
+    const apiChainId = network.chain_id;
 
     // 2. Fetch from explorer API
+    const endpointTemplate = chainsConfig.endpoints.token.metadata;
+    const endpoint = endpointTemplate.replace('{contract}', contractAddress);
+
     const params = new URLSearchParams({
-      module: "contract",
-      action: "getsourcecode",
-      address: contractAddress,
-      apikey: apiKey || '',
+      [chainsConfig.chainParam]: apiChainId.toString(),
+      ...(apiKey && { [chainsConfig.apiKeyParam]: apiKey }),
     });
     
-    const response = await fetch(`${apiUrl}?${params.toString()}`);
+    const response = await fetch(`${apiUrl}${endpoint}&${params.toString()}`);
     if (!response.ok) {
         throw new Error(`Explorer API request failed with status ${response.status}.`);
     }
 
     const result = await response.json();
     
-    if (result.status === "0") {
-        throw new Error(`Explorer API Error: ${result.message} - ${result.result}`);
-    }
-    
-    if (!result.result || result.result.length === 0) {
-        throw new Error("No token info found for this contract address on the selected network.");
-    }
-    
-    // For Etherscan's getsourcecode, we need to make another call for token info if it's a verified contract.
-    const contractInfo = result.result[0];
-    if (!contractInfo.ABI || contractInfo.ABI === "Contract source code not verified") {
-        throw new Error("Contract source code is not verified on the explorer.");
-    }
-    
-    // Now get token info
-     const tokenInfoParams = new URLSearchParams({
-      module: "token",
-      action: "tokeninfo",
-      contractaddress: contractAddress,
-      apikey: apiKey || '',
-    });
-
-    const tokenInfoResponse = await fetch(`${apiUrl}?${tokenInfoParams.toString()}`);
-     if (!tokenInfoResponse.ok) {
-        throw new Error(`Explorer tokeninfo request failed with status ${tokenInfoResponse.status}.`);
-    }
-    const tokenResult = await tokenInfoResponse.json();
-
-    if (tokenResult.status === "0" || !tokenResult.result || tokenResult.result.length === 0) {
-      throw new Error(tokenResult.result || "Could not fetch token details from explorer.");
+    if (result.status === "0" || !result.result || result.result.length === 0) {
+        throw new Error(`Explorer API Error: ${result.message} - ${result.result || 'No data found.'}`);
     }
 
-    const tokenDetails = tokenResult.result[0];
+    const tokenDetails = result.result[0];
 
     const metadata: TokenMetadata = {
-        name: tokenDetails.tokenName,
-        symbol: tokenDetails.symbol,
+        name: tokenDetails.tokenName || 'Unknown Token',
+        symbol: tokenDetails.symbol || '???',
         decimals: parseInt(tokenDetails.decimals, 10),
     };
 

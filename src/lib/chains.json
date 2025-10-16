@@ -1,135 +1,69 @@
 
-[
-  {
-    "name": "Ethereum Mainnet",
-    "chainId": 1,
-    "rpc": "https://rpc.ankr.com/eth",
-    "nativeCurrency": { "symbol": "ETH", "decimals": 18 }
-  },
-  {
-    "name": "BNB Smart Chain",
-    "chainId": 56,
-    "rpc": "https://rpc.ankr.com/bsc",
-    "nativeCurrency": { "symbol": "BNB", "decimals": 18 }
-  },
-  {
-    "name": "Polygon (Matic)",
-    "chainId": 137,
-    "rpc": "https://rpc.ankr.com/polygon",
-    "nativeCurrency": { "symbol": "MATIC", "decimals": 18 }
-  },
-  {
-    "name": "Avalanche C-Chain",
-    "chainId": 43114,
-    "rpc": "https://rpc.ankr.com/avalanche",
-    "nativeCurrency": { "symbol": "AVAX", "decimals": 18 }
-  },
-  {
-    "name": "Fantom Opera",
-    "chainId": 250,
-    "rpc": "https://rpc.ankr.com/fantom",
-    "nativeCurrency": { "symbol": "FTM", "decimals": 18 }
-  },
-  {
-    "name": "Arbitrum One",
-    "chainId": 42161,
-    "rpc": "https://rpc.ankr.com/arbitrum",
-    "nativeCurrency": { "symbol": "ETH", "decimals": 18 }
-  },
-  {
-    "name": "Optimism",
-    "chainId": 10,
-    "rpc": "https://rpc.ankr.com/optimism",
-    "nativeCurrency": { "symbol": "ETH", "decimals": 18 }
-  },
-  {
-    "name": "Base",
-    "chainId": 8453,
-    "rpc": "https://rpc.ankr.com/base",
-    "nativeCurrency": { "symbol": "ETH", "decimals": 18 }
-  },
-  {
-    "name": "Celo",
-    "chainId": 42220,
-    "rpc": "https://rpc.ankr.com/celo",
-    "nativeCurrency": { "symbol": "CELO", "decimals": 18 }
-  },
-  {
-    "name": "Gnosis Chain",
-    "chainId": 100,
-    "rpc": "https://rpc.ankr.com/gnosis",
-    "nativeCurrency": { "symbol": "xDAI", "decimals": 18 }
-  },
-  {
-    "name": "Moonbeam",
-    "chainId": 1284,
-    "rpc": "https://rpc.ankr.com/moonbeam",
-    "nativeCurrency": { "symbol": "GLMR", "decimals": 18 }
-  },
-  {
-    "name": "Cronos",
-    "chainId": 25,
-    "rpc": "https://rpc.ankr.com/cronos",
-    "nativeCurrency": { "symbol": "CRO", "decimals": 18 }
-  },
-  {
-    "name": "Aurora",
-    "chainId": 1313161554,
-    "rpc": "https://rpc.ankr.com/aurora",
-    "nativeCurrency": { "symbol": "ETH", "decimals": 18 }
-  },
-  {
-    "name": "Klaytn",
-    "chainId": 8217,
-    "rpc": "https://rpc.ankr.com/klaytn",
-    "nativeCurrency": { "symbol": "KLAY", "decimals": 18 }
-  },
-  {
-    "name": "Harmony",
-    "chainId": 1666600000,
-    "rpc": "https://rpc.ankr.com/harmony",
-    "nativeCurrency": { "symbol": "ONE", "decimals": 18 }
-  },
-  {
-    "name": "Metis Andromeda",
-    "chainId": 1088,
-    "rpc": "https://andromeda.metis.io/?owner=1088",
-    "nativeCurrency": { "symbol": "METIS", "decimals": 18 }
-  },
-  {
-    "name": "KCC (KuCoin Community Chain)",
-    "chainId": 321,
-    "rpc": "https://rpc-mainnet.kcc.network",
-    "nativeCurrency": { "symbol": "KCS", "decimals": 18 }
-  },
-  {
-    "name": "Boba Network",
-    "chainId": 288,
-    "rpc": "https://mainnet.boba.network",
-    "nativeCurrency": { "symbol": "ETH", "decimals": 18 }
-  },
-  {
-    "name": "Telos EVM",
-    "chainId": 40,
-    "rpc": "https://mainnet.telos.net/evm",
-    "nativeCurrency": { "symbol": "TLOS", "decimals": 18 }
-  },
-  {
-    "name": "Fuse",
-    "chainId": 122,
-    "rpc": "https://rpc.fuse.io",
-    "nativeCurrency": { "symbol": "FUSE", "decimals": 18 }
-  },
-  {
-    "name": "Elastos Smart Chain",
-    "chainId": 20,
-    "rpc": "https://api.elastos.io/eth",
-    "nativeCurrency": { "symbol": "ELA", "decimals": 18 }
-  },
-  {
-    "name": "Palm",
-    "chainId": 11297108109,
-    "rpc": "https://palm-mainnet.public.blastapi.io",
-    "nativeCurrency": { "symbol": "PALM", "decimals": 18 }
+{
+  "baseUrl": "https://api.etherscan.io/api",
+  "apiKeyParam": "apikey",
+  "chainParam": "chainid",
+  "description": "Use one Etherscan API key for all EVM-compatible networks by specifying the chainId parameter.",
+  "chains": [
+    { "name": "Ethereum Mainnet", "chainId": 1, "symbol": "ETH", "decimals": 18, "explorerUrl": "https://etherscan.io" },
+    { "name": "BNB Smart Chain", "chainId": 56, "symbol": "BNB", "decimals": 18, "explorerUrl": "https://bscscan.com" },
+    { "name": "Polygon (Matic)", "chainId": 137, "symbol": "MATIC", "decimals": 18, "explorerUrl": "https://polygonscan.com" },
+    { "name": "Avalanche C-Chain", "chainId": 43114, "symbol": "AVAX", "decimals": 18, "explorerUrl": "https://snowtrace.io" },
+    { "name": "Fantom Opera", "chainId": 250, "symbol": "FTM", "decimals": 18, "explorerUrl": "https://ftmscan.com" },
+    { "name": "Arbitrum One", "chainId": 42161, "symbol": "ETH", "decimals": 18, "explorerUrl": "https://arbiscan.io" },
+    { "name": "Optimism", "chainId": 10, "symbol": "ETH", "decimals": 18, "explorerUrl": "https://optimistic.etherscan.io" },
+    { "name": "Base", "chainId": 8453, "symbol": "ETH", "decimals": 18, "explorerUrl": "https://basescan.org" },
+    { "name": "Celo", "chainId": 42220, "symbol": "CELO", "decimals": 18, "explorerUrl": "https://celoscan.io" },
+    { "name": "Gnosis Chain", "chainId": 100, "symbol": "xDAI", "decimals": 18, "explorerUrl": "https://gnosisscan.io" },
+    { "name": "Moonbeam", "chainId": 1284, "symbol": "GLMR", "decimals": 18, "explorerUrl": "https://moonscan.io" },
+    { "name": "Cronos", "chainId": 25, "symbol": "CRO", "decimals": 18, "explorerUrl": "https://cronoscan.com" },
+    { "name": "Aurora", "chainId": 1313161554, "symbol": "ETH", "decimals": 18, "explorerUrl": "https://aurorascan.dev" },
+    { "name": "Klaytn", "chainId": 8217, "symbol": "KLAY", "decimals": 18, "explorerUrl": "https://scope.klaytn.com" },
+    { "name": "Harmony", "chainId": 1666600000, "symbol": "ONE", "decimals": 18, "explorerUrl": "https://explorer.harmony.one" },
+    { "name": "Metis Andromeda", "chainId": 1088, "symbol": "METIS", "decimals": 18, "explorerUrl": "https://andromeda-explorer.metis.io" },
+    { "name": "KCC (KuCoin Community Chain)", "chainId": 321, "symbol": "KCS", "decimals": 18, "explorerUrl": "https://explorer.kcc.io" },
+    { "name": "Boba Network", "chainId": 288, "symbol": "ETH", "decimals": 18, "explorerUrl": "https://bobascan.com" },
+    { "name": "Telos EVM", "chainId": 40, "symbol": "TLOS", "decimals": 18, "explorerUrl": "https://teloscan.io" },
+    { "name": "Fuse", "chainId": 122, "symbol": "FUSE", "decimals": 18, "explorerUrl": "https://explorer.fuse.io" },
+    { "name": "Elastos Smart Chain", "chainId": 20, "symbol": "ELA", "decimals": 18, "explorerUrl": "https://eth.elastos.io" },
+    { "name": "Palm", "chainId": 11297108109, "symbol": "PALM", "decimals": 18, "explorerUrl": "https://explorer.palm.io" }
+  ],
+  "endpoints": {
+    "account": {
+      "balance": "?module=account&action=balance&address={address}&tag=latest",
+      "tokenTransfers": "?module=account&action=tokentx&address={address}&sort=desc",
+      "normalTransactions": "?module=account&action=txlist&address={address}&sort=desc",
+      "internalTransactions": "?module=account&action=txlistinternal&address={address}&sort=desc",
+      "multiBalance": "?module=account&action=balancemulti&address={addresses}&tag=latest"
+    },
+    "token": {
+      "metadata": "?module=token&action=tokeninfo&contractaddress={contract}",
+      "supply": "?module=stats&action=tokensupply&contractaddress={contract}",
+      "holderList": "?module=token&action=tokenholderlist&contractaddress={contract}",
+      "tokenPrice": "?module=stats&action=tokenprice&contractaddress={contract}"
+    },
+    "contract": {
+      "abi": "?module=contract&action=getabi&address={contract}",
+      "sourceCode": "?module=contract&action=getsourcecode&address={contract}",
+      "creator": "?module=contract&action=getcontractcreation&contractaddresses={contract}"
+    },
+    "block": {
+      "latestBlock": "?module=proxy&action=eth_blockNumber",
+      "blockByNumber": "?module=block&action=getblockreward&blockno={blockNumber}"
+    },
+    "logs": {
+      "eventLogs": "?module=logs&action=getLogs&fromBlock={fromBlock}&toBlock={toBlock}&address={contract}"
+    },
+    "gas": {
+      "gasTracker": "?module=gastracker&action=gasoracle"
+    },
+    "proxy": {
+      "ethCall": "?module=proxy&action=eth_call&to={contract}&data={data}",
+      "sendRawTx": "?module=proxy&action=eth_sendRawTransaction&hex={signedTx}"
+    },
+    "stats": {
+      "ethSupply": "?module=stats&action=ethsupply",
+      "ethPrice": "?module=stats&action=ethprice"
+    }
   }
-]
+}
