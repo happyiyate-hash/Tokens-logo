@@ -28,11 +28,11 @@ export async function GET(
     );
   }
 
-  // API Key check
-  const apiKey = request.headers.get('x-api-key');
-  if (apiKey !== process.env.API_KEY) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  // TODO: Replace with dynamic API key check from database
+  // const apiKey = request.headers.get('x-api-key');
+  // if (apiKey !== process.env.API_KEY) {
+  //   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // }
 
   const tokenSymbol = params.symbol;
 
@@ -105,4 +105,3 @@ export async function GET(
     );
   }
 }
-

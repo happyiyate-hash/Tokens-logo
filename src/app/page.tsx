@@ -43,7 +43,7 @@ export default function AdminPage() {
           <div>
             <h3 className="font-semibold mb-1">Headers</h3>
             <pre className="w-full break-all rounded-lg border bg-secondary/50 p-3 font-code text-xs">
-              <code>{`{ "x-api-key": "YOUR_SECRET_API_KEY" }`}</code>
+              <code>{`{ "x-api-key": "YOUR_GENERATED_API_KEY" }`}</code>
             </pre>
           </div>
           <div>
@@ -54,7 +54,7 @@ export default function AdminPage() {
           </div>
           <div>
             <h3 className="font-semibold mb-1">Example Success Response</h3>
-            <pre className="w-full break-all rounded-lg border bg-secondary/50 p-3 font-code text-xs">
+            <pre className="w-full break-all rounded-lg border bg-secondary/50 p-3 font-code textxs">
               <code>
                 {JSON.stringify(
                   {
