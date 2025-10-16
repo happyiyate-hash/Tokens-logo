@@ -17,3 +17,12 @@ export type ApiKey = {
   key: string;
   created_at: string;
 };
+
+export type Network = {
+  id: string;
+  name: string;
+  chain_id: number;
+  explorer_api_base_url: string;
+  explorer_api_key_env_var: string;
+  created_at: string;
+};

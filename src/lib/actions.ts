@@ -1,9 +1,10 @@
+
 "use server";
 
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
-import type { ApiKey, Token } from "@/lib/types";
+import type { ApiKey, Token, Network } from "@/lib/types";
 import { PlaceHolderImages } from "./placeholder-images";
 import { randomBytes } from 'crypto';
 
@@ -180,14 +181,9 @@ export async function generateNewApiKey(
   return { status: "success", message: "API Key generated successfully.", newKey: data };
 }
 
-export type DeleteApiKeyState = {
-  status: "idle" | "success" | "error";
-  message?: string;
-};
-
 export async function deleteApiKey(
   keyId: string,
-): Promise<DeleteApiKeyState> {
+): Promise<{ status: "success" | "error", message: string }> {
    if (!supabaseAdmin) {
     return { status: "error", message: "Supabase connection not configured." };
   }
@@ -205,12 +201,7 @@ export async function deleteApiKey(
   return { status: "success", message: "API Key deleted." };
 }
 
-export type DeleteTokenState = {
-  status: "idle" | "success" | "error";
-  message?: string;
-};
-
-export async function deleteToken(tokenId: string): Promise<DeleteTokenState> {
+export async function deleteToken(tokenId: string): Promise<{ status: "success" | "error", message: string }> {
   if (!supabaseAdmin) {
     return { status: "error", message: "Supabase connection not configured." };
   }
@@ -297,4 +288,71 @@ export async function searchToken(
   } catch (e: any) {
     return { status: "error", message: e.message };
   }
+}
+
+// --- Network Management ---
+
+export type AddNetworkState = {
+  status: "idle" | "success" | "error";
+  message?: string;
+};
+
+const addNetworkSchema = z.object({
+  name: z.string().min(1, "Network name is required."),
+  chain_id: z.coerce.number().int("Chain ID must be an integer."),
+  explorer_api_base_url: z.string().url("Must be a valid URL."),
+  explorer_api_key_env_var: z.string().min(1, "ENV variable name is required."),
+});
+
+export async function addNetwork(prevState: AddNetworkState, formData: FormData): Promise<AddNetworkState> {
+  if (!supabaseAdmin) {
+    return { status: "error", message: "Supabase connection not configured." };
+  }
+  
+  const validated = addNetworkSchema.safeParse(Object.fromEntries(formData.entries()));
+
+  if (!validated.success) {
+    const fieldErrors = validated.error.flatten().fieldErrors;
+    const firstError = Object.values(fieldErrors)[0]?.[0];
+    return { status: "error", message: firstError || "Invalid input." };
+  }
+
+  try {
+    const { error } = await supabaseAdmin.from("networks").insert(validated.data);
+    if (error) {
+      // Handle potential unique constraint violation, etc.
+      if (error.code === '23505') {
+         throw new Error(`Network with this name or Chain ID already exists.`);
+      }
+      throw error;
+    }
+
+    revalidatePath("/networks");
+    return { status: "success", message: "Network added successfully!" };
+  } catch(e: any) {
+    return { status: "error", message: e.message };
+  }
+}
+
+export async function deleteNetwork(networkId: string): Promise<{ status: "success" | "error", message: string }> {
+  if (!supabaseAdmin) {
+    return { status: "error", message: "Supabase connection not configured." };
+  }
+
+  // We should also delete tokens associated with this network, this needs a proper CASCADE setup in the DB
+  // For now, we just delete the network
+  const { error } = await supabaseAdmin
+    .from("networks")
+    .delete()
+    .eq("id", networkId);
+
+  if (error) {
+    return {
+      status: "error",
+      message: `Failed to delete network: ${error.message}`,
+    };
+  }
+
+  revalidatePath("/networks");
+  return { status: "success", message: "Network deleted." };
 }
