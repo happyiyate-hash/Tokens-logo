@@ -3,44 +3,51 @@
 
 import { useState } from "react";
 import { ApiKeyManager } from "@/components/settings/api-key-manager";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Check, Copy } from "lucide-react";
 
 const codeSnippet = `
-async function getTokenLogo(symbol: string, apiKey: string) {
+// Example: Fetch all registered tokens on the Ethereum network
+// You can use either the network ID or its full name (e.g., "Ethereum Mainnet")
+async function getTokensByNetwork(networkIdentifier: string, apiKey: string) {
   const baseUrl = window.location.origin;
   try {
-    const response = await fetch(\`\${baseUrl}/api/token/\${symbol}\`, {
+    const response = await fetch(\`\${baseUrl}/api/tokens/\${networkIdentifier}\`, {
       headers: {
         'x-api-key': apiKey,
       }
     });
     
     if (!response.ok) {
-      // If the API returns a 404 or other error, it means the token was not found
-      // or the API key is invalid. The API returns a default response in this case.
-      console.warn(\`Token not found for symbol: \${symbol}. Using default.\`);
       const errorData = await response.json();
-      return errorData.logo_url; 
+      console.error(\`API Error: \${errorData.error}\`);
+      return [];
     }
 
-    const data = await response.json();
-    return data.logo_url; // This is the URL to the image on your CDN
+    const tokenList = await response.json();
+    // tokenList is an array of token objects, e.g.:
+    // [
+    //   { name: "Tether", symbol: "USDT", decimals: 6, ..., logo_url: "..." },
+    //   { name: "Wrapped Ether", symbol: "WETH", decimals: 18, ..., logo_url: "..." }
+    // ]
+    return tokenList;
   } catch (error) {
-    console.error('Error getting logo:', error);
-    // You might want to return a default placeholder logo URL here
-    return 'https://picsum.photos/seed/default-logo/128/128'; 
+    console.error('Error fetching token list:', error);
+    return [];
   }
 }
 
-// Example usage:
-// const usdtLogoUrl = await getTokenLogo('USDT', 'your_generated_api_key');
-// if (usdtLogoUrl) {
-//   const imgElement = document.createElement('img');
-//   imgElement.src = usdtLogoUrl;
-//   document.body.appendChild(imgElement);
-// }
+// --- Example Usage ---
+// const apiKey = 'dcdn_...'; // Your generated API key
+//
+// // 1. Using network name (case-insensitive, space-friendly)
+// const ethereumTokens = await getTokensByNetwork('Ethereum Mainnet', apiKey);
+// console.log('Ethereum Tokens:', ethereumTokens);
+//
+// // 2. Using network ID (UUID from the 'Manage Networks' page)
+// const bscTokens = await getTokensByNetwork('your-bnb-chain-network-id', apiKey);
+// console.log('BNB Chain Tokens:', bscTokens);
 `;
 
 export default function ApiKeysPage() {
@@ -59,7 +66,7 @@ export default function ApiKeysPage() {
           API Keys
         </h1>
         <p className="text-muted-foreground">
-          Manage your API keys for accessing the token logo API.
+          Manage your API keys for accessing the token logo service.
         </p>
       </div>
 
@@ -68,12 +75,12 @@ export default function ApiKeysPage() {
       <Card>
         <CardHeader>
           <CardTitle>How to Integrate</CardTitle>
+          <CardDescription>
+            Use the following Javascript function in your crypto wallet or DApp
+            to fetch token data using a generated API key.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-muted-foreground">
-            Use the following Javascript function in your crypto wallet or DApp
-            to fetch token logos using a generated API key.
-          </p>
           <div className="relative">
             <pre className="bg-gray-100 dark:bg-gray-800 p-4 rounded-md overflow-x-auto text-sm font-code">
               <code>{codeSnippet.trim()}</code>
