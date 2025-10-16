@@ -17,7 +17,7 @@ const AutoFetchMissingLogoInputSchema = z.object({
 export type AutoFetchMissingLogoInput = z.infer<typeof AutoFetchMissingLogoInputSchema>;
 
 const AutoFetchMissingLogoOutputSchema = z.object({
-  logoUrl: z.string().describe('The URL of the fetched token logo, or null if not found.'),
+  logoUrl: z.string().nullable().describe('The URL of the fetched token logo, or null if not found.'),
 });
 export type AutoFetchMissingLogoOutput = z.infer<typeof AutoFetchMissingLogoOutputSchema>;
 
@@ -67,6 +67,12 @@ const autoFetchMissingLogoFlow = ai.defineFlow(
   },
   async input => {
     const {output} = await autoFetchMissingLogoPrompt(input);
-    return output!;
+    
+    if (output && output.logoUrl) {
+      return { logoUrl: output.logoUrl };
+    }
+    
+    // Fallback if the AI doesn't find a logo
+    return { logoUrl: null };
   }
 );

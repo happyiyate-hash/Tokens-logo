@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import type { ApiKey, Token, Network } from "@/lib/types";
 import { PlaceHolderImages } from "./placeholder-images";
 import { randomBytes } from 'crypto';
+import { autoFetchMissingLogo } from "@/ai/flows/auto-fetch-missing-logos";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -32,7 +33,7 @@ const addTokenSchema = z.object({
   symbol: z.string().min(1, "Token symbol is required."),
   networkId: z.string().min(1, "Network ID is required."),
   decimals: z.coerce.number().int().min(0, "Decimals must be a positive integer."),
-  logo: z.instanceof(File).refine((file) => file.size > 0, "Logo image is required."),
+  logo: z.instanceof(File).optional(),
   contract: z.string().min(1, "Contract address is required."),
 });
 
@@ -53,44 +54,52 @@ export async function addToken(
   }
   
   const { logo, symbol, networkId, contract, ...tokenData } = validated.data;
+  let logoUrl = "";
   
   try {
-    const fileContents = await logo.arrayBuffer();
-    // Using networkId + contract address for a unique path
-    const filePath = `logos/${networkId}-${contract}.${logo.name.split('.').pop()}`;
+    if (logo && logo.size > 0) {
+        const fileContents = await logo.arrayBuffer();
+        const filePath = `logos/${networkId}-${contract}.${logo.name.split('.').pop()}`;
 
-    // Upload to Supabase Storage
-    const { error: uploadError } = await supabaseAdmin.storage
-      .from("logos")
-      .upload(filePath, fileContents, {
-        contentType: logo.type,
-        upsert: true,
-      });
+        const { error: uploadError } = await supabaseAdmin.storage
+          .from("logos")
+          .upload(filePath, fileContents, {
+            contentType: logo.type,
+            upsert: true,
+          });
 
-    if (uploadError) {
-      throw new Error(`Storage error: ${uploadError.message}`);
-    }
+        if (uploadError) {
+          throw new Error(`Storage error: ${uploadError.message}`);
+        }
 
-    // Get public URL
-    const { data: publicUrlData } = supabaseAdmin.storage
-      .from("logos")
-      .getPublicUrl(filePath);
+        const { data: publicUrlData } = supabaseAdmin.storage
+          .from("logos")
+          .getPublicUrl(filePath);
 
-    if (!publicUrlData) {
-      throw new Error("Could not get public URL for the uploaded logo.");
+        if (!publicUrlData) {
+          throw new Error("Could not get public URL for the uploaded logo.");
+        }
+        logoUrl = publicUrlData.publicUrl;
+    } else {
+        // No logo uploaded, try to fetch it with AI
+        const aiResult = await autoFetchMissingLogo({ tokenSymbol: symbol });
+        if (aiResult.logoUrl) {
+            logoUrl = aiResult.logoUrl;
+        } else {
+            logoUrl = defaultLogo.imageUrl;
+        }
     }
     
     const dbData = {
       ...tokenData,
       symbol: symbol.toUpperCase(),
-      logo_url: publicUrlData.publicUrl,
+      logo_url: logoUrl,
       network_id: networkId,
       contract: contract,
       updated_at: new Date().toISOString(),
     };
     
-    // Upsert based on networkId AND contract address.
-    const { data: existingToken, error: fetchError } = await supabaseAdmin
+    const { data: existingToken } = await supabaseAdmin
       .from("tokens")
       .select('id')
       .eq('network_id', dbData.network_id)
@@ -204,26 +213,22 @@ export async function deleteToken(tokenId: string): Promise<{ status: "success" 
     return { status: "error", message: "Supabase connection not configured." };
   }
 
-  // Optional: Also delete the logo from storage
   const { data: token } = await supabaseAdmin
     .from("tokens")
     .select("logo_url")
     .eq("id", tokenId)
     .single();
 
-  if (token && token.logo_url && !token.logo_url.includes('picsum.photos')) {
+  if (token && token.logo_url && !token.logo_url.includes('picsum.photos') && token.logo_url.includes(supabaseUrl!)) {
     try {
-      // This logic is fragile, depends on the exact storage URL structure
       const path = new URL(token.logo_url).pathname.split('/public/logos/')[1];
       if (path) {
         await supabaseAdmin.storage.from("logos").remove([path]);
       }
     } catch (e) {
-      // If parsing or deleting fails, log it but don't block the DB deletion
       console.error("Could not parse or delete storage object for logo_url:", token.logo_url, e);
     }
   }
-
 
   const { error } = await supabaseAdmin
     .from("tokens")
@@ -273,16 +278,29 @@ export async function searchToken(
   try {
     const { data, error } = await supabaseAdmin
       .from("tokens")
-      .select("*")
+      .select("*, networks(*)")
       .eq("symbol", tokenSymbol.toUpperCase())
-      .limit(1) // Just get one for the card display
+      .limit(1)
       .single();
 
     if (error || !data) {
       return { status: "error", message: `Token "${tokenSymbol}" not found.` };
     }
+    
+    // The type from Supabase might be complex, so we map it to our simple Token type
+    const resultToken: Token = {
+      id: data.id,
+      network_id: data.network_id,
+      name: data.name,
+      symbol: data.symbol,
+      decimals: data.decimals,
+      logo_url: data.logo_url,
+      contract: data.contract,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
+    };
 
-    return { status: "success", token: data };
+    return { status: "success", token: resultToken };
   } catch (e: any) {
     return { status: "error", message: e.message };
   }
@@ -318,7 +336,6 @@ export async function addNetwork(prevState: AddNetworkState, formData: FormData)
   try {
     const { error } = await supabaseAdmin.from("networks").insert(validated.data);
     if (error) {
-      // Handle potential unique constraint violation, etc.
       if (error.code === '23505') {
          throw new Error(`Network with this name or Chain ID already exists.`);
       }
@@ -337,8 +354,7 @@ export async function deleteNetwork(networkId: string): Promise<{ status: "succe
     return { status: "error", message: "Supabase connection not configured." };
   }
 
-  // We should also delete tokens associated with this network, this needs a proper CASCADE setup in the DB
-  // For now, we just delete the network
+  // With CASCADE configured in the database, this will also delete associated tokens.
   const { error } = await supabaseAdmin
     .from("networks")
     .delete()
@@ -352,5 +368,6 @@ export async function deleteNetwork(networkId: string): Promise<{ status: "succe
   }
 
   revalidatePath("/networks");
+  revalidatePath("/tokens");
   return { status: "success", message: "Network deleted." };
 }

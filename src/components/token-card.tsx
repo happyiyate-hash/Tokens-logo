@@ -8,17 +8,22 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { PlaceHolderImages } from "@/lib/placeholder-images";
 
 interface TokenCardProps {
   token: Token;
 }
 
+const defaultLogo = PlaceHolderImages.find(p => p.id === 'default-token-logo')!;
+
 export function TokenCard({ token }: TokenCardProps) {
+  const logoUrl = token.logo_url || defaultLogo.imageUrl;
+  
   return (
     <Card className="w-full max-w-md overflow-hidden shadow-lg transition-all hover:shadow-xl">
       <CardHeader className="flex flex-row items-center gap-4">
         <Image
-          src={token.logo_url}
+          src={logoUrl}
           alt={`${token.name} logo`}
           width={64}
           height={64}
@@ -35,14 +40,6 @@ export function TokenCard({ token }: TokenCardProps) {
       </CardHeader>
       <CardContent className="grid gap-4">
         <div className="flex items-center justify-between rounded-lg border p-3">
-          <span className="text-sm text-muted-foreground">Chain</span>
-           <div className="flex flex-wrap gap-2 justify-end">
-              <Badge variant="secondary" className="capitalize">
-                {token.chain}
-              </Badge>
-          </div>
-        </div>
-        <div className="flex items-center justify-between rounded-lg border p-3">
           <span className="text-sm text-muted-foreground">Decimals</span>
           <span className="font-mono text-sm font-medium">{token.decimals}</span>
         </div>
@@ -57,7 +54,7 @@ export function TokenCard({ token }: TokenCardProps) {
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">Logo URL</p>
           <p className="w-full break-all rounded-lg border bg-secondary/50 p-3 font-code text-xs">
-            {token.logo_url}
+            {logoUrl}
           </p>
         </div>
       </CardContent>

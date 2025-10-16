@@ -16,6 +16,7 @@ export function UploadForm({ networkId }: { networkId: string }) {
   const [state, formAction] = useActionState(addToken, initialState);
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (state.status === "success") {
@@ -38,7 +39,7 @@ export function UploadForm({ networkId }: { networkId: string }) {
       <CardHeader className="p-0 pb-6">
         <CardTitle>Add or Update Token</CardTitle>
         <CardDescription>
-          Provide the token's metadata. If a token with the same contract address already exists, it will be updated.
+          Provide the token's metadata. If a token with the same contract address already exists, it will be updated. If you don't upload a logo, an AI will try to find one.
         </CardDescription>
       </CardHeader>
       <CardContent className="p-0">
@@ -64,8 +65,8 @@ export function UploadForm({ networkId }: { networkId: string }) {
               <Input id="decimals" name="decimals" type="number" placeholder="6" required />
             </div>
              <div className="space-y-2">
-              <Label htmlFor="logo">Logo Image</Label>
-              <Input id="logo" name="logo" type="file" required accept="image/png, image/jpeg, image/svg+xml" />
+              <Label htmlFor="logo">Logo Image (Optional)</Label>
+              <Input id="logo" name="logo" type="file" ref={fileInputRef} accept="image/png, image/jpeg, image/svg+xml" />
             </div>
           </div>
           
