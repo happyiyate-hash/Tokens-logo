@@ -1,8 +1,8 @@
 
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import { generateNewApiKey, deleteApiKey, type GenerateApiKeyState } from "@/lib/actions";
+import { useEffect, useState, useTransition, useActionState } from "react";
+import { generateNewApiKey, deleteApiKey, getApiKeys, type GenerateApiKeyState } from "@/lib/actions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,27 +10,34 @@ import { Copy, Check, Trash2, Loader2, Eye, EyeOff } from "lucide-react";
 import { Button } from "../ui/button";
 import type { ApiKey } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
-import { useFormState } from "react-dom";
 
 const initialGenerateState: GenerateApiKeyState = {
   status: "idle",
 };
 
-type ApiKeyManagerProps = {
-  initialApiKeys: ApiKey[];
-};
 
-export function ApiKeyManager({ initialApiKeys: initialKeys }: ApiKeyManagerProps) {
-  const [apiKeys, setApiKeys] = useState<ApiKey[]>(initialKeys);
+export function ApiKeyManager() {
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [newlyGeneratedKey, setNewlyGeneratedKey] = useState<ApiKey | null>(null);
 
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
   const [visibleKeyId, setVisibleKeyId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const [isDeleting, startDeleteTransition] = useTransition();
   const { toast } = useToast();
 
-  const [generateState, generateAction] = useFormState(generateNewApiKey, initialGenerateState);
+  const [generateState, generateAction] = useActionState(generateNewApiKey, initialGenerateState);
+
+  useEffect(() => {
+    async function loadKeys() {
+        setLoading(true);
+        const keys = await getApiKeys();
+        setApiKeys(keys);
+        setLoading(false);
+    }
+    loadKeys();
+  }, []);
 
 
   useEffect(() => {
@@ -43,7 +50,7 @@ export function ApiKeyManager({ initialApiKeys: initialKeys }: ApiKeyManagerProp
         setNewlyGeneratedKey(generateState.newKey);
         setVisibleKeyId(generateState.newKey.id);
       }
-      // Reset form if needed, though useFormState doesn't automatically do this
+      // Reset form if needed, though useActionState doesn't automatically do this
     }
   }, [generateState, toast]);
 
@@ -101,7 +108,13 @@ export function ApiKeyManager({ initialApiKeys: initialKeys }: ApiKeyManagerProp
       
       <div>
         <h3 className="text-xl font-medium mb-4">Your Existing API Keys</h3>
-        {apiKeys.length === 0 ? (
+        {loading ? (
+             <Card>
+                <CardContent className="pt-6">
+                    <p className="text-muted-foreground">Loading keys...</p>
+                </CardContent>
+             </Card>
+        ) : apiKeys.length === 0 ? (
            <Card>
             <CardContent className="pt-6">
               <p className="text-muted-foreground">No API keys generated yet.</p>

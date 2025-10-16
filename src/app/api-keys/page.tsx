@@ -3,7 +3,6 @@
 
 import { useState } from "react";
 import { ApiKeyManager } from "@/components/settings/api-key-manager";
-import { getApiKeys } from "@/lib/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Check, Copy } from "lucide-react";
@@ -44,11 +43,7 @@ async function getTokenLogo(symbol: string, apiKey: string) {
 // }
 `;
 
-export default function ApiKeysPage({
-  searchParams,
-}: {
-  searchParams: { keys: string };
-}) {
+export default function ApiKeysPage() {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
@@ -56,9 +51,6 @@ export default function ApiKeysPage({
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
-
-  // This is a workaround to get initial keys since we can't await in a client component page
-  const initialApiKeys = JSON.parse(searchParams.keys || "[]");
 
   return (
     <div className="w-full space-y-8">
@@ -71,7 +63,7 @@ export default function ApiKeysPage({
         </p>
       </div>
 
-      <ApiKeyManager initialApiKeys={initialApiKeys} />
+      <ApiKeyManager />
 
       <Card>
         <CardHeader>

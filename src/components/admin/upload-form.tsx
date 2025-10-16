@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { useFormState } from "react-dom";
+import { useEffect, useRef, useActionState } from "react";
 import { addToken, type AddTokenState } from "@/lib/actions";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +14,7 @@ const initialState: AddTokenState = {
 };
 
 export function UploadForm() {
-  const [state, formAction] = useFormState(addToken, initialState);
+  const [state, formAction] = useActionState(addToken, initialState);
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
 
