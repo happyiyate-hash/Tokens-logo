@@ -16,16 +16,15 @@ const defaultLogo = PlaceHolderImages.find(
 const supabase =
   supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
-const getApiKey = async (): Promise<string | null> => {
-    if (!supabaseUrl || !supabaseServiceKey) return null;
+const isValidApiKey = async (apiKey: string): Promise<boolean> => {
+    if (!supabaseUrl || !supabaseServiceKey) return false;
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
     const { data, error } = await supabaseAdmin
-      .from('settings')
-      .select('value')
-      .eq('key', 'api_key')
+      .from('api_keys')
+      .select('id')
+      .eq('key', apiKey)
       .single();
-    if (error || !data) return null;
-    return data.value;
+    return !error && !!data;
 }
 
 
@@ -40,10 +39,9 @@ export async function GET(
     );
   }
   
-  const apiKey = await getApiKey();
   const requestApiKey = request.headers.get('x-api-key');
 
-  if (!apiKey || requestApiKey !== apiKey) {
+  if (!requestApiKey || !(await isValidApiKey(requestApiKey))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

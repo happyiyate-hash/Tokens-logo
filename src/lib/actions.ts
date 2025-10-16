@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
-import type { Token } from "@/lib/types";
+import type { ApiKey, Token } from "@/lib/types";
 import { autoFetchMissingLogo } from "@/ai/flows/auto-fetch-missing-logos";
 import { PlaceHolderImages } from "./placeholder-images";
 import { randomBytes } from 'crypto';
@@ -98,7 +98,8 @@ export async function addToken(
       throw new Error(`Database error: ${upsertError.message}`);
     }
     
-    revalidatePath("/");
+    revalidatePath("/tokens");
+    revalidatePath("/upload-token");
     return { status: "success", message: `${symbol.toUpperCase()} added or updated successfully!` };
 
   } catch (e: any) {
@@ -108,43 +109,80 @@ export async function addToken(
 
 // --- API Key Management ---
 
-export async function getApiKey(): Promise<string | null> {
-  if (!supabaseAdmin) return null;
+export async function getApiKeys(): Promise<ApiKey[]> {
+  if (!supabaseAdmin) return [];
   const { data, error } = await supabaseAdmin
-    .from('settings')
-    .select('value')
-    .eq('key', 'api_key')
-    .single();
+    .from('api_keys')
+    .select('*')
+    .order('created_at', { ascending: false });
 
-  if (error || !data) {
-    return null;
+  if (error) {
+    console.error("Error fetching API keys:", error);
+    return [];
   }
-  return data.value;
+  return data;
 }
 
 export type GenerateApiKeyState = {
   status: "idle" | "success" | "error";
-  apiKey?: string | null;
   message?: string;
 };
 
+const generateApiKeySchema = z.object({
+  name: z.string().min(1, "Key name is required."),
+});
+
+
 export async function generateNewApiKey(
-  prevState: GenerateApiKeyState
+  prevState: GenerateApiKeyState,
+  formData: FormData
 ): Promise<GenerateApiKeyState> {
   if (!supabaseAdmin) {
     return { status: "error", message: "Supabase connection not configured." };
   }
 
-  const newApiKey = randomBytes(32).toString('hex');
+  const validated = generateApiKeySchema.safeParse(Object.fromEntries(formData.entries()));
+
+  if (!validated.success) {
+    return { status: "error", message: "Key name is required." };
+  }
+
+  const newApiKey = `dcdn_${randomBytes(32).toString('hex')}`;
 
   const { error } = await supabaseAdmin
-    .from('settings')
-    .upsert({ key: 'api_key', value: newApiKey }, { onConflict: 'key' });
+    .from('api_keys')
+    .insert({ name: validated.data.name, key: newApiKey });
 
   if (error) {
     return { status: "error", message: `Failed to generate key: ${error.message}` };
   }
   
-  revalidatePath('/settings');
-  return { status: "success", apiKey: newApiKey };
+  revalidatePath('/api-keys');
+  return { status: "success", message: "API Key generated successfully." };
+}
+
+export type DeleteApiKeyState = {
+  status: "idle" | "success" | "error";
+  message?: string;
+};
+
+export async function deleteApiKey(
+  prevState: DeleteApiKeyState,
+  keyId: string,
+): Promise<DeleteApiKeyState> {
+   if (!supabaseAdmin) {
+    return { status: "error", message: "Supabase connection not configured." };
+  }
+
+  const { error } = await supabaseAdmin
+    .from('api_keys')
+    .delete()
+    .eq('id', keyId);
+
+  if (error) {
+    return { status: "error", message: `Failed to delete key: ${error.message}` };
+  }
+  
+  revalidatePath('/api-keys');
+  return { status: "success", message: "API Key deleted." };
 }

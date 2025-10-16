@@ -9,3 +9,10 @@ export type Token = {
   created_at: string;
   updated_at: string;
 };
+
+export type ApiKey = {
+  id: string;
+  name: string;
+  key: string;
+  created_at: string;
+};

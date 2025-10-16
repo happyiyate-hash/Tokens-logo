@@ -1,8 +1,8 @@
 import { ApiKeyManager } from "@/components/settings/api-key-manager";
-import { getApiKey } from "@/lib/actions";
+import { getApiKeys } from "@/lib/actions";
 
 export default async function ApiKeysPage() {
-  const initialApiKey = await getApiKey();
+  const initialApiKeys = await getApiKeys();
 
   return (
     <div className="w-full">
@@ -11,11 +11,11 @@ export default async function ApiKeysPage() {
           API Keys
         </h1>
         <p className="text-muted-foreground">
-          Manage your API key for accessing the token logo API.
+          Manage your API keys for accessing the token logo API.
         </p>
       </div>
 
-      <ApiKeyManager initialApiKey={initialApiKey} />
+      <ApiKeyManager initialApiKeys={initialApiKeys} />
     </div>
   );
 }
