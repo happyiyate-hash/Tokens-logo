@@ -61,11 +61,14 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
 
   // AI-powered logo fetch
   const handleAutoFetchLogo = async () => {
-    if (!fetchState.metadata?.symbol) return;
+    if (!fetchState.metadata?.symbol || !fetchState.metadata?.name) return;
     
     setIsFetchingLogo(true);
     try {
-        const result = await autoFetchMissingLogo({ tokenSymbol: fetchState.metadata.symbol });
+        const result = await autoFetchMissingLogo({ 
+            tokenSymbol: fetchState.metadata.symbol,
+            tokenName: fetchState.metadata.name,
+        });
         if (result.logoUrl) {
             setPreviewUrl(result.logoUrl);
             toast({ title: "AI Found a Logo!", description: `A logo for ${fetchState.metadata.symbol} was found and pre-filled.` });

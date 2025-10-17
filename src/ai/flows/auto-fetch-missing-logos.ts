@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -14,7 +15,8 @@ import { fetchLogoFromCoinGeckoBySymbol } from '@/lib/fetchers';
 
 
 const AutoFetchMissingLogoInputSchema = z.object({
-  tokenSymbol: z.string().describe('The symbol of the token for which to fetch the logo.'),
+  tokenSymbol: z.string().describe('The symbol of the token for which to fetch the logo (e.g., "WETH").'),
+  tokenName: z.string().describe('The name of the token (e.g., "Wrapped Ether"). This provides context.'),
 });
 export type AutoFetchMissingLogoInput = z.infer<typeof AutoFetchMissingLogoInputSchema>;
 
@@ -31,7 +33,7 @@ export async function autoFetchMissingLogo(
 
 const findLogoTool = ai.defineTool({
   name: 'findLogoTool',
-  description: 'Searches for a token logo URL from external sources like CoinGecko using the token symbol.',
+  description: 'Searches for a token logo URL from external sources like CoinGecko using the token symbol. Use the token name for context if the symbol is ambiguous.',
   inputSchema: z.object({
     symbol: z.string().describe('The symbol of the token (e.g., "BTC", "ETH", "USDT").'),
   }),
@@ -55,11 +57,11 @@ const autoFetchMissingLogoFlow = ai.defineFlow(
     name: 'autoFetchMissingLogoFlow',
     inputSchema: AutoFetchMissingLogoInputSchema,
     outputSchema: AutoFetchMissingLogoOutputSchema,
-    system: "You are an expert at finding cryptocurrency token logos. Your task is to use the provided tools to find a logo URL for a given token symbol.",
+    system: "You are an expert at finding cryptocurrency token logos. Your task is to use the provided tools to find a logo URL for a given token, using both its name and symbol for context to find the most accurate match.",
   },
   async (input) => {
     const llmResponse = await ai.generate({
-      prompt: `Find the logo for the token symbol: ${input.tokenSymbol}. Prioritize using the findLogoTool. If the tool returns a valid URL, output it directly. If the tool fails or returns null, you must return null.`,
+      prompt: `Find the logo for the token with Name: "${input.tokenName}" and Symbol: "${input.tokenSymbol}". Prioritize using the findLogoTool. If the tool returns a valid URL, output it directly. If the tool fails or returns null, you must return null.`,
       model: 'googleai/gemini-2.5-flash',
       tools: [findLogoTool],
       output: {
