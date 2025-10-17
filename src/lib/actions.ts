@@ -27,7 +27,7 @@ const addTokenSchema = z.object({
   decimals: z.coerce.number().int().min(0, "Decimals must be a positive integer."),
   logoFile: z.instanceof(File).optional(),
   logo_url: z.string().optional(), // This can be a URL from CoinGecko fetch
-  contract: z.string().min(1, "Contract address is required."),
+  contract: z.string().optional(),
 });
 
 export async function addToken(
@@ -41,7 +41,7 @@ export async function addToken(
       decimals: formData.get('decimals'),
       logoFile: formData.get('logo'),
       logo_url: formData.get('logo_url'),
-      contract: formData.get('contract'),
+      contract: formData.get('contract') || '', // Treat empty string as optional
   });
 
   if (!validated.success) {
@@ -56,39 +56,46 @@ export async function addToken(
     const { data: network } = await supabaseAdmin.from("networks").select('name').eq('id', networkId).single();
     if (!network) throw new Error("Network not found.");
 
+    // If no contract, but logo is present, this is a "global symbol" logo.
+    const isGlobalSymbol = !contract && logoFile && logoFile.size > 0;
+    // If contract is present, it's a standard token.
+    const isStandardToken = !!contract;
+
+    if (!isGlobalSymbol && !isStandardToken && !logo_url) {
+        return { status: "error", message: "A contract address or a logo file is required." };
+    }
+
     let logoKey: string | undefined;
     let finalLogoUrl: string | undefined;
+    const effectiveContract = contract || symbol; // Use symbol as key if contract is missing
 
     if (logoFile && logoFile.size > 0) {
-        const uploadedLogo = await uploadLogo(logoFile, contract, network.name);
+        const uploadedLogo = await uploadLogo(logoFile, effectiveContract, network.name);
         if (uploadedLogo) {
             logoKey = uploadedLogo.storage_path;
             finalLogoUrl = uploadedLogo.public_url;
         }
     } else if (logo_url) {
-        // If we have a logo URL from an external source, download and store it.
         try {
             const response = await axios.get(logo_url, { responseType: 'arraybuffer' });
             const buffer = Buffer.from(response.data);
             const contentType = response.headers['content-type'] || 'image/png';
             
-            const publicUrl = await uploadLogoFromBuffer(network.name.toLowerCase(), `${contract.toLowerCase()}.${contentType.split('/')[1] || 'png'}`, buffer, contentType);
+            const publicUrl = await uploadLogoFromBuffer(network.name.toLowerCase(), `${effectiveContract.toLowerCase()}.${contentType.split('/')[1] || 'png'}`, buffer, contentType);
 
             if(publicUrl) {
                 finalLogoUrl = publicUrl;
-                logoKey = `${network.name.toLowerCase()}/${contract.toLowerCase()}.${contentType.split('/')[1] || 'png'}`;
+                logoKey = `${network.name.toLowerCase()}/${effectiveContract.toLowerCase()}.${contentType.split('/')[1] || 'png'}`;
             }
 
         } catch (e: any) {
             console.error(`Failed to import logo from ${logo_url}: ${e.message}`);
-            // Continue without a logo if the import fails
         }
     }
     
-    // Upsert the logo record if we have one
     if (logoKey && finalLogoUrl) {
          await supabaseAdmin.rpc('upsert_token_logo', {
-            p_contract: contract,
+            p_contract: contract ? contract : null, // Only store contract if it exists
             p_symbol: symbol,
             p_network: network.name.toLowerCase(),
             p_storage_path: logoKey,
@@ -96,26 +103,24 @@ export async function addToken(
         });
     }
 
-    // Prepare the unified token details object
     const tokenDetails: TokenDetails = {
         name,
         symbol,
         decimals,
         network: network.name.toLowerCase(),
-        contract_address: contract.toLowerCase(),
+        contract_address: contract ? contract.toLowerCase() : '',
         logo_key: logoKey,
         extra: {}
     };
     
-    // Upsert the main token metadata record
     const { error: upsertError } = await supabaseAdmin.rpc('upsert_token_metadata', {
-        p_contract: contract,
+        p_contract: contract ? contract.toLowerCase() : symbol.toLowerCase(), // Use symbol as PK if no contract
         p_network: network.name.toLowerCase(),
         p_token_details: tokenDetails,
         p_logo_key: logoKey || null,
         p_logo_url: finalLogoUrl || null,
         p_source: "manual",
-        p_verified: true, // Manually added tokens are considered verified
+        p_verified: true,
     });
 
     if (upsertError) {
@@ -124,6 +129,7 @@ export async function addToken(
 
     revalidatePath("/tokens");
     revalidatePath("/add-token");
+    revalidatePath("/upload-token");
     return { status: "success", message: `${symbol.toUpperCase()} on ${network.name} saved successfully!` };
 
   } catch (e: any) {
@@ -168,7 +174,7 @@ export async function generateNewApiKey(
   }
   
   try {
-    const { data: newKey, error } = await supabaseAdmin.rpc("generate_api_key", {
+    const { data: newKeyRecord, error } = await supabaseAdmin.rpc("generate_api_key", {
       p_client_name: validated.data.name,
     });
   
@@ -177,7 +183,7 @@ export async function generateNewApiKey(
     }
     
     revalidatePath('/api-keys');
-    return { status: "success", message: "API Key generated successfully.", newKey };
+    return { status: "success", message: "API Key generated successfully.", newKey: newKeyRecord };
   } catch (e: any) {
      return { status: "error", message: e.message };
   }
@@ -404,7 +410,6 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
         
         const chainConfig = findChainByChainId(networkDb.chain_id);
 
-        // Check cache unless forcing refresh
         if (!forceRefresh) {
             const cached = await getCachedToken(contractAddress, networkDb.chain_id);
             if (cached) {
@@ -459,5 +464,3 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
         return { status: "error", message: e.message, networkId, contractAddress };
     }
 }
-
-    

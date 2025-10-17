@@ -40,16 +40,12 @@ export function UploadForm({ networkId }: { networkId: string }) {
       <CardHeader className="p-0 pb-6">
         <CardTitle>Add or Update Token</CardTitle>
         <CardDescription>
-          Provide the token's metadata. If a token with the same contract address already exists, it will be updated. If you don't upload a logo, an AI will try to find one.
+          Provide token details. If a token with the same contract/network exists, it will be updated. If no contract is provided, the logo will be linked to the symbol globally.
         </CardDescription>
       </CardHeader>
       <CardContent className="p-0">
         <form ref={formRef} action={formAction} className="grid gap-6">
           <input type="hidden" name="networkId" value={networkId} />
-          <div className="space-y-2">
-              <Label htmlFor="contract">Contract Address</Label>
-              <Input id="contract" name="contract" placeholder="0x..." required />
-          </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="name">Token Name</Label>
@@ -60,14 +56,18 @@ export function UploadForm({ networkId }: { networkId: string }) {
               <Input id="symbol" name="symbol" placeholder="USDT" required />
             </div>
           </div>
+          <div className="space-y-2">
+              <Label htmlFor="contract">Contract Address (Optional)</Label>
+              <Input id="contract" name="contract" placeholder="0x... (leave blank for a global symbol logo)" />
+          </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
              <div className="space-y-2">
               <Label htmlFor="decimals">Decimals</Label>
               <Input id="decimals" name="decimals" type="number" placeholder="6" required />
             </div>
              <div className="space-y-2">
-              <Label htmlFor="logo">Logo Image (Optional)</Label>
-              <Input id="logo" name="logo" type="file" ref={fileInputRef} accept="image/png, image/jpeg, image/svg+xml" />
+              <Label htmlFor="logo">Logo Image</Label>
+              <Input id="logo" name="logo" type="file" ref={fileInputRef} accept="image/png, image/jpeg, image/svg+xml" required/>
             </div>
           </div>
           

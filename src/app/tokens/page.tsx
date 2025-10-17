@@ -1,13 +1,5 @@
 
 import type { TokenMetadata, Network } from "@/lib/types";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,10 +8,25 @@ import { NetworkSelector } from "@/components/admin/network-selector";
 import { PlusCircle } from "lucide-react";
 import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { PlaceHolderImages } from "@/lib/placeholder-images";
+
+const defaultLogo = PlaceHolderImages.find(p => p.id === 'default-token-logo')!;
+
 
 async function getTokens(networkId: string): Promise<TokenMetadata[]> {
   if (!networkId) {
-    return [];
+    // If no network is selected, fetch all tokens.
+    const { data, error } = await supabaseAdmin
+      .from("token_metadata")
+      .select("*")
+      .order("updated_at", { ascending: false });
+      
+    if (error) {
+      console.error("Error fetching all tokens:", error);
+      return [];
+    }
+    return data;
   }
   
   // First, get the network name from its ID
@@ -31,7 +38,16 @@ async function getTokens(networkId: string): Promise<TokenMetadata[]> {
     
   if (networkError || !networkData) {
       console.error("Error fetching network name:", networkError);
-      return [];
+      // Fallback to fetching all tokens if network lookup fails
+       const { data, error } = await supabaseAdmin
+        .from("token_metadata")
+        .select("*")
+        .order("updated_at", { ascending: false });
+      if (error) {
+        console.error("Error fetching all tokens after network failure:", error);
+        return [];
+      }
+      return data;
   }
   
   const { data, error } = await supabaseAdmin
@@ -41,7 +57,7 @@ async function getTokens(networkId: string): Promise<TokenMetadata[]> {
     .order("updated_at", { ascending: false });
 
   if (error) {
-    console.error("Error fetching tokens:", error);
+    console.error("Error fetching tokens for network:", error);
     return [];
   }
 
@@ -66,84 +82,85 @@ export default async function TokensListPage({
   searchParams: { [key: string]: string | string[] | undefined };
 }) {
   const networks = await getNetworks();
-  const selectedNetworkId =
-    (searchParams.network as string) ?? (networks[0]?.id || "");
+  const selectedNetworkId = (searchParams.network as string) ?? "";
   const tokens = await getTokens(selectedNetworkId);
   const selectedNetwork = networks.find(n => n.id === selectedNetworkId);
 
+  const pageTitle = selectedNetworkId && selectedNetwork ? `Tokens on ${selectedNetwork.name}` : "All Tokens";
 
   return (
     <div className="w-full space-y-8">
-      <div className="flex justify-between items-start">
+      <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-start">
         <div>
             <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl">
             Manage Tokens
             </h1>
             <p className="text-muted-foreground">
-            Select a network to view and manage its registered tokens.
+            Select a network to filter, or view all tokens in your collection.
             </p>
         </div>
-         <Link href="/add-token">
-            <Button>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Add New Token
-            </Button>
-        </Link>
+         <div className="flex gap-2">
+            <Link href="/add-token">
+                <Button variant="outline">
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Add (Auto)
+                </Button>
+            </Link>
+            <Link href="/upload-token">
+                <Button>
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Upload (Manual)
+                </Button>
+            </Link>
+        </div>
       </div>
 
       <div className="flex items-center">
          <NetworkSelector networks={networks} selectedNetworkId={selectedNetworkId} />
       </div>
 
-      <div className="bg-card p-8 rounded-lg shadow-md">
-        <h3 className="text-xl font-medium mb-4">
-            Tokens on {selectedNetwork?.name || 'Selected Network'}
+      <div className="space-y-4">
+        <h3 className="text-xl font-medium">
+            {pageTitle}
         </h3>
         {tokens.length === 0 ? (
-          <p className="text-muted-foreground">
-            No tokens found for this network. Use the 'Add New Token' button to add one.
-          </p>
+          <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 bg-card p-12 text-center">
+              <h3 className="text-xl font-semibold tracking-tight">No Tokens Found</h3>
+              <p className="text-muted-foreground mt-2">
+                Tokens you add will appear here. Use the buttons above to get started.
+              </p>
+          </div>
         ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[80px]">Logo</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Symbol</TableHead>
-                  <TableHead>Contract Address</TableHead>
-                  <TableHead>Decimals</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tokens.map((token) => (
-                  <TableRow key={token.id}>
-                    <TableCell>
-                      <Image
-                        src={token.logo_url || `https://picsum.photos/seed/${token.id}/40/40`}
-                        alt={`${token.token_details.name} logo`}
-                        width={40}
-                        height={40}
-                        className="rounded-full bg-muted"
-                        unoptimized
-                      />
-                    </TableCell>
-                    <TableCell className="font-medium">{token.token_details.name}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{token.token_details.symbol}</Badge>
-                    </TableCell>
-                    <TableCell className="font-code text-xs">
-                        {token.contract_address.substring(0, 10)}...{token.contract_address.substring(token.contract_address.length - 8)}
-                    </TableCell>
-                    <TableCell>{token.token_details.decimals}</TableCell>
-                    <TableCell className="text-right">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {tokens.map((token) => (
+              <Card key={token.id} className="group relative flex flex-col overflow-hidden">
+                <CardHeader className="flex-col items-center justify-center p-4">
+                  <Image
+                    src={token.logo_url || defaultLogo.imageUrl}
+                    alt={`${token.token_details.name} logo`}
+                    width={80}
+                    height={80}
+                    className="rounded-full bg-muted object-cover aspect-square"
+                    unoptimized
+                  />
+                </CardHeader>
+                <CardContent className="flex-1 space-y-1 p-4 pt-0 text-center">
+                   <CardTitle className="text-lg font-bold truncate">{token.token_details.name}</CardTitle>
+                   <div className="flex justify-center items-center gap-2">
+                     <Badge variant="secondary">{token.token_details.symbol}</Badge>
+                     <Badge variant="outline">{token.network}</Badge>
+                   </div>
+                </CardContent>
+                 <CardFooter className="p-2 bg-muted/50">
+                   <p className="text-xs text-muted-foreground truncate w-full px-2 font-mono">
+                      {token.contract_address || 'No contract'}
+                   </p>
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <DeleteTokenButton tokenId={token.id} />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                    </div>
+                </CardFooter>
+              </Card>
+            ))}
           </div>
         )}
       </div>
