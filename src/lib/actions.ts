@@ -709,3 +709,5 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
         return { status: "error", message: e.message, chainId, contractAddress };
     }
 }
+
+    

@@ -6,6 +6,7 @@ import axios from "axios";
 import type { TokenFetchResult } from "@/lib/types";
 import { decodeBytes32 } from "./hextools";
 import chainsConfig from "@/lib/chains.json";
+import pRetry from 'p-retry';
 
 const ERC20_MIN_ABI = [
   "function name() view returns (string)",
@@ -23,42 +24,94 @@ async function fetchFromExplorer(chain: any, contractAddress: string): Promise<P
     const apikey = process.env.ETHERSCAN_API_KEY || "";
     if (!chain.explorerApi) return null;
 
-    // Use the 'tokentx' action which is more universally supported than 'tokeninfo'
-    // It gets the details from the first transaction event for that token contract.
+    // Use 'tokeninfo' for Polygon, which is more direct
+    const isPolygon = chain.chainId === 137;
+    const module = isPolygon ? "token" : "account";
+    const action = isPolygon ? "tokeninfo" : "tokentx";
+
     try {
         const { data } = await axios.get(chain.explorerApi, {
             params: {
-                module: "account",
-                action: "tokentx",
+                module,
+                action,
                 contractaddress: contractAddress,
+                // params for tokentx
                 page: 1,
                 offset: 1,
+                // params for tokeninfo
+                token_address: contractAddress, 
                 apikey,
             },
             timeout: 5000 // 5-second timeout
         });
+        
+        let resultData = data.result;
+        // The 'tokeninfo' on polygonscan returns the object directly in `result`
+        if (isPolygon && resultData) {
+           resultData = [resultData]; // Normalize to an array
+        }
 
-        // Check for a valid response and at least one transaction
-        if (data && data.status === "1" && data.result?.length > 0) {
-            const tx = data.result[0];
+        if (data && (data.status === "1" || data.message === "OK") && resultData?.length > 0) {
+            const tx = resultData[0];
             
-            // Ensure all required fields are present in the response
-            if (tx.tokenName && tx.tokenSymbol && tx.tokenDecimal) {
-                 const name = decodeBytes32(tx.tokenName);
-                 const symbol = decodeBytes32(tx.tokenSymbol);
-                 const decimals = Number(tx.tokenDecimal);
+            const name = decodeBytes32(tx.tokenName || tx.name);
+            const symbol = decodeBytes32(tx.tokenSymbol || tx.symbol);
+            const decimals = Number(tx.tokenDecimal || tx.decimals);
 
-                 // Final validation to ensure we have meaningful data
-                 if (name && symbol && !isNaN(decimals)) {
-                     return { name, symbol, decimals, source: "explorer" };
-                 }
+            if (name && symbol && !isNaN(decimals)) {
+                return { name, symbol, decimals, source: "explorer" };
             }
         }
     } catch (e: any) {
         console.warn(`Explorer API call failed for ${contractAddress} on ${chain.name}: ${e.message}`);
     }
 
-    return null; // Return null if explorer method fails or data is incomplete
+    return null;
+}
+
+
+async function fetchFromRpc(chain: any, contractAddress: string): Promise<Partial<TokenFetchResult>> {
+    if (!chain.rpc) {
+        throw new Error(`No RPC URL configured for network: ${chain.name}`);
+    }
+
+    try {
+        const provider = new ethers.providers.JsonRpcProvider(chain.rpc);
+        const token = new ethers.Contract(contractAddress, ERC20_MIN_ABI, provider);
+
+        // Using pRetry to handle intermittent RPC errors
+        const fetchWithRetry = (fn: () => Promise<any>) => pRetry(fn, { 
+            retries: 2, 
+            minTimeout: 500,
+            onFailedAttempt: error => {
+                console.warn(`Attempt ${error.attemptNumber} failed. There are ${error.retriesLeft} retries left. For ${contractAddress} on ${chain.name}`);
+            }
+        });
+
+        const [nameResult, symbolResult, decimalsResult] = await Promise.allSettled([
+            fetchWithRetry(() => token.name()),
+            fetchWithRetry(() => token.symbol()),
+            fetchWithRetry(() => token.decimals())
+        ]);
+
+        const name = nameResult.status === 'fulfilled' ? decodeBytes32(nameResult.value) : undefined;
+        const symbol = symbolResult.status === 'fulfilled' ? decodeBytes32(symbolResult.value) : undefined;
+        const decimals = decimalsResult.status === 'fulfilled' ? Number(decimalsResult.value) : undefined;
+
+        if (!name && !symbol) {
+             throw new Error("Could not fetch name or symbol from RPC after retries.");
+        }
+
+        return {
+            name: name || symbol || "Unknown",
+            symbol: symbol || name || "???",
+            decimals: decimals ?? 18,
+            source: "rpc"
+        };
+    } catch (e: any) {
+        console.error(`RPC fallback failed for ${contractAddress} on ${chain.name}:`, e.message);
+        throw new Error("Could not fetch complete token metadata from any source.");
+    }
 }
 
 
@@ -74,38 +127,8 @@ export async function fetchTokenMetadataFromSources(contractAddress: string, net
 
     // 2. Fallback to RPC if explorer fails
     console.warn(`Explorer fetch failed or returned incomplete data for ${contractAddress} on ${networkName}. Falling back to RPC.`);
-    if (!chain.rpc) {
-        throw new Error(`No RPC URL configured for network: ${networkName}`);
-    }
-
-    try {
-        const provider = new ethers.providers.JsonRpcProvider(chain.rpc);
-        const token = new ethers.Contract(contractAddress, ERC20_MIN_ABI, provider);
-
-        const [nameResult, symbolResult, decimalsResult] = await Promise.allSettled([
-            token.name(),
-            token.symbol(),
-            token.decimals()
-        ]);
-
-        const name = nameResult.status === 'fulfilled' ? decodeBytes32(nameResult.value) : undefined;
-        const symbol = symbolResult.status === 'fulfilled' ? decodeBytes32(symbolResult.value) : undefined;
-        const decimals = decimalsResult.status === 'fulfilled' ? Number(decimalsResult.value) : undefined;
-
-        if (!name && !symbol) {
-             throw new Error("Could not fetch name or symbol from RPC.");
-        }
-
-        return {
-            name: name || symbol || "Unknown",
-            symbol: symbol || name || "???",
-            decimals: decimals ?? 18, // Default to 18 if decimals are not found
-            source: "rpc"
-        };
-    } catch (e: any) {
-        console.error(`RPC fallback failed for ${contractAddress} on ${networkName}:`, e.message);
-        throw new Error("Could not fetch complete token metadata from any source.");
-    }
+    
+    return fetchFromRpc(chain, contractAddress);
 }
 
 
@@ -127,3 +150,5 @@ export async function fetchLogoFromCoinGeckoBySymbol(symbol: string): Promise<st
     return null;
   }
 }
+
+    
