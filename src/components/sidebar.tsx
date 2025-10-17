@@ -4,13 +4,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { List, KeyRound, LayoutDashboard, Search, Network as NetworkIcon, PlusCircle, Upload } from "lucide-react";
+import { List, KeyRound, LayoutDashboard, Search, Network as NetworkIcon, PlusCircle, Upload, Image as ImageIcon } from "lucide-react";
 import { Logo } from "@/components/logo";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Search", href: "/search", icon: Search },
   { name: "Manage Tokens", href: "/tokens", icon: List },
+  { name: "Manage Logos", href: "/logos", icon: ImageIcon },
    { name: "Add Token (Auto)", href: "/add-token", icon: PlusCircle },
    { name: "Upload Logo (Manual)", href: "/upload-token", icon: Upload },
   { name: "Manage Networks", href: "/networks", icon: NetworkIcon },
