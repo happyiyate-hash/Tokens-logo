@@ -82,7 +82,8 @@ export async function addToken(
   }
   
   const { logoFile, symbol, chainId, contract } = validated.data;
-  const name = validated.data.name;
+  // Use symbol as a fallback for name if it's not provided.
+  const name = validated.data.name || symbol;
   const decimals = validated.data.decimals;
   const logoUrlFromForm = formData.get('logo_url') as string | null;
 
@@ -93,7 +94,7 @@ export async function addToken(
     if (logoFile) {
         const fileContents = await logoFile.arrayBuffer();
         const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
-        const filePath = `global/${symbol.toLowerCase()}.${ext}`;
+        const filePath = `global/${symbol.toLowerCase()}_${name.replace(/\s+/g, '_').toLowerCase()}.${ext}`;
 
         const { error } = await supabaseAdmin.storage.from(STORAGE_BUCKET).upload(filePath, fileContents, { contentType: logoFile.type, upsert: true });
         if (error) throw new Error(`Storage upload error: ${error.message}`);
@@ -123,9 +124,9 @@ export async function addToken(
           .from('token_logos')
           .upsert({ 
               symbol: symbol.toUpperCase(), 
-              name: name || symbol, // Use symbol as name if name is not provided
+              name: name,
               logo_url: finalLogoUrl 
-            }, { onConflict: 'symbol' });
+            }, { onConflict: 'symbol,name' }); // Use composite key for conflict
 
       if (logoUpsertError) {
           throw new Error(`Database logo upsert error: ${logoUpsertError.message}`);
@@ -141,7 +142,7 @@ export async function addToken(
         
         // Find logo again in case it was just added
         if (!finalLogoUrl) {
-            const { data: logo } = await supabaseAdmin.from('token_logos').select('logo_url').eq('symbol', symbol.toUpperCase()).single();
+            const { data: logo } = await supabaseAdmin.from('token_logos').select('logo_url').eq('symbol', symbol.toUpperCase()).eq('name', name).single();
             finalLogoUrl = logo?.logo_url;
         }
 
@@ -521,5 +522,3 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
         return { status: "error", message: e.message, chainId, contractAddress };
     }
 }
-
-    
