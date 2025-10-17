@@ -1,9 +1,12 @@
 
+"use server";
+
 import { ethers } from "ethers";
 import { supabaseAdmin } from "./supabase/admin";
 import chainsConfig from "@/lib/chains.json";
 import axios from "axios";
 import type { TokenFetchResult } from "@/lib/types";
+import { decodeBytes32 } from "./hextools";
 
 const ERC20_ABI = [
   "function name() view returns (string)",
@@ -21,7 +24,7 @@ export async function fetchFromExplorer(contract: string, networkName: string): 
   const chain = findChainByName(networkName);
   if (!chain || !chain.explorerApi) return null;
   
-  const apiKey = process.env.ETHERSCAN_API_KEY; // Use a generic key name
+  const apiKey = process.env.ETHERSCAN_API_KEY;
   if (!apiKey) {
       console.warn("ETHERSCAN_API_KEY environment variable is not set. Explorer fetch will likely fail.");
   }
@@ -29,21 +32,21 @@ export async function fetchFromExplorer(contract: string, networkName: string): 
   const url = `${chain.explorerApi}?module=token&action=tokeninfo&contractaddress=${contract}&apikey=${apiKey}`;
   try {
     const { data } = await axios.get(url, { timeout: 8000 });
-    // Handle cases where result is an empty array or status is '0'
+    
     if (data.status === "0" || !data.result || (Array.isArray(data.result) && data.result.length === 0)) {
         console.warn(`Explorer API returned error or empty result for ${contract} on ${networkName}: ${data.message || data.result}`);
         return null;
     }
-    // Handle both object and array-of-one-object responses
+    
     const t = Array.isArray(data.result) ? data.result[0] : data.result;
 
-    if (!t.symbol) {
-        console.warn(`Explorer API response for ${contract} on ${networkName} is missing a symbol.`);
+    if (!t.symbol && !t.name) {
+        console.warn(`Explorer API response for ${contract} on ${networkName} is missing both symbol and name.`);
         return null;
     }
 
     return {
-      name: t.tokenName || t.name || undefined,
+      name: t.name || t.tokenName || undefined,
       symbol: t.symbol || undefined,
       decimals: t.decimals ? Number(t.decimals) : undefined,
       source: "explorer"
@@ -59,30 +62,31 @@ export async function fetchFromRpc(contract: string, rpcUrl: string): Promise<Pa
     const provider = new ethers.JsonRpcProvider(rpcUrl);
     const token = new ethers.Contract(contract, ERC20_ABI, provider);
     
-    // Use Promise.allSettled to avoid failing the whole batch if one call fails
     const [nameResult, symbolResult, decimalsResult] = await Promise.allSettled([
       token.name(), 
       token.symbol(), 
       token.decimals()
     ]);
     
-    // Check if essential data is missing
-    if (nameResult.status === 'rejected' || symbolResult.status === 'rejected') {
-        throw new Error("Could not fetch essential token data (name or symbol).");
+    const name = nameResult.status === 'fulfilled' ? decodeBytes32(nameResult.value) : undefined;
+    const symbol = symbolResult.status === 'fulfilled' ? decodeBytes32(symbolResult.value) : undefined;
+    const decimals = decimalsResult.status === 'fulfilled' ? Number(decimalsResult.value) : undefined;
+
+    if (!name && !symbol) {
+        throw new Error("Could not fetch name or symbol from RPC.");
     }
 
     return {
-      name: nameResult.value,
-      symbol: symbolResult.value,
-      decimals: decimalsResult.status === 'fulfilled' ? Number(decimalsResult.value) : 18, // Default to 18 if decimals fails
+      name,
+      symbol,
+      decimals: decimals ?? 18, // Default to 18 if decimals fails
       source: "rpc"
     };
   } catch (e: any) {
     console.warn(`RPC fetch failed for ${contract} at ${rpcUrl}:`, e.message);
-    return null; // Return null to allow fallback to explorer
+    return null;
   }
 }
-
 
 export async function fetchLogoFromCoinGeckoByContract(contract: string, platform: string): Promise<string | null> {
   const coingeckoApiUrl = process.env.COINGECKO_API_URL || "https://api.coingecko.com/api/v3";
@@ -91,7 +95,7 @@ export async function fetchLogoFromCoinGeckoByContract(contract: string, platfor
     const { data } = await axios.get(url, { timeout: 8000 });
     return data?.image?.large || data?.image?.small || data?.image?.thumb || null;
   } catch (e) {
-    return null; // Don't log, as 404s are expected
+    return null;
   }
 }
 
@@ -101,13 +105,11 @@ export async function fetchLogoFromCoinGeckoBySymbol(symbol: string): Promise<st
     const { data: searchData } = await axios.get(`${coingeckoApiUrl}/search?query=${encodeURIComponent(symbol)}`, { timeout: 8000 });
     const coins = searchData.coins || [];
     
-    // Prioritize exact symbol match
     const exactMatch = coins.find((c: any) => c.symbol && c.symbol.toLowerCase() === symbol.toLowerCase());
-    const coinToFetch = exactMatch || coins[0]; // Fallback to the first result
+    const coinToFetch = exactMatch || coins[0];
     
     if (!coinToFetch || !coinToFetch.id) return null;
     
-    // Fetch details to get the image
     const { data: details } = await axios.get(`${coingeckoApiUrl}/coins/${coinToFetch.id}`);
     return details?.image?.large || details?.image?.small || details?.image?.thumb || null;
   } catch (e: any) {
