@@ -1,6 +1,4 @@
 
-"use server";
-
 import { toUtf8String, isHexString } from "ethers";
 
 /**
