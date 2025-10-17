@@ -29,11 +29,19 @@ export async function fetchFromExplorer(contract: string, networkName: string): 
   const url = `${chain.explorerApi}?module=token&action=tokeninfo&contractaddress=${contract}&apikey=${apiKey}`;
   try {
     const { data } = await axios.get(url, { timeout: 8000 });
-    if (data.status === "0" || !data.result || data.result.length === 0) {
-        console.warn(`Explorer API returned error for ${contract} on ${networkName}: ${data.message || data.result}`);
+    // Handle cases where result is an empty array or status is '0'
+    if (data.status === "0" || !data.result || (Array.isArray(data.result) && data.result.length === 0)) {
+        console.warn(`Explorer API returned error or empty result for ${contract} on ${networkName}: ${data.message || data.result}`);
         return null;
     }
-    const t = data.result[0];
+    // Handle both object and array-of-one-object responses
+    const t = Array.isArray(data.result) ? data.result[0] : data.result;
+
+    if (!t.symbol) {
+        console.warn(`Explorer API response for ${contract} on ${networkName} is missing a symbol.`);
+        return null;
+    }
+
     return {
       name: t.tokenName || t.name || undefined,
       symbol: t.symbol || undefined,
