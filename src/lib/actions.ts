@@ -82,7 +82,7 @@ export async function addToken(
   }
   
   const { logoFile, symbol, chainId, contract } = validated.data;
-  const name = validated.data.name || symbol; // Use symbol as name if not provided
+  const name = validated.data.name;
   const decimals = validated.data.decimals;
   const logoUrlFromForm = formData.get('logo_url') as string | null;
 
@@ -121,7 +121,11 @@ export async function addToken(
     if (finalLogoUrl) {
       const { error: logoUpsertError } = await supabaseAdmin
           .from('token_logos')
-          .upsert({ symbol: symbol.toUpperCase(), name, logo_url: finalLogoUrl }, { onConflict: 'symbol' });
+          .upsert({ 
+              symbol: symbol.toUpperCase(), 
+              name: name || symbol, // Use symbol as name if name is not provided
+              logo_url: finalLogoUrl 
+            }, { onConflict: 'symbol' });
 
       if (logoUpsertError) {
           throw new Error(`Database logo upsert error: ${logoUpsertError.message}`);
@@ -517,3 +521,5 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
         return { status: "error", message: e.message, chainId, contractAddress };
     }
 }
+
+    
