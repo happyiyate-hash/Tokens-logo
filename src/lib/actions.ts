@@ -50,22 +50,27 @@ export async function addGlobalLogo(
   try {
       const fileContents = await logoFile.arrayBuffer();
       const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
-      const filePath = `global/${symbol.toLowerCase()}_${finalName.replace(/\s+/g, '_').toLowerCase()}.${ext}`;
+      const filePath = `global/${symbol.toLowerCase()}_${Date.now()}.${ext}`;
 
-      const { error: uploadError } = await supabaseAdmin.storage.from(STORAGE_BUCKET).upload(filePath, fileContents, { contentType: logoFile.type, upsert: true });
-      if (uploadError) throw new Error(`Storage upload error: ${uploadError.message}`);
+      const { error: uploadError } = await supabaseAdmin.storage
+        .from(STORAGE_BUCKET)
+        .upload(filePath, fileContents, { contentType: logoFile.type, upsert: true });
+
+      if (uploadError) {
+        throw new Error(`Storage upload error: ${uploadError.message}`);
+      }
       
       const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
       const finalLogoUrl = publicUrlData.publicUrl;
 
-      // Upsert into the global token_logos table in a single operation
+      // Upsert into the global token_logos table.
       const { error: logoUpsertError } = await supabaseAdmin
           .from('token_logos')
           .upsert({ 
               symbol: symbol.toUpperCase(), 
               name: finalName,
               logo_url: finalLogoUrl 
-          }, { onConflict: 'symbol' }); // Assuming 'symbol' is the unique identifier for a global logo
+          }, { onConflict: 'symbol' });
 
       if (logoUpsertError) {
           throw new Error(`Database logo upsert error: ${logoUpsertError.message}`);
@@ -159,7 +164,7 @@ export async function addToken(
     if (logoFile) {
         const fileContents = await logoFile.arrayBuffer();
         const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
-        const filePath = `global/${symbol.toLowerCase()}_${name.replace(/\s+/g, '_').toLowerCase()}.${ext}`;
+        const filePath = `global/${symbol.toLowerCase()}_${Date.now()}.${ext}`;
 
         const { error } = await supabaseAdmin.storage.from(STORAGE_BUCKET).upload(filePath, fileContents, { contentType: logoFile.type, upsert: true });
         if (error) throw new Error(`Storage upload error: ${error.message}`);
@@ -204,12 +209,6 @@ export async function addToken(
 
     const tokenDetails: TokenDetails = { name, symbol, decimals, network: chainConfig.name.toLowerCase(), contract_address: contract.toLowerCase() };
     
-    // Find logo again in case it was just added
-    if (!finalLogoUrl) {
-        const { data: logo } = await supabaseAdmin.from('token_logos').select('logo_url').eq('symbol', symbol.toUpperCase()).single();
-        finalLogoUrl = logo?.logo_url;
-    }
-
     const { error: upsertError } = await supabaseAdmin
         .from("token_metadata")
         .upsert({ 
@@ -587,3 +586,5 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
         return { status: "error", message: e.message, chainId, contractAddress };
     }
 }
+
+    
