@@ -22,12 +22,12 @@ export type AddTokenState = {
 };
 
 const addTokenSchema = z.object({
-  name: z.string().min(1, "Token name is required.").optional(), // Name is optional for global logo uploads
+  name: z.string().optional().transform(e => e === '' ? undefined : e),
   symbol: z.string().min(1, "Token symbol is required."),
-  networkId: z.string().optional(), // Optional, for global logos
+  networkId: z.string().optional(),
   decimals: z.coerce.number().int().min(0).optional().default(18),
   logoFile: z.instanceof(File).optional(),
-  logo_url: z.string().url().optional(), // This can be a URL from CoinGecko/AI fetch
+  logo_url: z.string().url().optional(),
   contract: z.string().optional(),
 });
 
