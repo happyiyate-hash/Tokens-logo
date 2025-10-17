@@ -7,8 +7,6 @@ import type { TokenFetchResult } from "@/lib/types";
 import { decodeBytes32 } from "./hextools";
 import chainsConfig from "@/lib/chains.json";
 
-const ETHERSCAN_V2_BASE = "https://api.etherscan.io/v2/api";
-
 const ERC20_MIN_ABI = [
   "function name() view returns (string)",
   "function symbol() view returns (string)",
@@ -24,25 +22,30 @@ export async function fetchTokenMetadataFromSources(contractAddress: string, net
     const chain = findChainByName(networkName);
     if (!chain) throw new Error(`Unsupported network: ${networkName}`);
     
-    // 1. Try Etherscan V2 First
+    // 1. Try Block Explorer First (now using the correct endpoint for each chain)
     try {
         const params = {
-            chainid: chain.chainId,
             module: "token",
             action: "tokeninfo",
             contractaddress: contractAddress,
             apikey: process.env.ETHERSCAN_API_KEY || "",
         };
 
-        const { data } = await axios.get(ETHERSCAN_V2_BASE, { params, timeout: 8000 });
-
+        const { data } = await axios.get(chain.explorerApi, { params, timeout: 8000 });
+        
+        // Etherscan-like APIs return `result` which can be an array or object.
         if (data && data.result) {
-            const r = Array.isArray(data.result) ? data.result[0] : data.result;
-            if (r) {
-                const name = decodeBytes32(r.tokenName || r.name || r.TokenName || r.TokenNameHex);
-                const symbol = decodeBytes32(r.symbol || r.Symbol || r.TokenSymbol || r.TokenSymbolHex);
-                const decimals = r.decimals !== undefined && r.decimals !== null ? Number(r.decimals) : undefined;
-                
+            // Handle cases where result is an array or a single object
+            const tokenInfo = Array.isArray(data.result) ? data.result[0] : data.result;
+
+            if (tokenInfo) {
+                // Explorer APIs have inconsistent naming, so we check multiple possibilities
+                const name = decodeBytes32(tokenInfo.tokenName || tokenInfo.name);
+                const symbol = decodeBytes32(tokenInfo.symbol);
+                const decimals = tokenInfo.decimals !== undefined && tokenInfo.decimals !== null 
+                                 ? Number(tokenInfo.decimals) 
+                                 : undefined;
+
                 // If explorer returns all key fields, we are done.
                 if (name && symbol && decimals !== undefined) {
                     return {
@@ -64,7 +67,7 @@ export async function fetchTokenMetadataFromSources(contractAddress: string, net
     }
 
     try {
-        const provider = new ethers.JsonRpcProvider(chain.rpc);
+        const provider = new ethers.providers.JsonRpcProvider(chain.rpc);
         const token = new ethers.Contract(contractAddress, ERC20_MIN_ABI, provider);
 
         const [nameResult, symbolResult, decimalsResult] = await Promise.allSettled([
