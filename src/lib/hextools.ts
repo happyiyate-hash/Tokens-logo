@@ -1,5 +1,5 @@
 
-import { toUtf8String, isHexString } from "ethers";
+import { toUtf8String, isHexString } from "ethers/lib/utils";
 
 /**
  * Decodes a hex string to a UTF-8 string, specifically handling bytes32.
