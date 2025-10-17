@@ -3,15 +3,14 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import type { ApiKey, Network, TokenFetchResult, TokenDetails, TokenMetadata } from "@/lib/types";
+import type { ApiKey, TokenFetchResult, TokenDetails, TokenMetadata } from "@/lib/types";
 import chainsConfig from "@/lib/chains.json";
 import { ethers } from "ethers";
 import axios from "axios";
 import pRetry from "p-retry";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { fetchFromExplorer, fetchFromRpc, fetchLogoFromCoinGecko, uploadLogo } from "@/lib/fetchers";
 
-const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY;
-const COINGECKO_API_URL = process.env.COINGECKO_API_URL || "https://api.coingecko.com/api/v3";
 const STORAGE_BUCKET = "token_logos";
 const CACHE_TTL = Number(process.env.CACHE_TTL_MS || 7 * 24 * 3600 * 1000);
 
@@ -38,39 +37,6 @@ const addTokenSchema = z.object({
   logo_url: z.string().optional(), // This can be a URL from CoinGecko fetch
   contract: z.string().min(1, "Contract address is required."),
 });
-
-async function uploadLogo(
-    logoFile: File,
-    contract: string,
-    networkName: string
-): Promise<{ storage_path: string; public_url: string } | null> {
-    if (!logoFile || logoFile.size === 0) return null;
-
-    const fileContents = await logoFile.arrayBuffer();
-    const ext = logoFile.name.split('.').pop() || 'png';
-    const filename = `${contract.toLowerCase()}_${networkName.toLowerCase()}.${ext}`;
-
-    const { error: uploadError } = await supabaseAdmin.storage
-      .from(STORAGE_BUCKET)
-      .upload(filename, fileContents, {
-        contentType: logoFile.type,
-        upsert: true,
-      });
-
-    if (uploadError) {
-      throw new Error(`Storage error: ${uploadError.message}`);
-    }
-
-    const { data: publicUrlData } = supabaseAdmin.storage
-      .from(STORAGE_BUCKET)
-      .getPublicUrl(filename);
-
-    if (!publicUrlData) {
-      throw new Error("Could not get public URL for the uploaded logo.");
-    }
-
-    return { storage_path: filename, public_url: publicUrlData.publicUrl };
-}
 
 export async function addToken(
   prevState: AddTokenState,
@@ -112,29 +78,22 @@ export async function addToken(
         try {
             const response = await axios.get(logo_url, { responseType: 'arraybuffer' });
             const buffer = Buffer.from(response.data);
-            const contentType = response.headers['content-type'];
-            const ext = contentType.split('/')[1] || 'png';
-            const filename = `${contract.toLowerCase()}_${network.name.toLowerCase()}.${ext}`;
-    
-            const { error: uploadError } = await supabaseAdmin.storage
-              .from(STORAGE_BUCKET)
-              .upload(filename, buffer, {
-                contentType: contentType,
-                upsert: true,
-              });
+            const contentType = response.headers['content-type'] || 'image/png';
+            const file = new File([buffer], 'logo.png', { type: contentType });
             
-            if (uploadError) throw new Error(`Could not import logo from URL: ${uploadError.message}`);
-    
-            const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filename);
-            finalLogoUrl = publicUrlData.publicUrl;
-            logoKey = filename;
+            const uploadedLogo = await uploadLogo(file, contract, network.name);
+            if (uploadedLogo) {
+                logoKey = uploadedLogo.storage_path;
+                finalLogoUrl = uploadedLogo.public_url;
+            }
+
         } catch (e: any) {
             console.error(`Failed to import logo from ${logo_url}: ${e.message}`);
             // Continue without a logo if the import fails
         }
     }
     
-    // Upsert the logo record
+    // Upsert the logo record if we have one
     if (logoKey && finalLogoUrl) {
          await supabaseAdmin.rpc('upsert_token_logo', {
             p_contract: contract,
@@ -197,7 +156,7 @@ export async function getApiKeys(): Promise<ApiKey[]> {
 }
 
 export type GenerateApiKeyState = {
-  status: "idle" | "success" | "error";
+  status: "idle" | "success" | "error" | "executing";
   message?: string;
   newKey?: string;
 };
@@ -361,7 +320,6 @@ export async function addNetwork(prevState: AddNetworkState, formData: FormData)
 }
 
 export async function deleteNetwork(networkId: string): Promise<{ status: "success" | "error", message: string }> {
-  // Before deleting a network, we should check if any tokens are using it.
   const { data: network } = await supabaseAdmin.from("networks").select('name').eq("id", networkId).single();
   if (!network) {
     return { status: "error", message: "Network not found."};
@@ -380,7 +338,6 @@ export async function deleteNetwork(networkId: string): Promise<{ status: "succe
   if (tokens && tokens.length > 0) {
     return { status: "error", message: "Cannot delete network because it still has tokens associated with it." };
   }
-
 
   const { error } = await supabaseAdmin
     .from("networks")
@@ -414,71 +371,8 @@ const fetchMetadataSchema = z.object({
   networkId: z.string().min(1, "Please select a network."), // This is the UUID from our networks table
 });
 
-function findChainById(chainId: number) {
+function findChainByChainId(chainId: number) {
     return chainsConfig.find(c => Number(c.chainId) === Number(chainId));
-}
-
-async function fetchFromExplorer(contract: string, chain: any): Promise<Partial<TokenFetchResult> | null> {
-  if (!chain.explorerApi) return null;
-  try {
-    const url = `${chain.explorerApi}?module=token&action=tokeninfo&contractaddress=${contract}&apikey=${ETHERSCAN_API_KEY}`;
-    const { data } = await axios.get(url, { timeout: 8_000 });
-
-    if (data.status === "0" || !data.result || data.result.length === 0) {
-      return null;
-    }
-    const token = data.result[0];
-    return {
-      name: token.tokenName || token.name || "",
-      symbol: token.symbol || "",
-      decimals: token.decimals ? parseInt(token.decimals, 10) : 18,
-      source: "explorer"
-    };
-  } catch (e) {
-    return null;
-  }
-}
-
-async function fetchFromRpc(contract: string, chain: any): Promise<Partial<TokenFetchResult> | null> {
-  if (!chain.rpc) return null;
-  try {
-    const provider = new ethers.JsonRpcProvider(chain.rpc);
-    const tokenContract = new ethers.Contract(contract, ERC20_ABI, provider);
-
-    const [name, symbol, decimals] = await Promise.allSettled([
-      tokenContract.name(),
-      tokenContract.symbol(),
-      tokenContract.decimals(),
-    ]);
-
-    return {
-      name: name.status === "fulfilled" ? name.value : "",
-      symbol: symbol.status === "fulfilled" ? symbol.value : "",
-      decimals: decimals.status === "fulfilled" ? Number(decimals.value) : 18,
-      source: "rpc"
-    };
-  } catch (err) {
-    return null;
-  }
-}
-
-async function fetchLogoFromCoinGecko(contractAddress: string, symbol: string, chain: any): Promise<string | null> {
-    if (chain.cgPlatform) {
-        try {
-            const url = `${COINGECKO_API_URL}/coins/${chain.cgPlatform}/contract/${contractAddress.toLowerCase()}`;
-            const { data } = await pRetry(() => axios.get(url, { timeout: 8000 }), { retries: 2 });
-            if (data?.image?.large) return data.image.large;
-        } catch (e) { /* Fall through */ }
-    }
-    if (symbol) {
-        try {
-            const url = `${COINGECKO_API_URL}/search?query=${encodeURIComponent(symbol)}`;
-            const { data } = await pRetry(() => axios.get(url, { timeout: 8000 }), { retries: 2 });
-            const match = data.coins?.find((c: any) => c.symbol.toLowerCase() === symbol.toLowerCase());
-            return match?.large || match?.thumb || null;
-        } catch (e) { /* Fall through */ }
-    }
-    return null;
 }
 
 async function getCachedToken(contract: string, chainId: number) {
@@ -514,7 +408,7 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
         const { data: networkDb } = await supabaseAdmin.from("networks").select("*").eq("id", networkId).single();
         if (!networkDb) throw new Error("Could not find selected network information in DB.");
         
-        const chainConfig = findChainById(networkDb.chain_id);
+        const chainConfig = findChainByChainId(networkDb.chain_id);
         if (!chainConfig) throw new Error("Could not find chain configuration in chains.json.");
 
         // Check cache unless forcing refresh
@@ -539,12 +433,15 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
             }
         }
         
-        let metadata: Partial<TokenFetchResult> | null = await fetchFromExplorer(contractAddress, chainConfig);
+        let metadata: Partial<TokenFetchResult> | null = await fetchFromExplorer(contractAddress, chainConfig.name);
+        
         if (!metadata || !metadata.symbol) {
-            metadata = await fetchFromRpc(contractAddress, chainConfig);
+             if (chainConfig.rpc) {
+                metadata = await fetchFromRpc(contractAddress, chainConfig.rpc);
+             }
         }
         
-        if (!metadata || !metadata.symbol || !metadata.name || metadata.decimals === null) {
+        if (!metadata || !metadata.symbol || !metadata.name || metadata.decimals === undefined || metadata.decimals === null) {
             throw new Error("Could not fetch complete token metadata from explorer or RPC.");
         }
         
