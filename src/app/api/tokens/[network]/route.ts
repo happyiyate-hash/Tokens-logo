@@ -1,61 +1,67 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { isValidApiKey } from "@/lib/api-helpers";
 
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+// Initialize Supabase client (private, server-only)
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function GET(
   request: Request,
   { params }: { params: { network: string } }
 ) {
-  const { searchParams } = new URL(request.url);
-  const symbol = searchParams.get("symbol");
-  
-  const requestApiKey = request.headers.get('x-api-key');
-
-  if (!requestApiKey || !(await isValidApiKey(requestApiKey))) {
-    return NextResponse.json({ error: "Unauthorized. Invalid or missing API key." }, { status: 401 });
-  }
-
-  const networkIdentifier = params.network;
-
-  if (!networkIdentifier) {
-    return NextResponse.json(
-      { error: "Network identifier is required." },
-      { status: 400 }
-    );
-  }
-
   try {
-    let query = supabase
-      .from("token_metadata")
-      .select("contract_address, network, token_details, logo_url, verified, source, fetched_at, updated_at")
-      .eq("network", networkIdentifier.toLowerCase());
+    const { searchParams } = new URL(request.url);
+    const symbol = searchParams.get("symbol");
+    const network = params.network;
+    const clientKey = request.headers.get("x-api-key");
+    
+    // 1. Validate API Key
+    if (clientKey !== process.env.PUBLIC_API_KEY) {
+      return NextResponse.json({ error: "Invalid or missing API key" }, { status: 403 });
+    }
 
-    // If a symbol is provided, filter by it
+    if (!network) {
+      return NextResponse.json({ error: "Network parameter is required." }, { status: 400 });
+    }
+
+    // 2. Handle single token fetch vs. all tokens for a network
     if (symbol) {
-      query = query.ilike("token_details->>symbol", symbol).limit(1);
-      
-      const { data, error } = await query.single();
-      
-      if (error || !data) {
-        return NextResponse.json({ error: `Token '${symbol}' not found on network '${networkIdentifier}'.` }, { status: 404 });
-      }
+      // --- Fetch a single token by symbol ---
+      const { data, error } = await supabase
+        .from("token_metadata")
+        .select("token_details, logo_url")
+        .eq("network", network.toLowerCase())
+        .ilike("token_details->>symbol", symbol)
+        .limit(1)
+        .maybeSingle();
 
-      return NextResponse.json(data);
+      if (error) throw error;
+      if (!data) return NextResponse.json({ error: "Token not found" }, { status: 404 });
+
+      const response = {
+        success: true,
+        symbol: data.token_details.symbol,
+        name: data.token_details.name,
+        decimals: data.token_details.decimals,
+        network: data.token_details.network,
+        contract: data.token_details.contract_address,
+        logo: data.logo_url,
+      };
+
+      return NextResponse.json(response);
 
     } else {
-      // Otherwise, return all tokens for the network
-      const { data, error } = await query;
-      
-      if (error) {
-         console.error("Supabase error:", error.message);
-         throw error;
-      }
-      
+      // --- Fetch all tokens for the network ---
+      const { data, error } = await supabase
+        .from("token_metadata")
+        .select("token_details, logo_url, contract_address, network, fetched_at, updated_at, verified, source")
+        .eq("network", network.toLowerCase());
+
+      if (error) throw error;
+
       const response = (data || []).map(token => ({
           contract_address: token.contract_address,
           network: token.network,
@@ -70,11 +76,8 @@ export async function GET(
       return NextResponse.json(response);
     }
 
-  } catch (e: any) {
-     console.error("API route error:", e.message);
-    return NextResponse.json(
-      { error: `An internal server error occurred.` },
-      { status: 500 }
-    );
+  } catch (err: any) {
+    console.error("Error fetching token:", err);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
