@@ -1,7 +1,9 @@
+
 import { ethers } from "ethers";
 import { supabaseAdmin } from "./supabase/admin";
 import chainsConfig from "@/lib/chains.json";
 import axios from "axios";
+import type { TokenFetchResult } from "@/lib/types";
 
 const ERC20_ABI = [
   "function name() view returns (string)",
@@ -15,7 +17,7 @@ const findChainByName = (networkName: string) => {
     return chainsConfig.find(c => c.name.toLowerCase() === lowercasedName);
 };
 
-export async function fetchFromExplorer(contract: string, networkName: string): Promise<Partial<{ name: string, symbol: string, decimals: number, totalSupply: string, source: string }> | null> {
+export async function fetchFromExplorer(contract: string, networkName: string): Promise<Partial<TokenFetchResult> | null> {
   const chain = findChainByName(networkName);
   if (!chain || !chain.explorerApi) return null;
   
@@ -33,10 +35,9 @@ export async function fetchFromExplorer(contract: string, networkName: string): 
     }
     const t = data.result[0];
     return {
-      name: t.tokenName || t.name || null,
-      symbol: t.symbol || null,
-      decimals: t.decimals ? Number(t.decimals) : null,
-      totalSupply: t.totalSupply ? String(t.totalSupply) : null,
+      name: t.tokenName || t.name || undefined,
+      symbol: t.symbol || undefined,
+      decimals: t.decimals ? Number(t.decimals) : undefined,
       source: "explorer"
     };
   } catch (e: any) {
@@ -45,25 +46,35 @@ export async function fetchFromExplorer(contract: string, networkName: string): 
   }
 }
 
-export async function fetchFromRpc(contract: string, rpcUrl: string): Promise<Partial<{ name: string, symbol: string, decimals: number, totalSupply: string, source: string }> | null> {
+export async function fetchFromRpc(contract: string, rpcUrl: string): Promise<Partial<TokenFetchResult> | null> {
   try {
     const provider = new ethers.JsonRpcProvider(rpcUrl);
     const token = new ethers.Contract(contract, ERC20_ABI, provider);
-    const [name, symbol, decimals, totalSupply] = await Promise.allSettled([
-      token.name(), token.symbol(), token.decimals(), token.totalSupply()
+    
+    // Use Promise.allSettled to avoid failing the whole batch if one call fails
+    const [nameResult, symbolResult, decimalsResult] = await Promise.allSettled([
+      token.name(), 
+      token.symbol(), 
+      token.decimals()
     ]);
+    
+    // Check if essential data is missing
+    if (nameResult.status === 'rejected' || symbolResult.status === 'rejected') {
+        throw new Error("Could not fetch essential token data (name or symbol).");
+    }
+
     return {
-      name: name.status === "fulfilled" ? name.value : null,
-      symbol: symbol.status === "fulfilled" ? symbol.value : null,
-      decimals: decimals.status === "fulfilled" ? Number(decimals.value) : null,
-      totalSupply: totalSupply.status === "fulfilled" ? String(totalSupply.value) : null,
+      name: nameResult.value,
+      symbol: symbolResult.value,
+      decimals: decimalsResult.status === 'fulfilled' ? Number(decimalsResult.value) : 18, // Default to 18 if decimals fails
       source: "rpc"
     };
   } catch (e: any) {
-    console.error(`RPC fetch failed for ${contract} at ${rpcUrl}:`, e.message);
-    return null;
+    console.warn(`RPC fetch failed for ${contract} at ${rpcUrl}:`, e.message);
+    return null; // Return null to allow fallback to explorer
   }
 }
+
 
 export async function fetchLogoFromCoinGeckoByContract(contract: string, platform: string): Promise<string | null> {
   const coingeckoApiUrl = process.env.COINGECKO_API_URL || "https://api.coingecko.com/api/v3";

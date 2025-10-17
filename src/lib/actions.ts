@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import type { ApiKey, TokenFetchResult, TokenDetails, TokenMetadata, TokenLogo } from "@/lib/types";
 import chainsConfig from "@/lib/chains.json";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { fetchFromExplorer, fetchFromRpc, fetchLogoFromCoinGeckoBySymbol } from "@/lib/fetchers";
+import { fetchFromExplorer, fetchFromRpc } from "@/lib/fetchers";
 import axios from 'axios';
 import { autoFetchMissingLogo } from '@/ai/flows/auto-fetch-missing-logos';
 
@@ -25,7 +25,7 @@ const addTokenSchema = z.object({
   name: z.union([z.string(), z.null(), z.undefined()]).transform(v => v || undefined).optional(),
   symbol: z.string().min(1, "Token symbol is required."),
   chainId: z.string().optional(),
-  decimals: z.coerce.number().int().min(0).optional().default(18),
+  decimals: z.coerce.number().int().min(0).default(18),
   logoFile: z.instanceof(File).optional(),
   logo_url: z.string().url().optional(),
   contract: z.union([z.string(), z.null(), z.undefined()]).transform(v => v || undefined).optional(),
@@ -80,7 +80,9 @@ export async function addToken(
     return { status: "error", message: firstError || "Invalid input." };
   }
   
-  const { logoFile, symbol, chainId, contract, name, decimals } = validated.data;
+  const { logoFile, symbol, chainId, contract } = validated.data;
+  const name = validated.data.name || symbol; // Use symbol as name if not provided
+  const decimals = validated.data.decimals;
   const logoUrlFromForm = formData.get('logo_url') as string | null;
 
   try {
@@ -475,13 +477,17 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
             }
         }
         
-        // Fetch fresh metadata
-        let metadata: Partial<TokenFetchResult> | null = await fetchFromExplorer(contractAddress, chainConfig.name);
-        if (!metadata || !metadata.symbol) {
-             if (chainConfig.rpc) { metadata = await fetchFromRpc(contractAddress, chainConfig.rpc); }
+        // Fetch fresh metadata (RPC first, then explorer)
+        let metadata: Partial<TokenFetchResult> | null = null;
+        if (chainConfig.rpc) {
+          metadata = await fetchFromRpc(contractAddress, chainConfig.rpc);
         }
+        if (!metadata || !metadata.symbol) {
+             metadata = await fetchFromExplorer(contractAddress, chainConfig.name);
+        }
+        
         if (!metadata || !metadata.symbol || !metadata.name || metadata.decimals === undefined) {
-            throw new Error("Could not fetch complete token metadata from explorer or RPC.");
+            throw new Error("Could not fetch complete token metadata from any source.");
         }
         
         // Find logo: 1. Global DB, 2. AI Fetch
