@@ -24,7 +24,7 @@ export type AddTokenState = {
 const addTokenSchema = z.object({
   name: z.union([z.string(), z.null(), z.undefined()]).transform(v => v || undefined).optional(),
   symbol: z.string().min(1, "Token symbol is required."),
-  networkId: z.string().optional(),
+  chainId: z.string().optional(),
   decimals: z.coerce.number().int().min(0).optional().default(18),
   logoFile: z.instanceof(File).optional(),
   logo_url: z.string().url().optional(),
@@ -67,7 +67,7 @@ export async function addToken(
   const validated = addTokenSchema.safeParse({
       name: formData.get('name'),
       symbol: formData.get('symbol'),
-      networkId: formData.get('networkId'),
+      chainId: formData.get('chainId'),
       decimals: formData.get('decimals'),
       logoFile: logoFileValue instanceof File && logoFileValue.size > 0 ? logoFileValue : undefined,
       logo_url: formData.get('logo_url'),
@@ -80,7 +80,7 @@ export async function addToken(
     return { status: "error", message: firstError || "Invalid input." };
   }
   
-  const { logoFile, symbol, networkId, contract, name, decimals } = validated.data;
+  const { logoFile, symbol, chainId, contract, name, decimals } = validated.data;
   const logoUrlFromForm = formData.get('logo_url') as string | null;
 
   try {
@@ -119,11 +119,11 @@ export async function addToken(
     }
 
     // Only save contract-specific metadata if a network and contract address are provided
-    if (contract && networkId && name) { // Name is required for specific metadata
-        const { data: network } = await supabaseAdmin.from("networks").select('name').eq('id', networkId).single();
-        if (!network) throw new Error("Network not found for contract-specific metadata.");
+    if (contract && chainId && name) { // Name is required for specific metadata
+        const chainConfig = chainsConfig.find(c => c.chainId.toString() === chainId);
+        if (!chainConfig) throw new Error("Network not found for contract-specific metadata.");
 
-        const tokenDetails: TokenDetails = { name, symbol, decimals, network: network.name.toLowerCase(), contract_address: contract.toLowerCase() };
+        const tokenDetails: TokenDetails = { name, symbol, decimals, network: chainConfig.name.toLowerCase(), contract_address: contract.toLowerCase() };
         
         // Find logo again in case it was just added
         if (!finalLogoUrl) {
@@ -135,7 +135,7 @@ export async function addToken(
             .from("token_metadata")
             .upsert({ 
                 contract_address: contract.toLowerCase(),
-                network: network.name.toLowerCase(),
+                network: chainConfig.name.toLowerCase(),
                 token_details: tokenDetails,
                 logo_url: finalLogoUrl, // Store denormalized URL for faster joins
                 source: "manual",
@@ -405,24 +405,24 @@ export type FetchMetadataState = {
   status: "idle" | "success" | "error";
   message?: string;
   metadata?: TokenFetchResult;
-  networkId?: string;
+  chainId?: string;
   contractAddress?: string;
 }
 
 const fetchMetadataSchema = z.object({
   contractAddress: z.string().min(1, "Contract address is required."),
-  networkId: z.string().min(1, "Please select a network."),
+  chainId: z.string().min(1, "Please select a network."),
 });
 
 async function getCachedToken(contract: string, chainId: number): Promise<TokenMetadata | null> {
-    const { data: network } = await supabaseAdmin.from("networks").select("name").eq("chain_id", chainId).single();
-    if (!network) return null;
+    const chainConfig = chainsConfig.find(c => c.chainId === chainId);
+    if (!chainConfig) return null;
     
     const { data, error } = await supabaseAdmin
         .from("token_metadata")
         .select("*, token_logos(logo_url)")
         .eq("contract_address", contract.toLowerCase())
-        .eq("network", network.name.toLowerCase())
+        .eq("network", chainConfig.name.toLowerCase())
         .maybeSingle();
     
     if (error) {
@@ -455,24 +455,21 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
         return { status: "error", message: "Both contract address and network are required." };
     }
 
-    const { contractAddress, networkId } = validated.data;
+    const { contractAddress, chainId } = validated.data;
     const forceRefresh = formData.get("forceRefresh") === "true";
   
     try {
-        const { data: networkDb } = await supabaseAdmin.from("networks").select("*").eq("id", networkId).single();
-        if (!networkDb) throw new Error("Could not find selected network information in DB.");
-        
-        const chainConfig = chainsConfig.find(c => Number(c.chainId) === Number(networkDb.chain_id));
-        if (!chainConfig) throw new Error(`Configuration for chainId ${networkDb.chain_id} not found.`);
+        const chainConfig = chainsConfig.find(c => c.chainId.toString() === chainId);
+        if (!chainConfig) throw new Error(`Configuration for chainId ${chainId} not found.`);
 
         // Check for cached version first
         if (!forceRefresh) {
-            const cached = await getCachedToken(contractAddress, networkDb.chain_id);
+            const cached = await getCachedToken(contractAddress, chainConfig.chainId);
             if (cached && (Date.now() - new Date(cached.fetched_at).getTime()) < CACHE_TTL) {
                 return {
                     status: "success",
                     metadata: { ...cached.token_details, logoUrl: cached.logo_url, source: cached.source },
-                    networkId,
+                    chainId,
                     contractAddress,
                 };
             }
@@ -502,9 +499,9 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
             source: metadata.source || 'unknown',
         };
         
-        return { status: "success", metadata: result, networkId, contractAddress };
+        return { status: "success", metadata: result, chainId, contractAddress };
 
     } catch (e: any) {
-        return { status: "error", message: e.message, networkId, contractAddress };
+        return { status: "error", message: e.message, chainId, contractAddress };
     }
 }

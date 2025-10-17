@@ -4,7 +4,6 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { fetchTokenMetadata, addToken, type FetchMetadataState, type AddTokenState } from "@/lib/actions";
 import { autoFetchMissingLogo } from "@/ai/flows/auto-fetch-missing-logos";
-import type { Network } from "@/lib/types";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -25,7 +24,14 @@ const initialSaveState: AddTokenState = {
     status: "idle",
 }
 
-export function AddTokenWizard({ networks }: { networks: Network[] }) {
+// A simplified type for the dropdown networks
+type DropdownNetwork = {
+  id: string; // Corresponds to chainId
+  name: string;
+};
+
+
+export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
   const [fetchState, fetchAction, isFetching] = useActionState(fetchTokenMetadata, initialFetchState);
   const [saveState, saveAction] = useActionState(addToken, initialSaveState);
   const { toast } = useToast();
@@ -121,8 +127,8 @@ export function AddTokenWizard({ networks }: { networks: Network[] }) {
             {step === 1 ? (
                 <form action={fetchAction} className="space-y-6">
                     <div className="space-y-2">
-                        <Label htmlFor="networkId">Blockchain Network</Label>
-                        <Select name="networkId" required>
+                        <Label htmlFor="chainId">Blockchain Network</Label>
+                        <Select name="chainId" required>
                             <SelectTrigger>
                                 <SelectValue placeholder="Select a network" />
                             </SelectTrigger>
@@ -153,7 +159,7 @@ export function AddTokenWizard({ networks }: { networks: Network[] }) {
             ) : (
                 <form ref={formRef} action={saveAction} className="space-y-6">
                     <input type="hidden" name="contract" value={fetchState.contractAddress} />
-                    <input type="hidden" name="networkId" value={fetchState.networkId} />
+                    <input type="hidden" name="chainId" value={fetchState.chainId} />
                     {previewUrl && <input type="hidden" name="logo_url" value={previewUrl} />}
 
                     {fetchState.status === "success" && (
