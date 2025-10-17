@@ -65,14 +65,12 @@ export async function addToken(
         return { status: "error", message: "A contract address or a logo file is required." };
     }
 
-    let logoKey: string | undefined;
     let finalLogoUrl: string | undefined;
-    const effectiveContract = contract || symbol; // Use symbol as key if contract is missing
 
+    // Handle logo upload and get the public URL
     if (logoFile && logoFile.size > 0) {
-        const uploadedLogo = await uploadLogo(logoFile, effectiveContract, network.name);
+        const uploadedLogo = await uploadLogo(logoFile, symbol, network.name);
         if (uploadedLogo) {
-            logoKey = uploadedLogo.storage_path;
             finalLogoUrl = uploadedLogo.public_url;
         }
     } else if (logo_url) {
@@ -81,11 +79,10 @@ export async function addToken(
             const buffer = Buffer.from(response.data);
             const contentType = response.headers['content-type'] || 'image/png';
             
-            const publicUrl = await uploadLogoFromBuffer(network.name.toLowerCase(), `${effectiveContract.toLowerCase()}.${contentType.split('/')[1] || 'png'}`, buffer, contentType);
+            const publicUrl = await uploadLogoFromBuffer(network.name.toLowerCase(), `${symbol.toLowerCase()}.${contentType.split('/')[1] || 'png'}`, buffer, contentType);
 
             if(publicUrl) {
                 finalLogoUrl = publicUrl;
-                logoKey = `${network.name.toLowerCase()}/${effectiveContract.toLowerCase()}.${contentType.split('/')[1] || 'png'}`;
             }
 
         } catch (e: any) {
@@ -93,38 +90,45 @@ export async function addToken(
         }
     }
     
-    if (logoKey && finalLogoUrl) {
-         await supabaseAdmin.rpc('upsert_token_logo', {
-            p_contract: contract ? contract : null, // Only store contract if it exists
-            p_symbol: symbol,
-            p_network: network.name.toLowerCase(),
-            p_storage_path: logoKey,
-            p_public_url: finalLogoUrl
-        });
+    // Upsert into the new global token_logos table
+    if (finalLogoUrl) {
+         const { error: logoUpsertError } = await supabaseAdmin
+            .from('token_logos')
+            .upsert(
+                { symbol: symbol.toUpperCase(), name, logo_url: finalLogoUrl },
+                { onConflict: 'symbol' }
+            );
+
+        if (logoUpsertError) {
+          throw new Error(`Database logo upsert error: ${logoUpsertError.message}`);
+        }
     }
 
+    // Prepare token details for the token_metadata table
     const tokenDetails: TokenDetails = {
         name,
         symbol,
         decimals,
         network: network.name.toLowerCase(),
         contract_address: contract ? contract.toLowerCase() : '',
-        logo_key: logoKey,
+        logo_key: null, // This field is deprecated
         extra: {}
     };
     
+    // We still save metadata per network, but the logo is now global.
+    // The primary key for this table is a composite of contract and network.
     const { error: upsertError } = await supabaseAdmin.rpc('upsert_token_metadata', {
         p_contract: contract ? contract.toLowerCase() : symbol.toLowerCase(), // Use symbol as PK if no contract
         p_network: network.name.toLowerCase(),
         p_token_details: tokenDetails,
-        p_logo_key: logoKey || null,
-        p_logo_url: finalLogoUrl || null,
+        p_logo_key: null, // Deprecated
+        p_logo_url: finalLogoUrl || null, // We can still cache it here
         p_source: "manual",
         p_verified: true,
     });
 
     if (upsertError) {
-      throw new Error(`Database upsert error: ${upsertError.message}`);
+      throw new Error(`Database metadata upsert error: ${upsertError.message}`);
     }
 
     revalidatePath("/tokens");
@@ -206,16 +210,6 @@ export async function deleteApiKey(
 }
 
 export async function deleteToken(tokenId: string): Promise<{ status: "success" | "error", message: string }> {
-  const { data: token } = await supabaseAdmin
-    .from("token_metadata")
-    .select("logo_key")
-    .eq("id", tokenId)
-    .single();
-
-  if (token && token.logo_key) {
-    await supabaseAdmin.storage.from(STORAGE_BUCKET).remove([token.logo_key]);
-  }
-
   const { error } = await supabaseAdmin
     .from("token_metadata")
     .delete()
@@ -464,3 +458,5 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
         return { status: "error", message: e.message, networkId, contractAddress };
     }
 }
+
+    

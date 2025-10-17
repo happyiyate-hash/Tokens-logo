@@ -13,8 +13,8 @@ export async function GET(
     const network = params.network;
     const clientKey = request.headers.get("x-api-key");
     
-    // 1. Validate API Key
-    if (!await isValidApiKey(clientKey)) {
+    const client = await isValidApiKey(clientKey);
+    if (!client) {
       return NextResponse.json({ error: "Invalid or missing API key" }, { status: 403 });
     }
 
@@ -22,12 +22,22 @@ export async function GET(
       return NextResponse.json({ error: "Network parameter is required." }, { status: 400 });
     }
 
+    // --- Helper to get logo URL ---
+    const getLogoUrl = async (tokenSymbol: string) => {
+        const { data: logoData } = await supabaseAdmin
+            .from('token_logos')
+            .select('logo_url')
+            .eq('symbol', tokenSymbol.toUpperCase())
+            .single();
+        return logoData?.logo_url || null;
+    };
+
     // 2. Handle single token fetch vs. all tokens for a network
     if (symbol) {
       // --- Fetch a single token by symbol ---
       const { data, error } = await supabaseAdmin
         .from("token_metadata")
-        .select("token_details, logo_url, contract_address, network")
+        .select("token_details, contract_address, network")
         .eq("network", network.toLowerCase())
         .ilike("token_details->>symbol", symbol)
         .limit(1)
@@ -36,6 +46,8 @@ export async function GET(
       if (error) throw error;
       if (!data) return NextResponse.json({ error: "Token not found" }, { status: 404 });
 
+      const logoUrl = await getLogoUrl(data.token_details.symbol);
+
       const response = {
         success: true,
         symbol: data.token_details.symbol,
@@ -43,29 +55,34 @@ export async function GET(
         decimals: data.token_details.decimals,
         network: data.network,
         contract: data.contract_address,
-        logo: data.logo_url,
+        logo_url: logoUrl,
       };
 
+      await supabaseAdmin.from("api_clients").update({ last_used_at: new Date().toISOString() }).eq("id", client.id);
       return NextResponse.json(response);
 
     } else {
       // --- Fetch all tokens for the network ---
       const { data, error } = await supabaseAdmin
         .from("token_metadata")
-        .select("token_details, logo_url, contract_address, network")
+        .select("token_details, contract_address, network")
         .eq("network", network.toLowerCase());
 
       if (error) throw error;
 
-      const tokens = (data || []).map(token => ({
-          symbol: token.token_details.symbol,
-          name: token.token_details.name,
-          decimals: token.token_details.decimals,
-          network: token.network,
-          contract: token.contract_address,
-          logo: token.logo_url || null,
+      const tokens = await Promise.all((data || []).map(async (token) => {
+          const logoUrl = await getLogoUrl(token.token_details.symbol);
+          return {
+              symbol: token.token_details.symbol,
+              name: token.token_details.name,
+              decimals: token.token_details.decimals,
+              network: token.network,
+              contract: token.contract_address,
+              logo_url: logoUrl,
+          };
       }));
-
+      
+      await supabaseAdmin.from("api_clients").update({ last_used_at: new Date().toISOString() }).eq("id", client.id);
       return NextResponse.json(tokens);
     }
 
@@ -74,3 +91,5 @@ export async function GET(
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
+
+    

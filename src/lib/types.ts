@@ -5,7 +5,7 @@ export type TokenDetails = {
   decimals: number;
   network: string;
   contract_address: string;
-  logo_key?: string;
+  logo_key?: string | null; // This field can be considered deprecated
   extra?: {
     coingecko_id?: string;
     links?: { [key: string]: string };
@@ -17,7 +17,7 @@ export type TokenMetadata = {
   contract_address: string;
   network: string;
   token_details: TokenDetails;
-  logo_key: string | null;
+  logo_key: string | null; // This field can be considered deprecated
   logo_url: string | null;
   verified: boolean;
   source: string;
@@ -25,14 +25,14 @@ export type TokenMetadata = {
   updated_at: string;
 };
 
+// This represents the new global logo table
 export type TokenLogo = {
     id: string;
-    contract: string | null;
     symbol: string;
-    network: string;
-    storage_path: string;
-    public_url: string;
-    uploaded_at: string;
+    name?: string | null;
+    logo_url: string;
+    description?: string | null;
+    created_at: string;
 }
 
 export type ApiKey = {
@@ -61,3 +61,5 @@ export type TokenFetchResult = {
     logoUrl?: string | null;
     source?: string;
 };
+
+    

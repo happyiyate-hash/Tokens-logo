@@ -46,13 +46,13 @@ export function ApiKeyManager() {
     } else if (generateState.status === "success") {
       toast({ title: "Success", description: generateState.message });
       if (generateState.newKey) {
+        setNewlyGeneratedKey(generateState.newKey);
         // Since we get the raw key back from the RPC, we need to refetch to get the full DB row
         async function loadKeys() {
           const keys = await getApiKeys();
           setApiKeys(keys);
           const newKeyRecord = keys.find(k => k.api_key === generateState.newKey);
           if (newKeyRecord) {
-            setNewlyGeneratedKey(newKeyRecord.api_key);
             setVisibleKeyId(newKeyRecord.id);
           }
         }
@@ -177,3 +177,5 @@ export function ApiKeyManager() {
     </div>
   );
 }
+
+    
