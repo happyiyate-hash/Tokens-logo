@@ -177,7 +177,7 @@ export async function generateNewApiKey(
     }
     
     revalidatePath('/api-keys');
-    return { status: "success", message: "API Key generated successfully.", newKey: newKey };
+    return { status: "success", message: "API Key generated successfully.", newKey };
   } catch (e: any) {
      return { status: "error", message: e.message };
   }
@@ -362,7 +362,11 @@ const fetchMetadataSchema = z.object({
 });
 
 function findChainByChainId(chainId: number) {
-    return chainsConfig.find(c => Number(c.chainId) === Number(chainId));
+    const chain = chainsConfig.find(c => Number(c.chainId) === Number(chainId));
+    if (!chain) {
+        throw new Error(`Configuration for chainId ${chainId} not found in chains.json`);
+    }
+    return chain;
 }
 
 async function getCachedToken(contract: string, chainId: number) {
@@ -399,7 +403,6 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
         if (!networkDb) throw new Error("Could not find selected network information in DB.");
         
         const chainConfig = findChainByChainId(networkDb.chain_id);
-        if (!chainConfig) throw new Error("Could not find chain configuration in chains.json.");
 
         // Check cache unless forcing refresh
         if (!forceRefresh) {
@@ -456,3 +459,5 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
         return { status: "error", message: e.message, networkId, contractAddress };
     }
 }
+
+    
