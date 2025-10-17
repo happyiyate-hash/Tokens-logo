@@ -23,31 +23,8 @@ async function fetchFromExplorer(chain: any, contractAddress: string): Promise<P
     const apikey = process.env.ETHERSCAN_API_KEY || "";
     if (!chain.explorerApi) return null;
 
-    // --- Attempt 1: Using 'tokeninfo' action (less common, but direct) ---
-    try {
-        const { data } = await axios.get(chain.explorerApi, { 
-            params: {
-                module: "token",
-                action: "tokeninfo",
-                contractaddress: contractAddress,
-                apikey,
-            },
-            timeout: 5000 
-        });
-        if (data && data.status === "1" && data.result) {
-            const tokenInfo = Array.isArray(data.result) ? data.result[0] : data.result;
-            const name = decodeBytes32(tokenInfo.name || tokenInfo.tokenName);
-            const symbol = decodeBytes32(tokenInfo.symbol);
-            const decimals = tokenInfo.decimals !== undefined ? Number(tokenInfo.decimals) : undefined;
-            if (name && symbol && decimals !== undefined) {
-                return { name, symbol, decimals, source: "explorer" };
-            }
-        }
-    } catch (e) {
-        // Ignore timeout or other errors, we'll try the next method
-    }
-
-    // --- Attempt 2: Using 'tokentx' to infer details (more common) ---
+    // Use the 'tokentx' action which is more universally supported than 'tokeninfo'
+    // It gets the details from the first transaction event for that token contract.
     try {
         const { data } = await axios.get(chain.explorerApi, {
             params: {
@@ -58,23 +35,30 @@ async function fetchFromExplorer(chain: any, contractAddress: string): Promise<P
                 offset: 1,
                 apikey,
             },
-            timeout: 5000
+            timeout: 5000 // 5-second timeout
         });
 
+        // Check for a valid response and at least one transaction
         if (data && data.status === "1" && data.result?.length > 0) {
             const tx = data.result[0];
-            const name = decodeBytes32(tx.tokenName);
-            const symbol = decodeBytes32(tx.tokenSymbol);
-            const decimals = tx.tokenDecimal !== undefined ? Number(tx.tokenDecimal) : undefined;
-            if (name && symbol && decimals !== undefined) {
-                return { name, symbol, decimals, source: "explorer" };
+            
+            // Ensure all required fields are present in the response
+            if (tx.tokenName && tx.tokenSymbol && tx.tokenDecimal) {
+                 const name = decodeBytes32(tx.tokenName);
+                 const symbol = decodeBytes32(tx.tokenSymbol);
+                 const decimals = Number(tx.tokenDecimal);
+
+                 // Final validation to ensure we have meaningful data
+                 if (name && symbol && !isNaN(decimals)) {
+                     return { name, symbol, decimals, source: "explorer" };
+                 }
             }
         }
-    } catch (e) {
-        // Ignore timeout or other errors, proceed to RPC fallback
+    } catch (e: any) {
+        console.warn(`Explorer API call failed for ${contractAddress} on ${chain.name}: ${e.message}`);
     }
 
-    return null; // Return null if explorer methods fail
+    return null; // Return null if explorer method fails or data is incomplete
 }
 
 
@@ -82,14 +66,14 @@ export async function fetchTokenMetadataFromSources(contractAddress: string, net
     const chain = findChainByName(networkName);
     if (!chain) throw new Error(`Unsupported network: ${networkName}`);
     
-    // 1. Try Block Explorer First (with multiple methods)
+    // 1. Try Block Explorer First
     const explorerResult = await fetchFromExplorer(chain, contractAddress);
-    if (explorerResult) {
+    if (explorerResult?.name && explorerResult?.symbol && explorerResult.decimals !== undefined) {
         return explorerResult;
     }
 
     // 2. Fallback to RPC if explorer fails
-    console.warn(`Explorer fetch failed for ${contractAddress} on ${networkName}, falling back to RPC.`);
+    console.warn(`Explorer fetch failed or returned incomplete data for ${contractAddress} on ${networkName}. Falling back to RPC.`);
     if (!chain.rpc) {
         throw new Error(`No RPC URL configured for network: ${networkName}`);
     }
