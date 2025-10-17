@@ -4,14 +4,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { List, KeyRound, LayoutDashboard, Search, Network as NetworkIcon, PlusCircle } from "lucide-react";
+import { List, KeyRound, LayoutDashboard, Search, Network as NetworkIcon, PlusCircle, Upload } from "lucide-react";
 import { Logo } from "@/components/logo";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Search", href: "/search", icon: Search },
   { name: "Manage Tokens", href: "/tokens", icon: List },
-   { name: "Add Token", href: "/add-token", icon: PlusCircle },
+   { name: "Add Token (Auto)", href: "/add-token", icon: PlusCircle },
+   { name: "Upload Token (Manual)", href: "/upload-token", icon: Upload },
   { name: "Manage Networks", href: "/networks", icon: NetworkIcon },
   { name: "API Keys", href: "/api-keys", icon: KeyRound },
 ];
