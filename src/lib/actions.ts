@@ -92,6 +92,7 @@ export async function addGlobalLogo(
 
       revalidatePath("/tokens");
       revalidatePath("/upload-token");
+      revalidatePath("/logos");
       return { status: "success", message: `${upperCaseSymbol} global logo saved successfully!` };
 
   } catch (e: any) {
@@ -253,6 +254,7 @@ export async function addToken(
 
     revalidatePath("/tokens");
     revalidatePath("/add-token");
+    revalidatePath("/logos");
     return { status: "success", message: `${symbol.toUpperCase()} token and metadata saved successfully!` };
 
   } catch (e: any) {
