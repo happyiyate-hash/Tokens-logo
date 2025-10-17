@@ -38,7 +38,7 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
   const formRef = useRef<HTMLFormElement>(null);
   
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [isFetchingLogo, setIsFetchingLogo] = useState(false);
+  const [isLogoAvailable, setIsLogoAvailable] = useState(false);
 
   const step = fetchState.status === 'success' && fetchState.metadata ? 2 : 1;
 
@@ -55,32 +55,10 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
   useEffect(() => {
     if (fetchState.status === 'success' && fetchState.metadata?.logoUrl) {
       setPreviewUrl(fetchState.metadata.logoUrl);
+      // We assume if a URL is generated, the logo exists in the global table.
+      setIsLogoAvailable(true); 
     }
   }, [fetchState]);
-
-  // AI-powered logo fetch
-  const handleAutoFetchLogo = async () => {
-    if (!fetchState.metadata?.symbol || !fetchState.metadata?.name) return;
-    
-    setIsFetchingLogo(true);
-    try {
-        const result = await autoFetchMissingLogo({ 
-            tokenSymbol: fetchState.metadata.symbol,
-            tokenName: fetchState.metadata.name,
-        });
-        if (result.logoUrl) {
-            setPreviewUrl(result.logoUrl);
-            toast({ title: "AI Found a Logo!", description: `A logo for ${fetchState.metadata.symbol} was found and pre-filled.` });
-        } else {
-            toast({ variant: "destructive", title: "AI Fetch Failed", description: `Could not automatically find a logo for ${fetchState.metadata.symbol}. Please upload one manually or check the token name/symbol.` });
-        }
-    } catch (error) {
-        console.error("AI logo fetch error:", error);
-        toast({ variant: "destructive", title: "Error", description: "An unexpected error occurred while fetching the logo." });
-    } finally {
-        setIsFetchingLogo(false);
-    }
-  };
 
   const handleReset = () => {
     // A bit of a hack to reset the fetch state to initial
@@ -92,6 +70,7 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
     
     formRef.current?.reset();
     setPreviewUrl(null);
+    setIsLogoAvailable(false);
   }
 
 
@@ -175,7 +154,7 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
                         <div className="space-y-2 flex-1">
                             <Label>Matched Logo</Label>
                              <p className="text-sm text-muted-foreground">
-                                This logo was found in your global library based on the token's name and symbol. 
+                                This logo was found in your global library based on the token's symbol. 
                                 It will be automatically linked when you save. If no logo is shown, please go to "Upload Logo" to add one for this token first.
                              </p>
                         </div>
@@ -194,8 +173,8 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
                         )}
                     </div>
                     
-                    <SubmitButton className="w-full" disabled={!previewUrl}>
-                        { !previewUrl ? "Cannot Save Without Logo" : "Save Token" }
+                    <SubmitButton className="w-full" disabled={!isLogoAvailable}>
+                        { !isLogoAvailable ? "Cannot Save Without Logo" : "Save Token" }
                     </SubmitButton>
 
                      {saveState.status === "error" && (
@@ -211,5 +190,3 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
     </Card>
   )
 }
-
-    

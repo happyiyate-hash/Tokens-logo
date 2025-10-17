@@ -22,9 +22,9 @@ export async function GET(req: Request) {
   let query = supabaseAdmin
     .from('token_logos')
     .select('public_url')
-    .eq('symbol', symbol.toUpperCase());
+    .ilike('symbol', symbol); // Use ilike for case-insensitive symbol matching
 
-  // If a name is provided, use it to find the exact logo.
+  // If a name is provided, use it to find a more exact match.
   // This is crucial for tokens that share a symbol but have different names.
   if (name) {
     query = query.ilike('name', `%${name}%`);
@@ -40,12 +40,17 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Database query failed' }, { status: 500 });
   }
   
-  if (!data) {
+  if (!data || !data.public_url) {
+    // If no logo is found, we should redirect to our own smart CDN endpoint
+    // which can then try to serve a default or handle it gracefully.
+    // For now, we return 404 as per the original design.
     return NextResponse.json({ error: 'Logo not found' }, { status: 404 });
   }
 
-  // Return the URL under a consistent name 'logo_url' for the API consumer
-  return NextResponse.json({ logo_url: data.public_url });
+  // Instead of returning the direct Supabase URL, we redirect to our own CDN endpoint.
+  // This makes the entire system act as a unified CDN layer.
+  const cdnUrl = `/api/cdn/logo/${symbol.toLowerCase()}`;
+  
+  // Return the URL to our caching CDN layer
+  return NextResponse.json({ logo_url: cdnUrl });
 }
-
-    

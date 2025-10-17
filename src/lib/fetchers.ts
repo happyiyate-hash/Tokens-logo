@@ -150,7 +150,3 @@ export async function fetchLogoFromCoinGeckoBySymbol(symbol: string): Promise<st
     return null;
   }
 }
-
-    
-
-    

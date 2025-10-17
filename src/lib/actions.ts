@@ -14,33 +14,17 @@ const STORAGE_BUCKET = "token_logos";
 const CACHE_TTL = Number(process.env.CACHE_TTL_MS || 7 * 24 * 3600 * 1000);
 
 
-// --- Internal Centralized Logo Fetcher ---
+// --- Internal Centralized Logo URL Generator ---
 /**
- * A robust, centralized function to find the best available logo for a token symbol.
- * It checks the global logo table for a match.
- * This is an internal function and should not be exposed as an action.
- * @param symbol The token symbol to look up (e.g., "USDT").
- * @param name The optional token name to make the search more specific.
- * @returns The public URL of the logo, or null if not found.
+ * This function does NOT fetch the logo. It constructs the URL that points
+ * to our new CDN endpoint. This is the single source of truth for generating logo URLs.
+ * @param symbol The token symbol (e.g., "USDT").
+ * @returns The CDN URL for the logo.
  */
-async function getLogoUrl(symbol: string, name: string): Promise<string | null> {
-    if (!symbol || !name) return null;
-    const upperCaseSymbol = symbol.toUpperCase();
-
-    const { data, error } = await supabaseAdmin
-        .from("token_logos")
-        .select("public_url")
-        .eq("symbol", upperCaseSymbol)
-        .ilike('name', `%${name}%`)
-        .limit(1)
-        .maybeSingle();
-
-    if (error) {
-        console.error(`Error fetching logo for symbol ${symbol} and name ${name}:`, error);
-        return null;
-    }
-        
-    return data?.public_url || null;
+function getCdnLogoUrl(symbol: string): string {
+    // This now points to our new, smart caching endpoint.
+    // The wallet will call this URL, and our server will handle fetching from origin and caching.
+    return `/api/cdn/logo/${symbol.toLowerCase()}`;
 }
 
 
@@ -77,7 +61,10 @@ export async function addGlobalLogo(
   const { logoFile, symbol, name } = validated.data;
   const upperCaseSymbol = symbol.toUpperCase();
   const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
-  const filePath = `global/${upperCaseSymbol.toLowerCase()}_${Date.now()}.${ext}`;
+  
+  // The storage path is now just based on the symbol for simplicity.
+  // The database will link the symbol to this path.
+  const filePath = `global/${upperCaseSymbol.toLowerCase()}.${ext}`;
 
   try {
       const fileContents = await logoFile.arrayBuffer();
@@ -91,17 +78,16 @@ export async function addGlobalLogo(
       }
       
       const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
-      const finalLogoUrl = publicUrlData.publicUrl;
       
-      // Upsert the new record based on symbol and name.
+      // Upsert the new record based on symbol. Name helps with uniqueness.
       const { error: insertError } = await supabaseAdmin
         .from('token_logos')
         .upsert({ 
             symbol: upperCaseSymbol, 
             name: name,
-            public_url: finalLogoUrl,
+            public_url: publicUrlData.publicUrl, // Direct URL to Supabase (The Origin)
             storage_path: filePath,
-        }, { onConflict: 'symbol, name', ignoreDuplicates: false });
+        }, { onConflict: 'symbol', ignoreDuplicates: false });
 
 
       if (insertError) {
@@ -172,10 +158,9 @@ export async function updateGlobalLogo(
 
         // If a new file is uploaded, handle storage operations
         if (logoFile) {
-            // 1. Upload the new file
             const fileContents = await logoFile.arrayBuffer();
             const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
-            const filePath = `global/${symbol.toLowerCase()}_${Date.now()}.${ext}`;
+            const filePath = `global/${symbol.toLowerCase()}.${ext}`;
 
             const { error: uploadError } = await supabaseAdmin.storage
                 .from(STORAGE_BUCKET)
@@ -188,21 +173,14 @@ export async function updateGlobalLogo(
             const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
             newPublicUrl = publicUrlData.publicUrl;
             newStoragePath = filePath;
-
-            // 2. Delete the old file from storage, if it exists
-            if (existingLogo.storage_path) {
-                await supabaseAdmin.storage.from(STORAGE_BUCKET).remove([existingLogo.storage_path]);
-            }
         }
 
-        // Prepare the data for the database update
         const updateData: Partial<TokenLogo> = {
             name: name,
             public_url: newPublicUrl,
             storage_path: newStoragePath
         };
         
-        // Update the database record
         const { error: updateError } = await supabaseAdmin
             .from("token_logos")
             .update(updateData)
@@ -259,13 +237,7 @@ export async function addToken(
   const { symbol, name, decimals, chainId, contract } = validated.data;
   
   try {
-    // This is the linking step.
-    // After getting metadata, we find the logo URL from the independent 'token_logos' table.
-    const finalLogoUrl = await getLogoUrl(symbol, name);
-
-    if (!finalLogoUrl) {
-       return { status: "error", message: `A global logo for ${name} (${symbol}) could not be found. Please upload one first before adding this token.` };
-    }
+    const finalLogoUrl = getCdnLogoUrl(symbol);
     
     const chainConfig = chainsConfig.find(c => c.chainId.toString() === chainId);
     if (!chainConfig) throw new Error("Network not found for contract-specific metadata.");
@@ -278,7 +250,7 @@ export async function addToken(
             contract_address: contract.toLowerCase(),
             network: chainConfig.name.toLowerCase(),
             token_details: tokenDetails,
-            logo_url: finalLogoUrl, // The linked logo URL
+            logo_url: finalLogoUrl, // The linked CDN URL
             source: "manual",
             verified: true,
             fetched_at: new Date().toISOString(),
@@ -636,10 +608,9 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
             throw new Error("Could not fetch complete token metadata from any source.");
         }
         
-        // Find logo from our global table.
-        // This is done on the client-side of the wizard to provide a preview.
-        // The final linking happens in the `addToken` action.
-        const logoUrl = await getLogoUrl(metadata.symbol, metadata.name);
+        // This is the CRITICAL linking step during the add token wizard.
+        // It generates the URL that points to our smart CDN endpoint.
+        const logoUrl = getCdnLogoUrl(metadata.symbol);
 
         const result: TokenFetchResult = {
             name: metadata.name,
@@ -655,5 +626,3 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
         return { status: "error", message: e.message, chainId, contractAddress };
     }
 }
-
-    
