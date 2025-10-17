@@ -22,13 +22,13 @@ export type AddTokenState = {
 };
 
 const addTokenSchema = z.object({
-  name: z.string().nullish().transform(e => !e ? undefined : e),
+  name: z.union([z.string(), z.null()]).transform(v => v || undefined).optional(),
   symbol: z.string().min(1, "Token symbol is required."),
   networkId: z.string().optional(),
   decimals: z.coerce.number().int().min(0).optional().default(18),
   logoFile: z.instanceof(File).optional(),
   logo_url: z.string().url().optional(),
-  contract: z.string().nullish().transform(e => !e ? undefined : e),
+  contract: z.union([z.string(), z.null()]).transform(v => v || undefined).optional(),
 });
 
 
@@ -507,3 +507,5 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
         return { status: "error", message: e.message, networkId, contractAddress };
     }
 }
+
+    
