@@ -64,22 +64,26 @@ export async function addGlobalLogo(
       const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
       const finalLogoUrl = publicUrlData.publicUrl;
 
+      // First, delete any existing global logo for this symbol.
       const { error: deleteError } = await supabaseAdmin
         .from('token_logos')
         .delete()
         .eq('symbol', upperCaseSymbol);
 
+      // We ignore 'PGRST204' which means "No rows found to delete", which is fine.
       if (deleteError && deleteError.code !== 'PGRST204') {
           throw new Error(`Database delete error: ${deleteError.message}`);
       }
       
+      // Then, insert the new record.
       const { error: insertError } = await supabaseAdmin
         .from('token_logos')
         .insert({ 
             symbol: upperCaseSymbol, 
             name: finalName,
             public_url: finalLogoUrl,
-            network: 'all' // Satisfy the not-null constraint
+            network: 'all', // Satisfy the not-null constraint for 'network'
+            storage_path: filePath, // Satisfy the not-null constraint for 'storage_path'
         });
 
       if (insertError) {
@@ -115,7 +119,7 @@ const addTokenSchema = z.object({
 });
 
 
-async function uploadLogoFromUrl(url: string, symbol: string): Promise<string | null> {
+async function uploadLogoFromUrl(url: string, symbol: string): Promise<{publicUrl: string, storagePath: string} | null> {
     try {
         const response = await axios.get(url, { responseType: 'arraybuffer' });
         const buffer = Buffer.from(response.data);
@@ -134,11 +138,11 @@ async function uploadLogoFromUrl(url: string, symbol: string): Promise<string | 
             .from(STORAGE_BUCKET)
             .getPublicUrl(filePath);
         
-        return publicUrlData.publicUrl;
+        return { publicUrl: publicUrlData.publicUrl, storagePath: filePath };
     } catch (e: any) {
         console.error(`Failed to download and re-upload logo from ${url}: ${e.message}`);
-        // Return original URL as a fallback if our ingestion fails.
-        return url;
+        // Return null if our ingestion fails.
+        return null;
     }
 }
 
@@ -169,6 +173,7 @@ export async function addToken(
 
   try {
     let finalLogoUrl: string | undefined = undefined;
+    let storagePath: string | undefined = undefined;
 
     // Priority: 1. Uploaded file, 2. URL from AI/fetcher (which needs ingestion)
     if (logoFile) {
@@ -181,16 +186,21 @@ export async function addToken(
         
         const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
         finalLogoUrl = publicUrlData.publicUrl;
+        storagePath = filePath;
 
     } else if (logoUrlFromForm) {
-        // If the URL is external (not from our Supabase), download and re-upload it.
         const supabaseStorageUrl = process.env.SUPABASE_URL || "";
         if (!logoUrlFromForm.startsWith(supabaseStorageUrl)) {
-            const reuploadedUrl = await uploadLogoFromUrl(logoUrlFromForm, symbol);
-            finalLogoUrl = reuploadedUrl ?? logoUrlFromForm; // Fallback to original URL if re-upload fails
+            const reuploaded = await uploadLogoFromUrl(logoUrlFromForm, symbol);
+            finalLogoUrl = reuploaded?.publicUrl ?? logoUrlFromForm; // Fallback to original URL
+            storagePath = reuploaded?.storagePath;
         } else {
-            // It's already in our storage, just use it.
             finalLogoUrl = logoUrlFromForm;
+            // Attempt to derive storage path from URL
+            const urlParts = logoUrlFromForm.split(`/storage/v1/object/public/${STORAGE_BUCKET}/`);
+            if (urlParts.length > 1) {
+              storagePath = urlParts[1];
+            }
         }
     }
 
@@ -199,23 +209,23 @@ export async function addToken(
     }
     
     // Upsert into the global token_logos table if we have a logo
-    if (finalLogoUrl) {
-      const chainConfigForLogo = chainsConfig.find(c => c.chainId.toString() === chainId);
-      const networkForLogo = chainConfigForLogo ? chainConfigForLogo.name.toLowerCase() : 'all';
+    const chainConfigForLogo = chainsConfig.find(c => c.chainId.toString() === chainId);
+    const networkForLogo = chainConfigForLogo ? chainConfigForLogo.name.toLowerCase() : 'all';
 
-      const { error: logoUpsertError } = await supabaseAdmin
-          .from('token_logos')
-          .upsert({ 
-              symbol: symbol.toUpperCase(), 
-              name: name,
-              public_url: finalLogoUrl,
-              network: networkForLogo
-            }, { onConflict: 'symbol' });
+    const { error: logoUpsertError } = await supabaseAdmin
+        .from('token_logos')
+        .upsert({ 
+            symbol: symbol.toUpperCase(), 
+            name: name,
+            public_url: finalLogoUrl,
+            network: networkForLogo,
+            storage_path: storagePath || 'unknown' // Provide a fallback
+          }, { onConflict: 'symbol, network' });
 
-      if (logoUpsertError) {
-          throw new Error(`Database logo upsert error: ${logoUpsertError.message}`);
-      }
+    if (logoUpsertError) {
+        throw new Error(`Database logo upsert error: ${logoUpsertError.message}`);
     }
+    
 
     // Save contract-specific metadata
     const chainConfig = chainsConfig.find(c => c.chainId.toString() === chainId);
@@ -229,7 +239,7 @@ export async function addToken(
             contract_address: contract.toLowerCase(),
             network: chainConfig.name.toLowerCase(),
             token_details: tokenDetails,
-            logo_url: finalLogoUrl, // This column name is correct for 'token_metadata'
+            logo_url: finalLogoUrl,
             source: "manual",
             verified: true,
             fetched_at: new Date().toISOString(),
