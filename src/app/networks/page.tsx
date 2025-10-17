@@ -1,11 +1,15 @@
 
 import { NetworkForm } from "@/components/admin/network-form";
 import { DeleteNetworkButton } from "@/components/admin/delete-network-button";
-import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { Network } from "@/lib/types";
-import { Upload } from "lucide-react";
+import Image from "next/image";
+import { UploadNetworkLogoDialog } from "@/components/admin/upload-network-logo-dialog";
+import { PlaceHolderImages } from "@/lib/placeholder-images";
+
+const defaultLogo = PlaceHolderImages.find(p => p.id === 'default-token-logo')!;
+
 
 async function getNetworks(): Promise<Network[]> {
   const { data, error } = await supabaseAdmin
@@ -31,7 +35,7 @@ export default async function NetworkManagementPage() {
           Manage Blockchain Networks
         </h1>
         <p className="text-muted-foreground">
-          Add or remove supported networks for your token CDN.
+          Add or remove supported networks and upload their official logos for the wallet app.
         </p>
       </div>
 
@@ -48,7 +52,7 @@ export default async function NetworkManagementPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[60px]">Logo</TableHead>
+                  <TableHead className="w-[80px]">Logo</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Chain ID</TableHead>
                   <TableHead>Network ID</TableHead>
@@ -60,9 +64,17 @@ export default async function NetworkManagementPage() {
                 {networks.map((network) => (
                   <TableRow key={network.id}>
                     <TableCell>
-                      <Button variant="ghost" size="icon" title="Upload logo">
-                        <Upload className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Image
+                            src={network.logo_url || defaultLogo.imageUrl}
+                            alt={`${network.name} logo`}
+                            width={32}
+                            height={32}
+                            className="rounded-full bg-muted object-cover aspect-square"
+                            unoptimized
+                        />
+                        <UploadNetworkLogoDialog network={network} />
+                      </div>
                     </TableCell>
                     <TableCell className="font-medium">{network.name}</TableCell>
                     <TableCell>{network.chain_id}</TableCell>

@@ -3,7 +3,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import type { ApiKey, TokenFetchResult, TokenDetails, TokenMetadata, TokenLogo } from "@/lib/types";
+import type { ApiKey, TokenFetchResult, TokenDetails, TokenMetadata, TokenLogo, Network } from "@/lib/types";
 import chainsConfig from "@/lib/chains.json";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { fetchTokenMetadataFromSources } from "@/lib/fetchers";
@@ -563,6 +563,69 @@ export async function addNetwork(prevState: AddNetworkState | undefined, formDat
   }
 }
 
+export type UpdateNetworkLogoState = {
+  status: "idle" | "success" | "error";
+  message?: string;
+};
+
+const updateNetworkLogoSchema = z.object({
+  networkId: z.string().min(1, "Network ID is required."),
+  logoFile: z.instanceof(File).refine(file => file.size > 0, 'Logo file is required.'),
+});
+
+export async function updateNetworkLogo(
+  prevState: UpdateNetworkLogoState | undefined,
+  formData: FormData
+): Promise<UpdateNetworkLogoState> {
+  const logoFileValue = formData.get('logo');
+  const validated = updateNetworkLogoSchema.safeParse({
+      networkId: formData.get('networkId'),
+      logoFile: logoFileValue instanceof File ? logoFileValue : undefined,
+  });
+  
+  if (!validated.success) {
+      return { status: "error", message: "Invalid input. Network ID and a logo file are required." };
+  }
+
+  const { networkId, logoFile } = validated.data;
+
+  try {
+      const { data: network, error: fetchError } = await supabaseAdmin
+        .from("networks")
+        .select("name")
+        .eq("id", networkId)
+        .single();
+      
+      if (fetchError || !network) throw new Error("Network not found.");
+
+      const fileContents = await logoFile.arrayBuffer();
+      const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
+      const filePath = `networks/${network.name.toLowerCase().replace(/\s/g, '-')}-${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabaseAdmin.storage
+        .from(STORAGE_BUCKET)
+        .upload(filePath, fileContents, { contentType: logoFile.type, upsert: true });
+
+      if (uploadError) throw new Error(`Storage upload failed: ${uploadError.message}`);
+
+      const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+
+      const { error: dbUpdateError } = await supabaseAdmin
+        .from("networks")
+        .update({ logo_url: publicUrlData.publicUrl })
+        .eq("id", networkId);
+
+      if (dbUpdateError) throw new Error(`Database update failed: ${dbUpdateError.message}`);
+
+      revalidatePath("/networks");
+      return { status: "success", message: "Network logo updated successfully!" };
+
+  } catch(e: any) {
+    console.error('[updateNetworkLogo Error]', e);
+    return { status: "error", message: e.message };
+  }
+}
+
 export async function deleteNetwork(networkId: string): Promise<{ status: "success" | "error", message: string }> {
   const { data: network } = await supabaseAdmin.from("networks").select('name').eq("id", networkId).single();
   if (!network) {
@@ -709,5 +772,3 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
         return { status: "error", message: e.message, chainId, contractAddress };
     }
 }
-
-    

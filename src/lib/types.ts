@@ -51,6 +51,7 @@ export type Network = {
   id: string;
   name: string;
   chain_id: number;
+  logo_url?: string | null; // Add logo_url to Network type
   explorer_api_base_url: string;
   explorer_api_key_env_var: string | null;
   created_at: string;
