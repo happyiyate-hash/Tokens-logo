@@ -22,13 +22,13 @@ export type AddTokenState = {
 };
 
 const addTokenSchema = z.object({
-  name: z.string().optional().transform(e => e === '' ? undefined : e),
+  name: z.string().nullish().transform(e => !e ? undefined : e),
   symbol: z.string().min(1, "Token symbol is required."),
   networkId: z.string().optional(),
   decimals: z.coerce.number().int().min(0).optional().default(18),
   logoFile: z.instanceof(File).optional(),
   logo_url: z.string().url().optional(),
-  contract: z.string().optional(),
+  contract: z.string().nullish().transform(e => !e ? undefined : e),
 });
 
 
@@ -65,13 +65,13 @@ export async function addToken(
 ): Promise<AddTokenState> {
   const logoFileValue = formData.get('logo');
   const validated = addTokenSchema.safeParse({
-      name: formData.get('name') || undefined,
+      name: formData.get('name'),
       symbol: formData.get('symbol'),
       networkId: formData.get('networkId'),
       decimals: formData.get('decimals'),
       logoFile: logoFileValue instanceof File && logoFileValue.size > 0 ? logoFileValue : undefined,
       logo_url: formData.get('logo_url'),
-      contract: formData.get('contract') || '', 
+      contract: formData.get('contract'), 
   });
 
   if (!validated.success) {
