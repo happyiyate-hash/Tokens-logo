@@ -50,7 +50,6 @@ export async function addGlobalLogo(
   try {
       const fileContents = await logoFile.arrayBuffer();
       const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
-      // Create a more unique file path
       const filePath = `global/${symbol.toLowerCase()}_${finalName.replace(/\s+/g, '_').toLowerCase()}.${ext}`;
 
       const { error: uploadError } = await supabaseAdmin.storage.from(STORAGE_BUCKET).upload(filePath, fileContents, { contentType: logoFile.type, upsert: true });
@@ -59,14 +58,14 @@ export async function addGlobalLogo(
       const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
       const finalLogoUrl = publicUrlData.publicUrl;
 
-      // Upsert into the global token_logos table
+      // Upsert into the global token_logos table in a single operation
       const { error: logoUpsertError } = await supabaseAdmin
           .from('token_logos')
           .upsert({ 
               symbol: symbol.toUpperCase(), 
               name: finalName,
               logo_url: finalLogoUrl 
-          }, { onConflict: 'symbol,name' });
+          }, { onConflict: 'symbol' }); // Assuming 'symbol' is the unique identifier for a global logo
 
       if (logoUpsertError) {
           throw new Error(`Database logo upsert error: ${logoUpsertError.message}`);
@@ -192,7 +191,7 @@ export async function addToken(
               symbol: symbol.toUpperCase(), 
               name: name,
               logo_url: finalLogoUrl 
-            }, { onConflict: 'symbol,name' });
+            }, { onConflict: 'symbol' });
 
       if (logoUpsertError) {
           throw new Error(`Database logo upsert error: ${logoUpsertError.message}`);
@@ -207,7 +206,7 @@ export async function addToken(
     
     // Find logo again in case it was just added
     if (!finalLogoUrl) {
-        const { data: logo } = await supabaseAdmin.from('token_logos').select('logo_url').eq('symbol', symbol.toUpperCase()).eq('name', name).single();
+        const { data: logo } = await supabaseAdmin.from('token_logos').select('logo_url').eq('symbol', symbol.toUpperCase()).single();
         finalLogoUrl = logo?.logo_url;
     }
 
@@ -578,7 +577,7 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
             name: metadata.name,
             symbol: metadata.symbol,
             decimals: metadata.decimals,
-logoUrl: logoUrl,
+            logoUrl: logoUrl,
             source: metadata.source || 'unknown',
         };
         
