@@ -477,13 +477,15 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
             }
         }
         
-        // Fetch fresh metadata (RPC first, then explorer)
-        let metadata: Partial<TokenFetchResult> | null = null;
-        if (chainConfig.rpc) {
-          metadata = await fetchFromRpc(contractAddress, chainConfig.rpc);
-        }
-        if (!metadata || !metadata.symbol) {
-             metadata = await fetchFromExplorer(contractAddress, chainConfig.name);
+        // Fetch fresh metadata (Explorer first, then RPC fallback)
+        let metadata: Partial<TokenFetchResult> | null = await fetchFromExplorer(contractAddress, chainConfig.name);
+        
+        if (!metadata || !metadata.name || !metadata.symbol || metadata.decimals === undefined) {
+             if (chainConfig.rpc) {
+                const rpcMetadata = await fetchFromRpc(contractAddress, chainConfig.rpc);
+                // Merge explorer and RPC data, preferring RPC for core fields if available
+                metadata = { ...metadata, ...rpcMetadata };
+             }
         }
         
         if (!metadata || !metadata.symbol || !metadata.name || metadata.decimals === undefined) {

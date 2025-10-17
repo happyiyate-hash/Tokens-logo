@@ -10,7 +10,10 @@ import { toUtf8String, isHexString } from "ethers";
  * @param hex - The hex string to decode, which might be a bytes32 string.
  * @returns The decoded string, or the original string if decoding fails.
  */
-export function decodeBytes32(hex: string): string {
+export function decodeBytes32(hex: any): string {
+  if (typeof hex !== 'string' || !hex) {
+      return hex;
+  }
   try {
     // Ensure it's a hex string
     if (!isHexString(hex)) {

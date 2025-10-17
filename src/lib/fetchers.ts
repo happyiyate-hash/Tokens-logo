@@ -2,20 +2,19 @@
 "use server";
 
 import { ethers } from "ethers";
-import { supabaseAdmin } from "./supabase/admin";
-import chainsConfig from "@/lib/chains.json";
 import axios from "axios";
 import type { TokenFetchResult } from "@/lib/types";
 import { decodeBytes32 } from "./hextools";
+import chainsConfig from "@/lib/chains.json";
 
-const ERC20_ABI = [
+const ETHERSCAN_V2_BASE = "https://api.etherscan.io/v2/api";
+
+const ERC20_MIN_ABI = [
   "function name() view returns (string)",
   "function symbol() view returns (string)",
   "function decimals() view returns (uint8)",
-  "function totalSupply() view returns (uint256)"
+  "function totalSupply() view returns (uint256)",
 ];
-
-const ETHERSCAN_V2_BASE = "https://api.etherscan.io/v2/api";
 
 const findChainByName = (networkName: string) => {
     const lowercasedName = networkName.toLowerCase();
@@ -25,10 +24,10 @@ const findChainByName = (networkName: string) => {
 export async function fetchFromExplorer(contract: string, networkName: string): Promise<Partial<TokenFetchResult> | null> {
   const chain = findChainByName(networkName);
   if (!chain || !chain.explorerApi) return null;
-  
+
   const apiKey = process.env.ETHERSCAN_API_KEY;
   if (!apiKey) {
-      console.warn("ETHERSCAN_API_KEY environment variable is not set. Explorer fetch will likely fail.");
+      console.warn("ETHERSCAN_API_KEY environment variable is not set. Explorer fetch may fail.");
   }
   
   const params = {
@@ -37,31 +36,29 @@ export async function fetchFromExplorer(contract: string, networkName: string): 
       action: "tokeninfo",
       contractaddress: contract,
       apikey: apiKey || "",
-    };
+  };
 
   try {
     const { data } = await axios.get(ETHERSCAN_V2_BASE, { params, timeout: 8000 });
-    
+
     if (data && data.result) {
       const r = Array.isArray(data.result) ? data.result[0] : data.result;
       if (r) {
-        const name = decodeBytes32(r.tokenName || r.name || r.TokenName || r.TokenNameHex || '');
-        const symbol = decodeBytes32(r.symbol || r.Symbol || r.TokenSymbol || r.TokenSymbolHex || '');
+        const name = decodeBytes32(r.tokenName || r.name || r.TokenName || r.TokenNameHex);
+        const symbol = decodeBytes32(r.symbol || r.Symbol || r.TokenSymbol || r.TokenSymbolHex);
         const decimals = r.decimals !== undefined && r.decimals !== null ? Number(r.decimals) : undefined;
-
+        
         if (name && symbol && decimals !== undefined) {
-             return {
-                name,
-                symbol,
-                decimals,
-                source: "explorer"
-             };
+          return {
+            name,
+            symbol,
+            decimals,
+            source: "explorer"
+          };
         }
       }
     }
-    // If we reach here, explorer data was insufficient, so we return null to trigger RPC fallback.
-    return null;
-
+    return null; // Incomplete data, fall through to RPC
   } catch (e: any) {
     console.error(`Explorer fetch failed for ${contract} on ${networkName}:`, e.message);
     return null;
@@ -71,7 +68,7 @@ export async function fetchFromExplorer(contract: string, networkName: string): 
 export async function fetchFromRpc(contract: string, rpcUrl: string): Promise<Partial<TokenFetchResult> | null> {
   try {
     const provider = new ethers.JsonRpcProvider(rpcUrl);
-    const token = new ethers.Contract(contract, ERC20_ABI, provider);
+    const token = new ethers.Contract(contract, ERC20_MIN_ABI, provider);
     
     const [nameResult, symbolResult, decimalsResult] = await Promise.allSettled([
       token.name(), 
@@ -88,9 +85,9 @@ export async function fetchFromRpc(contract: string, rpcUrl: string): Promise<Pa
     }
 
     return {
-      name,
-      symbol,
-      decimals: decimals ?? 18, // Default to 18 if decimals fails
+      name: name || symbol || "Unknown",
+      symbol: symbol || name || "???",
+      decimals: decimals ?? 18,
       source: "rpc"
     };
   } catch (e: any) {
