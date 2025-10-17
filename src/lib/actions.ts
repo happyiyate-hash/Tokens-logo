@@ -17,7 +17,7 @@ const CACHE_TTL = Number(process.env.CACHE_TTL_MS || 7 * 24 * 3600 * 1000);
 // --- Internal Centralized Logo Fetcher ---
 /**
  * A robust, centralized function to find the best available logo for a token symbol.
- * It checks contract-specific metadata first, then falls back to the global logo table.
+ * It checks the global logo table for a match.
  * This is an internal function and should not be exposed as an action.
  * @param symbol The token symbol to look up (e.g., "USDT").
  * @param name The optional token name to make the search more specific.
@@ -236,34 +236,6 @@ const addTokenSchema = z.object({
   decimals: z.coerce.number().int().min(0).default(18),
   contract: z.string().min(1, "Contract address is required."),
 });
-
-
-async function uploadLogoFromUrl(url: string, symbol: string): Promise<{publicUrl: string, storagePath: string} | null> {
-    try {
-        const response = await axios.get(url, { responseType: 'arraybuffer' });
-        const buffer = Buffer.from(response.data);
-        const contentType = response.headers['content-type'] || 'image/png';
-        const fileExtension = contentType.split('/')[1]?.split('+')[0] || 'png';
-        const fileName = `${symbol.toLowerCase()}.${fileExtension}`;
-        const filePath = `global/${fileName}`;
-
-        const { error: uploadError } = await supabaseAdmin.storage
-            .from(STORAGE_BUCKET)
-            .upload(filePath, buffer, { contentType, upsert: true });
-
-        if (uploadError) throw uploadError;
-
-        const { data: publicUrlData } = supabaseAdmin.storage
-            .from(STORAGE_BUCKET)
-            .getPublicUrl(filePath);
-        
-        return { publicUrl: publicUrlData.publicUrl, storagePath: filePath };
-    } catch (e: any) {
-        console.error(`Failed to download and re-upload logo from ${url}: ${e.message}`);
-        // Return null if our ingestion fails.
-        return null;
-    }
-}
 
 
 export async function addToken(

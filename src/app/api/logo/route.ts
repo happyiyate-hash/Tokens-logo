@@ -47,3 +47,5 @@ export async function GET(req: Request) {
   // Return the URL under a consistent name 'logo_url' for the API consumer
   return NextResponse.json({ logo_url: data.public_url });
 }
+
+    
