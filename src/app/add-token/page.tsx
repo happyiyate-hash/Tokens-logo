@@ -1,15 +1,11 @@
 
-import { createClient } from "@supabase/supabase-js";
 import { AddTokenWizard } from "@/components/admin/add-token-wizard";
 import type { Network } from "@/lib/types";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
-// Consistent server-side Supabase client initialization
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function getNetworks(): Promise<Network[]> {
-  const { data, error } = await supabase.from("networks").select("*").order('name', { ascending: true });
+  const { data, error } = await supabaseAdmin.from("networks").select("*").order('name', { ascending: true });
 
   if (error) {
     console.error("Error fetching networks:", error);

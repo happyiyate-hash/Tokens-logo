@@ -2,21 +2,14 @@
 "use server";
 
 import { z } from "zod";
-import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import type { ApiKey, Network, TokenFetchResult, TokenDetails, TokenMetadata } from "@/lib/types";
 import { randomBytes } from 'crypto';
-import { autoFetchMissingLogo } from "@/ai/flows/auto-fetch-missing-logos";
 import chainsConfig from "@/lib/chains.json";
 import { ethers } from "ethers";
 import axios from "axios";
 import pRetry from "p-retry";
-
-// Consistent server-side Supabase client initialization
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY;
 const COINGECKO_API_URL = process.env.COINGECKO_API_URL || "https://api.coingecko.com/api/v3";
@@ -117,34 +110,33 @@ export async function addToken(
             finalLogoUrl = uploadedLogo.public_url;
         }
     } else if (logo_url) {
-        // Here we could fetch the remote URL and store it in our bucket
-        // For simplicity, we'll just use the external URL for now
-        finalLogoUrl = logo_url;
+        // If we have a logo URL from an external source, download and store it.
+        try {
+            const response = await axios.get(logo_url, { responseType: 'arraybuffer' });
+            const buffer = Buffer.from(response.data);
+            const contentType = response.headers['content-type'];
+            const ext = contentType.split('/')[1] || 'png';
+            const filename = `${contract.toLowerCase()}_${network.name.toLowerCase()}.${ext}`;
+    
+            const { error: uploadError } = await supabaseAdmin.storage
+              .from(STORAGE_BUCKET)
+              .upload(filename, buffer, {
+                contentType: contentType,
+                upsert: true,
+              });
+            
+            if (uploadError) throw new Error(`Could not import logo from URL: ${uploadError.message}`);
+    
+            const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filename);
+            finalLogoUrl = publicUrlData.publicUrl;
+            logoKey = filename;
+        } catch (e: any) {
+            console.error(`Failed to import logo from ${logo_url}: ${e.message}`);
+            // Continue without a logo if the import fails
+        }
     }
-
-
-    if (finalLogoUrl && !logoKey) {
-        // If we have a URL but no file was uploaded, let's try to import it.
-        const response = await axios.get(finalLogoUrl, { responseType: 'arraybuffer' });
-        const buffer = Buffer.from(response.data);
-        const contentType = response.headers['content-type'];
-        const ext = contentType.split('/')[1] || 'png';
-        const filename = `${contract.toLowerCase()}_${network.name.toLowerCase()}.${ext}`;
-
-        const { error: uploadError } = await supabaseAdmin.storage
-          .from(STORAGE_BUCKET)
-          .upload(filename, buffer, {
-            contentType: contentType,
-            upsert: true,
-          });
-        
-        if (uploadError) throw new Error(`Could not import logo from URL: ${uploadError.message}`);
-
-        const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filename);
-        finalLogoUrl = publicUrlData.publicUrl;
-        logoKey = filename;
-    }
-
+    
+    // Upsert the logo record
     if (logoKey && finalLogoUrl) {
          await supabaseAdmin.rpc('upsert_token_logo', {
             p_contract: contract,
@@ -155,6 +147,7 @@ export async function addToken(
         });
     }
 
+    // Prepare the unified token details object
     const tokenDetails: TokenDetails = {
         name,
         symbol,
@@ -165,6 +158,7 @@ export async function addToken(
         extra: {}
     };
     
+    // Upsert the main token metadata record
     const { error: upsertError } = await supabaseAdmin.rpc('upsert_token_metadata', {
         p_contract: contract,
         p_network: network.name.toLowerCase(),
@@ -172,7 +166,7 @@ export async function addToken(
         p_logo_key: logoKey || null,
         p_logo_url: finalLogoUrl || null,
         p_source: "manual",
-        p_verified: true,
+        p_verified: true, // Manually added tokens are considered verified
     });
 
     if (upsertError) {
@@ -264,6 +258,8 @@ export async function deleteToken(tokenId: string): Promise<{ status: "success" 
     .single();
 
   if (token && token.logo_key) {
+    // This assumes the logo is not shared. A more robust implementation
+    // would check if any other token uses the same logo_key before deleting.
     await supabaseAdmin.storage.from(STORAGE_BUCKET).remove([token.logo_key]);
   }
 
@@ -311,7 +307,6 @@ export async function searchToken(
     const { data, error } = await supabaseAdmin
       .from("token_metadata")
       .select("*")
-      // This is a simplified search. A real implementation might need a more complex query on the JSONB field.
       .ilike("token_details->>symbol", tokenSymbol)
       .limit(1)
       .single();
@@ -368,6 +363,22 @@ export async function addNetwork(prevState: AddNetworkState, formData: FormData)
 }
 
 export async function deleteNetwork(networkId: string): Promise<{ status: "success" | "error", message: string }> {
+  // Before deleting a network, we should check if any tokens are using it.
+  const { data: tokens, error: tokenError } = await supabaseAdmin
+    .from("token_metadata")
+    .select("id")
+    .eq("network", networkId) // This assumes network name is used in tokens table. Adjust if it's network ID.
+    .limit(1);
+
+  if (tokenError) {
+    return { status: "error", message: `Failed to check for tokens on network: ${tokenError.message}`};
+  }
+
+  if (tokens && tokens.length > 0) {
+    return { status: "error", message: "Cannot delete network because it still has tokens associated with it." };
+  }
+
+
   const { error } = await supabaseAdmin
     .from("networks")
     .delete()
@@ -452,14 +463,14 @@ async function fetchLogoFromCoinGecko(contractAddress: string, symbol: string, c
     if (chain.cgPlatform) {
         try {
             const url = `${COINGECKO_API_URL}/coins/${chain.cgPlatform}/contract/${contractAddress.toLowerCase()}`;
-            const { data } = await axios.get(url, { timeout: 8000 });
+            const { data } = await pRetry(() => axios.get(url, { timeout: 8000 }), { retries: 2 });
             if (data?.image?.large) return data.image.large;
         } catch (e) { /* Fall through */ }
     }
     if (symbol) {
         try {
             const url = `${COINGECKO_API_URL}/search?query=${encodeURIComponent(symbol)}`;
-            const { data } = await axios.get(url, { timeout: 8000 });
+            const { data } = await pRetry(() => axios.get(url, { timeout: 8000 }), { retries: 2 });
             const match = data.coins?.find((c: any) => c.symbol.toLowerCase() === symbol.toLowerCase());
             return match?.large || match?.thumb || null;
         } catch (e) { /* Fall through */ }
@@ -467,13 +478,15 @@ async function fetchLogoFromCoinGecko(contractAddress: string, symbol: string, c
     return null;
 }
 
-// NOTE: This is a simplified cache check for demonstration. A real implementation would use the full logic.
 async function getCachedToken(contract: string, chainId: number) {
+    const { data: network } = await supabaseAdmin.from("networks").select("name").eq("chain_id", chainId).single();
+    if (!network) return null;
+    
     const { data, error } = await supabaseAdmin
         .from("token_metadata")
         .select("*")
         .eq("contract_address", contract.toLowerCase())
-        .eq("network", findChainById(chainId)?.name.toLowerCase()) // Adjust to match schema
+        .eq("network", network.name.toLowerCase())
         .maybeSingle();
     
     if (error) {

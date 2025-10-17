@@ -16,11 +16,7 @@ import { DeleteTokenButton } from "@/components/admin/delete-token-button";
 import { NetworkSelector } from "@/components/admin/network-selector";
 import { PlusCircle } from "lucide-react";
 import Link from "next/link";
-
-// Consistent server-side Supabase client initialization
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 async function getTokens(networkId: string): Promise<TokenMetadata[]> {
   if (!networkId) {
@@ -28,7 +24,7 @@ async function getTokens(networkId: string): Promise<TokenMetadata[]> {
   }
   
   // First, get the network name from its ID
-  const { data: networkData, error: networkError } = await supabase
+  const { data: networkData, error: networkError } = await supabaseAdmin
     .from("networks")
     .select("name")
     .eq("id", networkId)
@@ -39,7 +35,7 @@ async function getTokens(networkId: string): Promise<TokenMetadata[]> {
       return [];
   }
   
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("token_metadata")
     .select("*")
     .eq("network", networkData.name.toLowerCase())
@@ -54,7 +50,7 @@ async function getTokens(networkId: string): Promise<TokenMetadata[]> {
 }
 
 async function getNetworks(): Promise<Network[]> {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("networks")
     .select("id, name")
     .order("name");

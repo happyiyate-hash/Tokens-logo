@@ -1,9 +1,5 @@
 
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 /**
  * Validates an API key against the 'api_keys' table in Supabase.

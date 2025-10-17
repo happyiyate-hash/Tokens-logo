@@ -1,13 +1,7 @@
 
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { isValidApiKey } from "@/lib/api-helpers";
-
-// Initialize Supabase client (private, server-only)
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export async function GET(
   request: Request,
@@ -31,7 +25,7 @@ export async function GET(
     // 2. Handle single token fetch vs. all tokens for a network
     if (symbol) {
       // --- Fetch a single token by symbol ---
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from("token_metadata")
         .select("token_details, logo_url")
         .eq("network", network.toLowerCase())
@@ -56,7 +50,7 @@ export async function GET(
 
     } else {
       // --- Fetch all tokens for the network ---
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from("token_metadata")
         .select("token_details, logo_url, contract_address, network, fetched_at, updated_at, verified, source")
         .eq("network", network.toLowerCase());
