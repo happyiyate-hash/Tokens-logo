@@ -22,13 +22,13 @@ export type AddTokenState = {
 };
 
 const addTokenSchema = z.object({
-  name: z.union([z.string(), z.null()]).transform(v => v || undefined).optional(),
+  name: z.union([z.string(), z.null(), z.undefined()]).transform(v => v || undefined).optional(),
   symbol: z.string().min(1, "Token symbol is required."),
   networkId: z.string().optional(),
   decimals: z.coerce.number().int().min(0).optional().default(18),
   logoFile: z.instanceof(File).optional(),
   logo_url: z.string().url().optional(),
-  contract: z.union([z.string(), z.null()]).transform(v => v || undefined).optional(),
+  contract: z.union([z.string(), z.null(), z.undefined()]).transform(v => v || undefined).optional(),
 });
 
 
@@ -80,8 +80,9 @@ export async function addToken(
     return { status: "error", message: firstError || "Invalid input." };
   }
   
-  const { logoFile, symbol, networkId, contract, name, decimals, logo_url } = validated.data;
-  
+  const { logoFile, symbol, networkId, contract, name, decimals } = validated.data;
+  const logoUrlFromForm = formData.get('logo_url') as string | null;
+
   try {
     let finalLogoUrl: string | undefined = undefined;
 
@@ -97,9 +98,9 @@ export async function addToken(
         const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
         finalLogoUrl = publicUrlData.publicUrl;
 
-    } else if (logo_url) {
-        const reuploadedUrl = await uploadLogoFromUrl(logo_url, symbol);
-        finalLogoUrl = reuploadedUrl ?? logo_url; // Fallback to original URL if re-upload fails
+    } else if (logoUrlFromForm) {
+        const reuploadedUrl = await uploadLogoFromUrl(logoUrlFromForm, symbol);
+        finalLogoUrl = reuploadedUrl ?? logoUrlFromForm; // Fallback to original URL if re-upload fails
     }
 
     if (!finalLogoUrl && !contract) {
@@ -507,5 +508,3 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
         return { status: "error", message: e.message, networkId, contractAddress };
     }
 }
-
-    
