@@ -30,7 +30,7 @@ export type TokenLogo = {
     id: string;
     symbol: string;
     name?: string | null;
-    public_url: string; // CORRECTED COLUMN NAME
+    public_url: string;
     description?: string | null;
     created_at: string;
 }

@@ -21,7 +21,7 @@ export async function GET(req: Request) {
   // --- Build the query ---
   let query = supabaseAdmin
     .from('token_logos')
-    .select('public_url') // CORRECTED COLUMN NAME
+    .select('public_url')
     .eq('symbol', symbol.toUpperCase());
 
   // If a name is provided, add it to the query for a more specific search.

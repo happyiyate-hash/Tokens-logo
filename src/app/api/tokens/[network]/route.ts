@@ -26,10 +26,10 @@ export async function GET(
     const getLogoUrl = async (tokenSymbol: string) => {
         const { data: logoData } = await supabaseAdmin
             .from('token_logos')
-            .select('public_url') // CORRECTED COLUMN NAME
+            .select('public_url')
             .eq('symbol', tokenSymbol.toUpperCase())
             .single();
-        return logoData?.public_url || null; // CORRECTED FIELD
+        return logoData?.public_url || null;
     };
 
     // 2. Handle single token fetch vs. all tokens for a network

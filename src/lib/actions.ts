@@ -209,7 +209,7 @@ export async function addToken(
           .upsert({ 
               symbol: symbol.toUpperCase(), 
               name: name,
-              public_url: finalLogoUrl // CORRECTED COLUMN NAME
+              public_url: finalLogoUrl
             }, { onConflict: 'symbol' });
 
       if (logoUpsertError) {
@@ -363,7 +363,7 @@ export async function searchToken(
     // First, try to find a contract-specific token. We prioritize an exact symbol match.
     const { data, error } = await supabaseAdmin
       .from("token_metadata")
-      .select("*, token_logos(public_url)") // CORRECTED COLUMN NAME
+      .select("*, token_logos(public_url)")
       .ilike("token_details->>symbol", tokenSymbol)
       .limit(1)
       .maybeSingle();
@@ -378,7 +378,7 @@ export async function searchToken(
     // Here we prioritize an exact match on symbol first.
     const { data: logoData, error: logoError } = await supabaseAdmin
       .from("token_logos")
-      .select("symbol, name, public_url") // CORRECTED COLUMN NAME
+      .select("symbol, name, public_url")
       .eq("symbol", tokenSymbol.toUpperCase())
       .limit(1)
       .single();
@@ -400,7 +400,7 @@ export async function searchToken(
         contract_address: ''
       },
       logo_key: null,
-      logo_url: logoData.public_url, // CORRECTED FIELD
+      logo_url: logoData.public_url,
       verified: true,
       source: 'manual',
       fetched_at: new Date().toISOString(),
@@ -512,7 +512,7 @@ async function getCachedToken(contract: string, chainId: number): Promise<TokenM
     
     const { data, error } = await supabaseAdmin
         .from("token_metadata")
-        .select("*, token_logos(public_url)") // CORRECTED COLUMN NAME
+        .select("*, token_logos(public_url)")
         .eq("contract_address", contract.toLowerCase())
         .eq("network", chainConfig.name.toLowerCase())
         .maybeSingle();
@@ -577,7 +577,7 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
         }
         
         // Find logo: 1. Global DB, 2. AI Fetch (CoinGecko fallback)
-        let logoUrl: string | null = (await findGlobalLogo(metadata.symbol))?.public_url || null; // CORRECTED FIELD
+        let logoUrl: string | null = (await findGlobalLogo(metadata.symbol))?.public_url || null;
         if (!logoUrl) {
             const aiResult = await autoFetchMissingLogo({ 
                 tokenSymbol: metadata.symbol,
