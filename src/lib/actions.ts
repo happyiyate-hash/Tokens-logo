@@ -37,7 +37,7 @@ async function uploadLogoFromUrl(url: string, symbol: string): Promise<string | 
         const response = await axios.get(url, { responseType: 'arraybuffer' });
         const buffer = Buffer.from(response.data);
         const contentType = response.headers['content-type'] || 'image/png';
-        const fileExtension = contentType.split('/')[1] || 'png';
+        const fileExtension = contentType.split('/')[1]?.split('+')[0] || 'png';
         const fileName = `${symbol.toLowerCase()}.${fileExtension}`;
         const filePath = `global/${fileName}`;
 
@@ -54,7 +54,8 @@ async function uploadLogoFromUrl(url: string, symbol: string): Promise<string | 
         return publicUrlData.publicUrl;
     } catch (e: any) {
         console.error(`Failed to download and re-upload logo from ${url}: ${e.message}`);
-        return null;
+        // Return original URL as a fallback if our ingestion fails.
+        return url;
     }
 }
 
@@ -88,7 +89,7 @@ export async function addToken(
   try {
     let finalLogoUrl: string | undefined = undefined;
 
-    // Priority: 1. Uploaded file, 2. URL from AI/fetcher
+    // Priority: 1. Uploaded file, 2. URL from AI/fetcher (which needs ingestion)
     if (logoFile) {
         const fileContents = await logoFile.arrayBuffer();
         const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
@@ -101,8 +102,15 @@ export async function addToken(
         finalLogoUrl = publicUrlData.publicUrl;
 
     } else if (logoUrlFromForm) {
-        const reuploadedUrl = await uploadLogoFromUrl(logoUrlFromForm, symbol);
-        finalLogoUrl = reuploadedUrl ?? logoUrlFromForm; // Fallback to original URL if re-upload fails
+        // If the URL is external (not from our Supabase), download and re-upload it.
+        const supabaseStorageUrl = process.env.SUPABASE_URL || "";
+        if (!logoUrlFromForm.startsWith(supabaseStorageUrl)) {
+            const reuploadedUrl = await uploadLogoFromUrl(logoUrlFromForm, symbol);
+            finalLogoUrl = reuploadedUrl ?? logoUrlFromForm; // Fallback to original URL if re-upload fails
+        } else {
+            // It's already in our storage, just use it.
+            finalLogoUrl = logoUrlFromForm;
+        }
     }
 
     if (!finalLogoUrl && !contract) {
@@ -485,7 +493,7 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
             throw new Error("Could not fetch complete token metadata from any source.");
         }
         
-        // Find logo: 1. Global DB, 2. AI Fetch
+        // Find logo: 1. Global DB, 2. AI Fetch (CoinGecko fallback)
         let logoUrl: string | null = (await findGlobalLogo(metadata.symbol))?.logo_url || null;
         if (!logoUrl) {
             const aiResult = await autoFetchMissingLogo({ 
