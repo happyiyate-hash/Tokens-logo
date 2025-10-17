@@ -46,14 +46,14 @@ export function NetworkForm() {
         <CardHeader>
             <CardTitle>Add New Network</CardTitle>
             <CardDescription>
-                Select a pre-configured network from the Etherscan-supported list. The API URL will be pre-filled. You may need to provide an API key environment variable name if the network requires one.
+                Select a pre-configured network from the list. The system will automatically use the correct block explorer API and API key.
             </CardDescription>
         </CardHeader>
         <CardContent>
              <form ref={formRef} action={formAction} className="grid gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="chain">Select Pre-configured Network</Label>
-                   <Select onValueChange={setSelectedChainId}>
+                   <Select onValueChange={setSelectedChainId} name="chainId">
                     <SelectTrigger id="chain">
                       <SelectValue placeholder="Select a network..." />
                     </SelectTrigger>
@@ -90,11 +90,6 @@ export function NetworkForm() {
                       value={selectedChain?.explorerApi || ''}
                       readOnly
                     />
-                </div>
-                 <div className="space-y-2">
-                    <Label htmlFor="explorer_api_key_env_var">API Key Environment Variable Name</Label>
-                    <Input id="explorer_api_key_env_var" name="explorer_api_key_env_var" placeholder="ETHERSCAN_API_KEY (or other variable name)" />
-                     <p className="text-xs text-muted-foreground">The name of the variable in your .env file holding the API key.</p>
                 </div>
                 <SubmitButton disabled={!selectedChain}>Add Network</SubmitButton>
             </form>

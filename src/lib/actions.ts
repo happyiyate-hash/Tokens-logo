@@ -28,7 +28,6 @@ const ERC20_ABI = [
   "function name() view returns (string)",
   "function symbol() view returns (string)",
   "function decimals() view returns (uint8)",
-  "function totalSupply() view returns (uint256)"
 ];
 
 
@@ -116,20 +115,44 @@ export async function addToken(
         if (uploadedLogo) {
             logoKey = uploadedLogo.storage_path;
             finalLogoUrl = uploadedLogo.public_url;
-            
-            // Upsert into token_logos
-             await supabaseAdmin.rpc('upsert_token_logo', {
-                p_contract: contract,
-                p_symbol: symbol,
-                p_network: network.name.toLowerCase(),
-                p_storage_path: logoKey,
-                p_public_url: finalLogoUrl
-            });
         }
     } else if (logo_url) {
+        // Here we could fetch the remote URL and store it in our bucket
+        // For simplicity, we'll just use the external URL for now
         finalLogoUrl = logo_url;
-        // The logo key might be derived or known if we fetched it, but for simplicity, we'll leave it null if not directly uploaded.
-        // In a real scenario, we might import the URL into our storage.
+    }
+
+
+    if (finalLogoUrl && !logoKey) {
+        // If we have a URL but no file was uploaded, let's try to import it.
+        const response = await axios.get(finalLogoUrl, { responseType: 'arraybuffer' });
+        const buffer = Buffer.from(response.data);
+        const contentType = response.headers['content-type'];
+        const ext = contentType.split('/')[1] || 'png';
+        const filename = `${contract.toLowerCase()}_${network.name.toLowerCase()}.${ext}`;
+
+        const { error: uploadError } = await supabaseAdmin.storage
+          .from(STORAGE_BUCKET)
+          .upload(filename, buffer, {
+            contentType: contentType,
+            upsert: true,
+          });
+        
+        if (uploadError) throw new Error(`Could not import logo from URL: ${uploadError.message}`);
+
+        const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filename);
+        finalLogoUrl = publicUrlData.publicUrl;
+        logoKey = filename;
+    }
+
+    if (logoKey && finalLogoUrl) {
+         await supabaseAdmin.rpc('upsert_token_logo', {
+            p_contract: contract,
+            p_symbol: symbol,
+            p_network: network.name.toLowerCase(),
+            p_storage_path: logoKey,
+            p_public_url: finalLogoUrl
+        });
     }
 
     const tokenDetails: TokenDetails = {
@@ -314,7 +337,6 @@ const addNetworkSchema = z.object({
   name: z.string().min(1, "Network name is required."),
   chain_id: z.coerce.number().int("Chain ID must be an integer."),
   explorer_api_base_url: z.string().url("Must be a valid URL."),
-  explorer_api_key_env_var: z.string().optional(),
 });
 
 export async function addNetwork(prevState: AddNetworkState, formData: FormData): Promise<AddNetworkState> {
@@ -327,7 +349,10 @@ export async function addNetwork(prevState: AddNetworkState, formData: FormData)
   }
 
   try {
-    const { error } = await supabaseAdmin.from("networks").insert(validated.data);
+    const { error } = await supabaseAdmin.from("networks").insert({
+        ...validated.data,
+        explorer_api_key_env_var: 'ETHERSCAN_API_KEY' // Always use the main key
+    });
     if (error) {
       if (error.code === '23505') {
          throw new Error(`Network with this name or Chain ID already exists.`);
@@ -442,18 +467,20 @@ async function fetchLogoFromCoinGecko(contractAddress: string, symbol: string, c
     return null;
 }
 
-
+// NOTE: This is a simplified cache check for demonstration. A real implementation would use the full logic.
 async function getCachedToken(contract: string, chainId: number) {
     const { data, error } = await supabaseAdmin
         .from("token_metadata")
         .select("*")
         .eq("contract_address", contract.toLowerCase())
-        .eq("chain_id", Number(chainId))
+        .eq("network", findChainById(chainId)?.name.toLowerCase()) // Adjust to match schema
         .maybeSingle();
+    
     if (error) {
         console.error("Error fetching cached token:", error);
         return null;
     };
+
     return data;
 }
 
@@ -514,9 +541,6 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
             logoUrl: logoUrl,
             source: metadata.source || 'unknown',
         };
-
-        // This would be the spot to upsert the new data into the cache/DB
-        // For now, we just return it to the UI
         
         return { 
             status: "success", 
