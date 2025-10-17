@@ -153,6 +153,7 @@ function CopyableInput({ id, label, value }: { id: string, label: string, value:
 
 export default function ApiKeysPage() {
   const [copied, setCopied] = useState(false);
+  // These variables are now read from the environment by Next.js
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
@@ -178,16 +179,16 @@ export default function ApiKeysPage() {
         <CardHeader>
           <CardTitle>Project Connection Details</CardTitle>
           <CardDescription>
-            Use these values in your .env.local file. The server requires the Service Role Key for administrative tasks.
+            These are your project's main connection details. The server uses the secret Service Role Key from your environment variables.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <CopyableInput id="supabase-url" label="NEXT_PUBLIC_SUPABASE_URL" value={supabaseUrl} />
-          <CopyableInput id="supabase-anon-key" label="NEXT_PUBLIC_SUPABASE_ANON_KEY" value={supabaseAnonKey} />
+          <CopyableInput id="supabase-url" label="Project URL (NEXT_PUBLIC_SUPABASE_URL)" value={supabaseUrl} />
+          <CopyableInput id="supabase-anon-key" label="Public Anon Key (NEXT_PUBLIC_SUPABASE_ANON_KEY)" value={supabaseAnonKey} />
            <div className="space-y-2">
-                <Label htmlFor="supabase-service-key">SUPABASE_SERVICE_ROLE_KEY</Label>
-                <Input id="supabase-service-key" placeholder="Paste your Service Role Key here" readOnly value="****************** (Must be kept secret in .env.local)" />
-                <p className="text-xs text-muted-foreground">This key is used for server-side operations and must not be exposed to the public.</p>
+                <Label htmlFor="supabase-service-key">Service Role Key (SUPABASE_SERVICE_ROLE_KEY)</Label>
+                <Input id="supabase-service-key" placeholder="This key is kept secret on the server" readOnly value="**************************************************************************************************" />
+                <p className="text-xs text-muted-foreground">This key is used for server-side operations and is not exposed to the public.</p>
             </div>
         </CardContent>
       </Card>
@@ -266,5 +267,3 @@ export default function ApiKeysPage() {
     </div>
   );
 }
-
-    
