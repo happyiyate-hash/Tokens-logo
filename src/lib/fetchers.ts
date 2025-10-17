@@ -133,7 +133,7 @@ export async function fetchTokenMetadataFromSources(contractAddress: string, net
 
 
 export async function fetchLogoFromCoinGeckoBySymbol(symbol: string): Promise<string | null> {
-  const coingeckoApiUrl = process.env.COINGECKO_API_URL || "https://api.coingecko.com/api/v3";
+  const coingeckoApiUrl = "https://api.coingecko.com/api/v3";
   try {
     const { data: searchData } = await axios.get(`${coingeckoApiUrl}/search?query=${encodeURIComponent(symbol)}`, { timeout: 8000 });
     const coins = searchData.coins || [];
@@ -150,5 +150,7 @@ export async function fetchLogoFromCoinGeckoBySymbol(symbol: string): Promise<st
     return null;
   }
 }
+
+    
 
     

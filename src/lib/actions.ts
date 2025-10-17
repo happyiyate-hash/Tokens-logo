@@ -592,7 +592,7 @@ export async function updateNetworkLogo(
   try {
       const { data: network, error: fetchError } = await supabaseAdmin
         .from("networks")
-        .select("name")
+        .select("name, logo_url")
         .eq("id", networkId)
         .single();
       
@@ -772,3 +772,6 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
         return { status: "error", message: e.message, chainId, contractAddress };
     }
 }
+
+
+    

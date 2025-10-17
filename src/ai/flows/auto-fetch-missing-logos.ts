@@ -62,7 +62,7 @@ const autoFetchMissingLogoFlow = ai.defineFlow(
   async (input) => {
     const llmResponse = await ai.generate({
       prompt: `Find the logo for the token with Name: "${input.tokenName}" and Symbol: "${input.tokenSymbol}". Prioritize using the findLogoTool. If the tool returns a valid URL, output it directly. If the tool fails or returns null, you must return null.`,
-      model: 'googleai/gemini-2.5-flash',
+      model: 'googleai/gemini-pro',
       tools: [findLogoTool],
       output: {
         schema: AutoFetchMissingLogoOutputSchema,
@@ -85,3 +85,5 @@ const autoFetchMissingLogoFlow = ai.defineFlow(
     return { logoUrl: null };
   }
 );
+
+    
