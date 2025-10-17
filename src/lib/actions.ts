@@ -126,7 +126,7 @@ export async function addToken(
               symbol: symbol.toUpperCase(), 
               name: name,
               logo_url: finalLogoUrl 
-            }, { onConflict: 'symbol,name' }); // Use composite key for conflict
+            }, { onConflict: 'symbol,name' });
 
       if (logoUpsertError) {
           throw new Error(`Database logo upsert error: ${logoUpsertError.message}`);
@@ -134,7 +134,7 @@ export async function addToken(
     }
 
     // Only save contract-specific metadata if a network and contract address are provided
-    if (contract && chainId && name) { // Name is required for specific metadata
+    if (contract && chainId) {
         const chainConfig = chainsConfig.find(c => c.chainId.toString() === chainId);
         if (!chainConfig) throw new Error("Network not found for contract-specific metadata.");
 
@@ -524,5 +524,3 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
         return { status: "error", message: e.message, chainId, contractAddress };
     }
 }
-
-    
