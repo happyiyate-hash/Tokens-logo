@@ -8,9 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Check, Copy } from "lucide-react";
 
 const codeSnippet = `
-// Example: Fetch a single token (USDT on Ethereum)
+// Example: Fetch a single token (USDT on Ethereum) using /api/tokens/[network]
+// This endpoint powers the production-grade /api/getToken from the guide
 async function getToken(network, symbol, apiKey) {
   const baseUrl = window.location.origin;
+  // Note: The endpoint is /api/tokens/[network], not /api/getToken
   const url = new URL(\`\${baseUrl}/api/tokens/\${network}\`);
   url.searchParams.set('symbol', symbol);
 
@@ -31,9 +33,11 @@ async function getToken(network, symbol, apiKey) {
   }
 }
 
-// Example: Fetch all tokens for a network (Polygon)
+// Example: Fetch all tokens for a network (Polygon) using /api/tokens/[network]
+// This endpoint powers the production-grade /api/listTokens from the guide
 async function getAllTokens(network, apiKey) {
   const baseUrl = window.location.origin;
+  // Note: The endpoint is /api/tokens/[network], not /api/listTokens
   const url = \`\${baseUrl}/api/tokens/\${network}\`;
 
   try {
@@ -55,7 +59,7 @@ async function getAllTokens(network, apiKey) {
 
 
 // --- Example Usage ---
-// const apiKey = 'dcdn_...'; // Your generated API key
+// const apiKey = 'wevina_...'; // Your generated API key
 //
 // // 1. Get a single token
 // const usdt = await getToken('ethereum', 'USDT', apiKey);
@@ -64,7 +68,6 @@ async function getAllTokens(network, apiKey) {
 // // 2. Get all tokens on a network
 // const polygonTokens = await getAllTokens('polygon', apiKey);
 // console.log('All Polygon Tokens:', polygonTokens);
-
 `;
 
 export default function ApiKeysPage() {

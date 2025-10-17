@@ -12,7 +12,7 @@ export const isValidApiKey = async (apiKey: string | null): Promise<ApiKey | nul
     if (!apiKey) return null;
 
     // 1. Check against the static public API key
-    const staticKey = process.env.PUBLIC_API_KEY;
+    const staticKey = process.env.CDN_PUBLIC_API_KEY;
     if (staticKey && apiKey === staticKey) {
         // This is a valid static key, but it doesn't have a record in the DB.
         // We can return a mock ApiKey object or handle it as a special case.

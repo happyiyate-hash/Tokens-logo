@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import type { ApiKey, TokenFetchResult, TokenDetails, TokenMetadata } from "@/lib/types";
 import chainsConfig from "@/lib/chains.json";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { fetchFromExplorer, fetchFromRpc, fetchLogoFromCoinGecko, uploadLogo } from "@/lib/fetchers";
+import { fetchFromExplorer, fetchFromRpc, fetchLogoFromCoinGecko, uploadLogo, uploadLogoFromBuffer } from "@/lib/fetchers";
 import axios from 'axios';
 
 const STORAGE_BUCKET = "token_logos";
@@ -71,12 +71,12 @@ export async function addToken(
             const response = await axios.get(logo_url, { responseType: 'arraybuffer' });
             const buffer = Buffer.from(response.data);
             const contentType = response.headers['content-type'] || 'image/png';
-            const file = new File([buffer], 'logo.png', { type: contentType });
             
-            const uploadedLogo = await uploadLogo(file, contract, network.name);
-            if (uploadedLogo) {
-                logoKey = uploadedLogo.storage_path;
-                finalLogoUrl = uploadedLogo.public_url;
+            const publicUrl = await uploadLogoFromBuffer(network.name.toLowerCase(), `${contract.toLowerCase()}.${contentType.split('/')[1] || 'png'}`, buffer, contentType);
+
+            if(publicUrl) {
+                finalLogoUrl = publicUrl;
+                logoKey = `${network.name.toLowerCase()}/${contract.toLowerCase()}.${contentType.split('/')[1] || 'png'}`;
             }
 
         } catch (e: any) {
@@ -456,5 +456,3 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
         return { status: "error", message: e.message, networkId, contractAddress };
     }
 }
-
-    
