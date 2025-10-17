@@ -20,26 +20,23 @@ const CACHE_TTL = Number(process.env.CACHE_TTL_MS || 7 * 24 * 3600 * 1000);
  * It checks contract-specific metadata first, then falls back to the global logo table.
  * This is an internal function and should not be exposed as an action.
  * @param symbol The token symbol to look up (e.g., "USDT").
- * @param networkName The optional network name to prioritize the search (e.g., "ethereum").
+ * @param name The optional token name to make the search more specific.
  * @returns The public URL of the logo, or null if not found.
  */
-async function getLogoUrlBySymbol(symbol: string, name?: string): Promise<string | null> {
-    if (!symbol) return null;
+async function getLogoUrl(symbol: string, name: string): Promise<string | null> {
+    if (!symbol || !name) return null;
     const upperCaseSymbol = symbol.toUpperCase();
 
-    let query = supabaseAdmin
+    const { data, error } = await supabaseAdmin
         .from("token_logos")
         .select("public_url")
-        .eq("symbol", upperCaseSymbol);
-
-    if (name) {
-        query = query.ilike('name', `%${name}%`);
-    }
-
-    const { data, error } = await query.limit(1).maybeSingle();
+        .eq("symbol", upperCaseSymbol)
+        .ilike('name', `%${name}%`)
+        .limit(1)
+        .maybeSingle();
 
     if (error) {
-        console.error(`Error fetching logo for symbol ${symbol}:`, error);
+        console.error(`Error fetching logo for symbol ${symbol} and name ${name}:`, error);
         return null;
     }
         
@@ -56,7 +53,7 @@ export type AddGlobalLogoState = {
 
 const addGlobalLogoSchema = z.object({
   symbol: z.string().min(1, "Token symbol is required."),
-  name: z.string().optional(),
+  name: z.string().min(1, "Token name is required."),
   logoFile: z.instanceof(File).refine(file => file.size > 0, 'Logo file is required.'),
 });
 
@@ -67,7 +64,7 @@ export async function addGlobalLogo(
   const logoFileValue = formData.get('logo');
   const validated = addGlobalLogoSchema.safeParse({
       symbol: formData.get('symbol'),
-      name: formData.get('name') || undefined,
+      name: formData.get('name'),
       logoFile: logoFileValue instanceof File ? logoFileValue : undefined,
   });
 
@@ -78,7 +75,6 @@ export async function addGlobalLogo(
   }
 
   const { logoFile, symbol, name } = validated.data;
-  const finalName = name || symbol; // Use symbol as name if name is not provided
   const upperCaseSymbol = symbol.toUpperCase();
   const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
   const filePath = `global/${upperCaseSymbol.toLowerCase()}_${Date.now()}.${ext}`;
@@ -102,7 +98,7 @@ export async function addGlobalLogo(
         .from('token_logos')
         .upsert({ 
             symbol: upperCaseSymbol, 
-            name: finalName,
+            name: name,
             public_url: finalLogoUrl,
             storage_path: filePath,
         }, { onConflict: 'symbol, name', ignoreDuplicates: false });
@@ -135,7 +131,7 @@ export type UpdateGlobalLogoState = {
 const updateGlobalLogoSchema = z.object({
   logoId: z.string().min(1, "Logo ID is required."),
   symbol: z.string().min(1, "Symbol is required."),
-  name: z.string().optional(),
+  name: z.string().min(1, "Name is required."),
   logoFile: z.instanceof(File).optional(),
 });
 
@@ -148,7 +144,7 @@ export async function updateGlobalLogo(
     const validated = updateGlobalLogoSchema.safeParse({
         logoId: formData.get('logoId'),
         symbol: formData.get('symbol'),
-        name: formData.get('name') || undefined,
+        name: formData.get('name'),
         logoFile: logoFileValue instanceof File && logoFileValue.size > 0 ? logoFileValue : undefined,
     });
 
@@ -201,7 +197,7 @@ export async function updateGlobalLogo(
 
         // Prepare the data for the database update
         const updateData: Partial<TokenLogo> = {
-            name: name || symbol,
+            name: name,
             public_url: newPublicUrl,
             storage_path: newStoragePath
         };
@@ -238,8 +234,6 @@ const addTokenSchema = z.object({
   symbol: z.string().min(1, "Token symbol is required."),
   chainId: z.string().min(1, "Chain ID is required."),
   decimals: z.coerce.number().int().min(0).default(18),
-  logoFile: z.instanceof(File).optional(),
-  logo_url: z.string().url().optional(),
   contract: z.string().min(1, "Contract address is required."),
 });
 
@@ -276,14 +270,11 @@ export async function addToken(
   prevState: AddTokenState | undefined,
   formData: FormData
 ): Promise<AddTokenState> {
-  const logoFileValue = formData.get('logo');
   const validated = addTokenSchema.safeParse({
       name: formData.get('name'),
       symbol: formData.get('symbol'),
       chainId: formData.get('chainId'),
       decimals: formData.get('decimals'),
-      logoFile: logoFileValue instanceof File && logoFileValue.size > 0 ? logoFileValue : undefined,
-      logo_url: formData.get('logo_url'),
       contract: formData.get('contract'), 
   });
 
@@ -293,52 +284,17 @@ export async function addToken(
     return { status: "error", message: firstError || "Invalid input." };
   }
   
-  const { logoFile, symbol, name, decimals, chainId, contract } = validated.data;
-  const logoUrlFromForm = formData.get('logo_url') as string | null;
-
+  const { symbol, name, decimals, chainId, contract } = validated.data;
+  
   try {
-    let finalLogoUrl: string | undefined = undefined;
-    let storagePath: string | undefined = undefined;
-
-    // Priority: 1. Uploaded file, 2. URL from AI/fetcher (which needs ingestion), 3. Look up in global logos
-    if (logoFile) {
-        const fileContents = await logoFile.arrayBuffer();
-        const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
-        const filePath = `global/${symbol.toLowerCase()}_${Date.now()}.${ext}`;
-
-        const { error } = await supabaseAdmin.storage.from(STORAGE_BUCKET).upload(filePath, fileContents, { contentType: logoFile.type, upsert: true });
-        if (error) throw new Error(`Storage upload error: ${error.message}`);
-        
-        const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
-        finalLogoUrl = publicUrlData.publicUrl;
-        storagePath = filePath;
-
-    } else if (logoUrlFromForm) {
-        const supabaseStorageUrl = process.env.SUPABASE_URL || "";
-        if (!logoUrlFromForm.startsWith(supabaseStorageUrl)) {
-            const reuploaded = await uploadLogoFromUrl(logoUrlFromForm, symbol);
-            finalLogoUrl = reuploaded?.publicUrl ?? logoUrlFromForm; // Fallback to original URL
-            storagePath = reuploaded?.storagePath;
-        } else {
-            finalLogoUrl = logoUrlFromForm;
-            const urlParts = logoUrlFromForm.split(`/storage/v1/object/public/${STORAGE_BUCKET}/`);
-            if (urlParts.length > 1) {
-              storagePath = urlParts[1];
-            }
-        }
-    } else {
-        // If no logo is provided, look up the logo from the global table.
-        const existingLogoUrl = await getLogoUrlBySymbol(symbol, name);
-        if (existingLogoUrl) {
-            finalLogoUrl = existingLogoUrl;
-        }
-    }
+    // This is the linking step.
+    // After getting metadata, we find the logo URL from the independent 'token_logos' table.
+    const finalLogoUrl = await getLogoUrl(symbol, name);
 
     if (!finalLogoUrl) {
-       return { status: "error", message: "A logo for this token is required. Please upload one or ensure a global logo exists for this symbol." };
+       return { status: "error", message: `A global logo for ${name} (${symbol}) could not be found. Please upload one first before adding this token.` };
     }
     
-    // Save contract-specific metadata
     const chainConfig = chainsConfig.find(c => c.chainId.toString() === chainId);
     if (!chainConfig) throw new Error("Network not found for contract-specific metadata.");
 
@@ -482,6 +438,7 @@ export async function searchToken(
   const upperCaseSymbol = tokenSymbol.toUpperCase();
 
   try {
+    // This search is on the metadata table which has the pre-linked logo_url
     const { data, error } = await supabaseAdmin
       .from("token_metadata")
       .select("*")
@@ -675,22 +632,6 @@ async function getCachedToken(contract: string, chainId: number): Promise<TokenM
     return data;
 }
 
-async function findGlobalLogo(symbol: string, name?:string): Promise<TokenLogo | null> {
-    let query = supabaseAdmin
-        .from("token_logos")
-        .select('*')
-        .eq('symbol', symbol.toUpperCase());
-    
-    if (name) {
-      query = query.ilike('name', `%${name}%`);
-    }
-
-    const { data, error } = await query.limit(1).maybeSingle();
-
-    if (error || !data) return null;
-    return data;
-}
-
 export async function fetchTokenMetadata(prevState: FetchMetadataState | undefined, formData: FormData): Promise<FetchMetadataState> {
     const validated = fetchMetadataSchema.safeParse(Object.fromEntries(formData.entries()));
 
@@ -723,14 +664,16 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
             throw new Error("Could not fetch complete token metadata from any source.");
         }
         
-        // Find logo from our global table
-        const logo = await findGlobalLogo(metadata.symbol, metadata.name);
+        // Find logo from our global table.
+        // This is done on the client-side of the wizard to provide a preview.
+        // The final linking happens in the `addToken` action.
+        const logoUrl = await getLogoUrl(metadata.symbol, metadata.name);
 
         const result: TokenFetchResult = {
             name: metadata.name,
             symbol: metadata.symbol,
             decimals: metadata.decimals,
-            logoUrl: logo?.public_url || null,
+            logoUrl: logoUrl,
             source: metadata.source || 'unknown',
         };
         
@@ -740,3 +683,5 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
         return { status: "error", message: e.message, chainId, contractAddress };
     }
 }
+
+    

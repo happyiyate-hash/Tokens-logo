@@ -36,7 +36,6 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
   const [saveState, saveAction] = useActionState(addToken, initialSaveState);
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isFetchingLogo, setIsFetchingLogo] = useState(false);
@@ -73,27 +72,13 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
             setPreviewUrl(result.logoUrl);
             toast({ title: "AI Found a Logo!", description: `A logo for ${fetchState.metadata.symbol} was found and pre-filled.` });
         } else {
-            toast({ variant: "destructive", title: "AI Fetch Failed", description: `Could not automatically find a logo for ${fetchState.metadata.symbol}.` });
+            toast({ variant: "destructive", title: "AI Fetch Failed", description: `Could not automatically find a logo for ${fetchState.metadata.symbol}. Please upload one manually or check the token name/symbol.` });
         }
     } catch (error) {
         console.error("AI logo fetch error:", error);
         toast({ variant: "destructive", title: "Error", description: "An unexpected error occurred while fetching the logo." });
     } finally {
         setIsFetchingLogo(false);
-    }
-  };
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviewUrl(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    } else {
-      // If user deselects file, revert to the fetched logo if available
-      setPreviewUrl(fetchState.metadata?.logoUrl || null);
     }
   };
 
@@ -107,7 +92,6 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
     
     formRef.current?.reset();
     setPreviewUrl(null);
-    if(fileInputRef.current) fileInputRef.current.value = "";
   }
 
 
@@ -117,10 +101,10 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
              <div className="flex items-center justify-between">
                 <div>
                      <CardTitle className="text-2xl">
-                        Step {step}: {step === 1 ? "Fetch Token Metadata" : "Save Token Information"}
+                        Step {step}: {step === 1 ? "Fetch Token Metadata" : "Verify & Save Token"}
                     </CardTitle>
                     <CardDescription>
-                        {step === 1 ? "Enter a contract address to look up its details." : "Verify the metadata and upload a logo."}
+                        {step === 1 ? "Enter a contract address to look up its details from the blockchain." : "Verify the metadata. The logo will be automatically linked from your global library."}
                     </CardDescription>
                 </div>
                 {step === 2 && <Button variant="ghost" onClick={handleReset}><ArrowLeft className="mr-2 h-4 w-4"/>Start Over</Button>}
@@ -163,13 +147,12 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
                 <form ref={formRef} action={saveAction} className="space-y-6">
                     <input type="hidden" name="contract" value={fetchState.contractAddress} />
                     <input type="hidden" name="chainId" value={fetchState.chainId} />
-                    {previewUrl && <input type="hidden" name="logo_url" value={previewUrl} />}
-
+                    
                     {fetchState.status === "success" && (
                         <Alert>
                             <CheckCircle className="h-4 w-4" />
                             <AlertTitle>Metadata Found!</AlertTitle>
-                            <AlertDescription>Verify the details below. A logo was pre-filled from our global library or by AI. You can override it by uploading a new one.</AlertDescription>
+                            <AlertDescription>Verify the details below. A matching logo from your global library has been pre-filled. You can save this token now.</AlertDescription>
                         </Alert>
                     )}
 
@@ -190,25 +173,30 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
 
                     <div className="flex gap-6 items-center">
                         <div className="space-y-2 flex-1">
-                            <Label htmlFor="logo">Logo Image</Label>
-                            <div className="flex gap-2">
-                                <Input id="logo" name="logo" type="file" ref={fileInputRef} accept="image/png, image/jpeg, image/svg+xml, image/webp, image/gif" onChange={handleFileChange} />
-                                <Button type="button" variant="outline" onClick={handleAutoFetchLogo} disabled={isFetchingLogo}>
-                                    {isFetchingLogo ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                                    AI Fetch
-                                </Button>
-                            </div>
-                             <p className="text-xs text-muted-foreground">Upload a logo or use AI to find one. Found logos are pre-filled.</p>
+                            <Label>Matched Logo</Label>
+                             <p className="text-sm text-muted-foreground">
+                                This logo was found in your global library based on the token's name and symbol. 
+                                It will be automatically linked when you save. If no logo is shown, please go to "Upload Logo" to add one for this token first.
+                             </p>
                         </div>
-                        {previewUrl && (
+                        {previewUrl ? (
                             <div className="flex-shrink-0">
                                 <Label>Preview</Label>
                                 <Image src={previewUrl} alt="Logo preview" width={64} height={64} className="rounded-full mt-2 bg-muted" unoptimized />
                             </div>
+                        ) : (
+                            <div className="flex-shrink-0 text-center">
+                                <Label>No Logo Found</Label>
+                                <div className="w-16 h-16 rounded-full mt-2 bg-muted flex items-center justify-center text-xs text-muted-foreground">
+                                    Missing
+                                </div>
+                            </div>
                         )}
                     </div>
                     
-                    <SubmitButton className="w-full">Save Token</SubmitButton>
+                    <SubmitButton className="w-full" disabled={!previewUrl}>
+                        { !previewUrl ? "Cannot Save Without Logo" : "Save Token" }
+                    </SubmitButton>
 
                      {saveState.status === "error" && (
                         <Alert variant="destructive" className="mt-4">

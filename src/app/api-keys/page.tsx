@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 const guide1Code = `
 /**
  * Fetches all tokens for a given network.
+ * The response includes the pre-linked 'logo_url' for each token.
  * @param {string} network - The name of the network (e.g., 'polygon').
  * @param {string} apiKey - Your generated API key.
  * @returns {Promise<Array<object>|null>} A list of token objects or null on error.
@@ -39,7 +40,8 @@ async function getAllTokensByNetwork(network, apiKey) {
 }
 
 /**
- * Fetches a single token by its symbol on a specific network.
+ * Fetches a single token's metadata by its symbol on a specific network.
+ * The response includes the pre-linked 'logo_url'.
  * @param {string} network - The name of the network (e.g., 'ethereum').
  * @param {string} symbol - The token's symbol (e.g., 'USDT').
  * @param {string} apiKey - Your generated API key.
@@ -75,22 +77,23 @@ async function getTokenBySymbol(network, symbol, apiKey) {
 //   console.log('All Polygon Tokens:', tokens);
 // });
 //
-// // 2. Get a single token (USDT on Ethereum)
+// // 2. Get a single token's metadata (USDT on Ethereum)
 // getTokenBySymbol('ethereum', 'USDT', apiKey).then(token => {
-//   console.log('Single Token:', token);
+//   console.log('Single Token Metadata:', token);
 // });
 `;
 
 const guide2Code = `
 /**
- * Fetches the logo URL for a token. For best results, provide
- * both a symbol and a name to avoid ambiguity with tokens that share symbols.
+ * Fetches the logo URL for a token. This is a direct lookup in the
+ * global logo library. For best results, provide both a symbol and a name
+ * to avoid ambiguity with tokens that share symbols.
  * @param {string} symbol - The token's symbol (e.g., 'WETH').
  * @param {string} apiKey - Your generated API key.
- * @param {string} [name] - Optional. The token's name (e.g., 'Wrapped Ether') to find a more specific logo.
+ * @param {string} [name] - Optional. The token's name (e.g., 'Wrapped Ether') to find the exact logo.
  * @returns {Promise<string|null>} The logo URL or null on error.
  */
-async function getLogoBySymbol(symbol, apiKey, name) {
+async function getLogoBySymbolAndName(symbol, apiKey, name) {
     const baseUrl = window.location.origin;
     const url = new URL(\`\${baseUrl}/api/logo\`);
     url.searchParams.set('symbol', symbol);
@@ -109,7 +112,7 @@ async function getLogoBySymbol(symbol, apiKey, name) {
             return null;
         }
         const data = await response.json();
-        return data.logo_url;
+        return data.logo_url; // The endpoint returns { "logo_url": "..." }
     } catch (error) {
         console.error('Error fetching logo:', error);
         return null;
@@ -119,13 +122,13 @@ async function getLogoBySymbol(symbol, apiKey, name) {
 // --- Example Usage ---
 // const apiKey = 'wevina_...'; // Your generated API key
 //
-// // 1. Get the generic logo for WETH (less specific)
-// getLogoBySymbol('WETH', apiKey).then(logoUrl => {
-//   console.log('Generic WETH Logo URL:', logoUrl);
+// // 1. Get a logo with only the symbol (might be ambiguous)
+// getLogoBySymbolAndName('WETH', apiKey).then(logoUrl => {
+//   console.log('WETH Logo URL:', logoUrl);
 // });
 //
-// // 2. Get a specific logo for 'Tether USD' with symbol 'USDT' (more specific)
-// getLogoBySymbol('USDT', apiKey, 'Tether USD').then(logoUrl => {
+// // 2. Get the specific logo for 'Tether USD' with symbol 'USDT' (most reliable)
+// getLogoBySymbolAndName('USDT', apiKey, 'Tether USD').then(logoUrl => {
 //   console.log('Specific USDT Logo URL:', logoUrl);
 // });
 `;
@@ -187,22 +190,23 @@ export default function ApiKeysPage() {
                 <AccordionItem value="how-it-works">
                     <AccordionTrigger className="text-lg font-medium">How It Works</AccordionTrigger>
                     <AccordionContent className="prose prose-invert max-w-none text-muted-foreground space-y-2">
-                        <p>This CDN serves as a centralized, high-performance service for your DApps and wallets to retrieve token information. Here’s the flow:</p>
+                        <p>This CDN serves as a centralized, high-performance service for your DApps and wallets. Token metadata and logos are handled independently to ensure speed and accuracy.</p>
                         <ol>
-                            <li><strong>API Keys:</strong> Generate an API key from the manager above. Every request to the API must include this key in the <code>x-api-key</code> HTTP header.</li>
-                            <li><strong>Adding Logos & Tokens:</strong> Use the admin dashboard to upload global logos (`token_logos`) or add network-specific tokens (`token_metadata`). The "Add Token" process automatically links a global logo to the network-specific token.</li>
-                            <li><strong>API Endpoints:</strong> The CDN exposes simple, independent REST API endpoints to query this data, which your application will call.</li>
+                            <li><strong>API Keys:</strong> Generate an API key from the manager above. Every request to the API must include this key in the <code>x-api-key</code> HTTP header for authentication.</li>
+                            <li><strong>Uploading Logos:</strong> First, upload your token logos to the "Manage Global Logos" section. Each logo is stored with its name and symbol.</li>
+                            <li><strong>Adding Tokens:</strong> When you add a new token via the "Add Token" wizard, the system fetches its on-chain metadata (name, symbol, decimals). It then uses the fetched name and symbol to find the corresponding logo you already uploaded and links its URL to the token's metadata record.</li>
+                            <li><strong>API Endpoints:</strong> The CDN exposes two separate, simple REST API endpoints to query this data.</li>
                         </ol>
                     </AccordionContent>
                 </AccordionItem>
 
-                 <AccordionItem value="guide-metadata" className="border-b-0">
+                 <AccordionItem value="guide-metadata">
                     <AccordionTrigger className="text-lg font-medium">Guide 1: Fetching Token Metadata</AccordionTrigger>
                     <AccordionContent className="space-y-6">
                         <div className="p-4 border rounded-lg bg-background/50">
                             <h4 className="font-semibold text-card-foreground text-lg mb-2">Endpoint Details</h4>
                             <p className="font-mono text-sm bg-muted p-2 rounded-md my-2"><code>GET /api/tokens/[network]</code></p>
-                            <p className="text-muted-foreground">Returns a list of all tokens on a specific network, or a single token if you provide a symbol. The response includes the `logo_url` directly in the object.</p>
+                            <p className="text-muted-foreground">Returns token metadata. The response for each token already includes the correct `logo_url` that was linked when the token was added to the CDN.</p>
                             <ul className="list-disc pl-5 mt-2 text-muted-foreground space-y-1">
                                 <li><code>[network]</code> (in URL path, required): The lowercase name of the network (e.g., <code>ethereum</code>, <code>polygon</code>).</li>
                                 <li><code>symbol</code> (query param, optional): If provided, returns only the token matching that symbol on the specified network.</li>
@@ -221,10 +225,10 @@ export default function ApiKeysPage() {
                          <div className="p-4 border rounded-lg bg-background/50">
                             <h4 className="font-semibold text-card-foreground text-lg mb-2">Endpoint Details</h4>
                             <p className="font-mono text-sm bg-muted p-2 rounded-md my-2"><code>GET /api/logo</code></p>
-                            <p className="text-muted-foreground">Returns the logo URL for a given token. This is a direct lookup. For best results, provide both a symbol and name to avoid conflicts with tokens that share a symbol.</p>
+                            <p className="text-muted-foreground">Directly looks up a logo URL from the global logo library. This is the fastest way to get a logo if you already know the token's name and symbol. It is the recommended way to resolve logos for tokens with shared symbols.</p>
                             <ul className="list-disc pl-5 mt-2 text-muted-foreground space-y-1">
                                 <li><code>symbol</code> (query param, required): The token symbol (e.g., <code>USDC</code>, <code>WETH</code>).</li>
-                                <li><code>name</code> (query param, optional): The token name to find a more specific logo match (e.g., 'Tether USD').</li>
+                                <li><code>name</code> (query param, optional but recommended): The token name to find the exact logo match (e.g., 'Tether USD').</li>
                             </ul>
                         </div>
                          <div className="space-y-2">
@@ -239,3 +243,5 @@ export default function ApiKeysPage() {
     </div>
   );
 }
+
+    
