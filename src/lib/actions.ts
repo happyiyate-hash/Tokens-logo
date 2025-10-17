@@ -14,6 +14,72 @@ const STORAGE_BUCKET = "token_logos";
 const CACHE_TTL = Number(process.env.CACHE_TTL_MS || 7 * 24 * 3600 * 1000);
 
 
+// --- Uploader for Global Logos ---
+
+export type AddGlobalLogoState = {
+  status: "idle" | "success" | "error";
+  message?: string;
+};
+
+const addGlobalLogoSchema = z.object({
+  symbol: z.string().min(1, "Token symbol is required."),
+  name: z.string().optional(),
+  logoFile: z.instanceof(File).refine(file => file.size > 0, 'Logo file is required.'),
+});
+
+export async function addGlobalLogo(
+  prevState: AddGlobalLogoState,
+  formData: FormData
+): Promise<AddGlobalLogoState> {
+  const logoFileValue = formData.get('logo');
+  const validated = addGlobalLogoSchema.safeParse({
+      symbol: formData.get('symbol'),
+      name: formData.get('name') || undefined,
+      logoFile: logoFileValue instanceof File ? logoFileValue : undefined,
+  });
+
+  if (!validated.success) {
+      return { status: "error", message: validated.error.flatten().fieldErrors.logoFile?.[0] || "Invalid input." };
+  }
+
+  const { logoFile, symbol, name } = validated.data;
+  const finalName = name || symbol; // Use symbol as name if name is not provided
+
+  try {
+      const fileContents = await logoFile.arrayBuffer();
+      const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
+      // Create a more unique file path
+      const filePath = `global/${symbol.toLowerCase()}_${finalName.replace(/\s+/g, '_').toLowerCase()}.${ext}`;
+
+      const { error: uploadError } = await supabaseAdmin.storage.from(STORAGE_BUCKET).upload(filePath, fileContents, { contentType: logoFile.type, upsert: true });
+      if (uploadError) throw new Error(`Storage upload error: ${uploadError.message}`);
+      
+      const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+      const finalLogoUrl = publicUrlData.publicUrl;
+
+      // Upsert into the global token_logos table
+      const { error: logoUpsertError } = await supabaseAdmin
+          .from('token_logos')
+          .upsert({ 
+              symbol: symbol.toUpperCase(), 
+              name: finalName,
+              logo_url: finalLogoUrl 
+          }, { onConflict: 'symbol,name' });
+
+      if (logoUpsertError) {
+          throw new Error(`Database logo upsert error: ${logoUpsertError.message}`);
+      }
+
+      revalidatePath("/tokens");
+      revalidatePath("/upload-token");
+      return { status: "success", message: `${symbol.toUpperCase()} global logo saved successfully!` };
+
+  } catch (e: any) {
+      return { status: "error", message: e.message };
+  }
+}
+
+
 // --- Add/Update Token ---
 
 export type AddTokenState = {
@@ -22,13 +88,13 @@ export type AddTokenState = {
 };
 
 const addTokenSchema = z.object({
-  name: z.union([z.string(), z.null(), z.undefined()]).transform(v => v || undefined).optional(),
+  name: z.string().min(1, "Token name is required."),
   symbol: z.string().min(1, "Token symbol is required."),
-  chainId: z.string().optional(),
+  chainId: z.string().min(1, "Chain ID is required."),
   decimals: z.coerce.number().int().min(0).default(18),
   logoFile: z.instanceof(File).optional(),
   logo_url: z.string().url().optional(),
-  contract: z.union([z.string(), z.null(), z.undefined()]).transform(v => v || undefined).optional(),
+  contract: z.string().min(1, "Contract address is required."),
 });
 
 
@@ -81,10 +147,7 @@ export async function addToken(
     return { status: "error", message: firstError || "Invalid input." };
   }
   
-  const { logoFile, symbol, chainId, contract } = validated.data;
-  // Use symbol as a fallback for name if it's not provided.
-  const name = validated.data.name || symbol;
-  const decimals = validated.data.decimals;
+  const { logoFile, symbol, name, decimals, chainId, contract } = validated.data;
   const logoUrlFromForm = formData.get('logo_url') as string | null;
 
   try {
@@ -114,8 +177,8 @@ export async function addToken(
         }
     }
 
-    if (!finalLogoUrl && !contract) {
-       return { status: "error", message: "A logo image is required when creating a global logo." };
+    if (!finalLogoUrl) {
+       return { status: "error", message: "A logo image is required when creating a token." };
     }
     
     // Upsert into the global token_logos table if we have a logo
@@ -133,41 +196,39 @@ export async function addToken(
       }
     }
 
-    // Only save contract-specific metadata if a network and contract address are provided
-    if (contract && chainId) {
-        const chainConfig = chainsConfig.find(c => c.chainId.toString() === chainId);
-        if (!chainConfig) throw new Error("Network not found for contract-specific metadata.");
+    // Save contract-specific metadata
+    const chainConfig = chainsConfig.find(c => c.chainId.toString() === chainId);
+    if (!chainConfig) throw new Error("Network not found for contract-specific metadata.");
 
-        const tokenDetails: TokenDetails = { name, symbol, decimals, network: chainConfig.name.toLowerCase(), contract_address: contract.toLowerCase() };
-        
-        // Find logo again in case it was just added
-        if (!finalLogoUrl) {
-            const { data: logo } = await supabaseAdmin.from('token_logos').select('logo_url').eq('symbol', symbol.toUpperCase()).eq('name', name).single();
-            finalLogoUrl = logo?.logo_url;
-        }
-
-        const { error: upsertError } = await supabaseAdmin
-            .from("token_metadata")
-            .upsert({ 
-                contract_address: contract.toLowerCase(),
-                network: chainConfig.name.toLowerCase(),
-                token_details: tokenDetails,
-                logo_url: finalLogoUrl, // Store denormalized URL for faster joins
-                source: "manual",
-                verified: true,
-                fetched_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-            }, { onConflict: 'contract_address, network' });
-
-        if (upsertError) {
-          throw new Error(`Database metadata upsert error: ${upsertError.message}`);
-        }
+    const tokenDetails: TokenDetails = { name, symbol, decimals, network: chainConfig.name.toLowerCase(), contract_address: contract.toLowerCase() };
+    
+    // Find logo again in case it was just added
+    if (!finalLogoUrl) {
+        const { data: logo } = await supabaseAdmin.from('token_logos').select('logo_url').eq('symbol', symbol.toUpperCase()).eq('name', name).single();
+        finalLogoUrl = logo?.logo_url;
     }
+
+    const { error: upsertError } = await supabaseAdmin
+        .from("token_metadata")
+        .upsert({ 
+            contract_address: contract.toLowerCase(),
+            network: chainConfig.name.toLowerCase(),
+            token_details: tokenDetails,
+            logo_url: finalLogoUrl, // Store denormalized URL for faster joins
+            source: "manual",
+            verified: true,
+            fetched_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+        }, { onConflict: 'contract_address, network' });
+
+    if (upsertError) {
+      throw new Error(`Database metadata upsert error: ${upsertError.message}`);
+    }
+
 
     revalidatePath("/tokens");
     revalidatePath("/add-token");
-    revalidatePath("/upload-token");
-    return { status: "success", message: `${symbol.toUpperCase()} logo and metadata saved successfully!` };
+    return { status: "success", message: `${symbol.toUpperCase()} token and metadata saved successfully!` };
 
   } catch (e: any) {
     return { status: "error", message: e.message };
@@ -514,7 +575,7 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
             name: metadata.name,
             symbol: metadata.symbol,
             decimals: metadata.decimals,
-            logoUrl: logoUrl,
+logoUrl: logoUrl,
             source: metadata.source || 'unknown',
         };
         
@@ -524,3 +585,5 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
         return { status: "error", message: e.message, chainId, contractAddress };
     }
 }
+
+    

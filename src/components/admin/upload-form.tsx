@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useRef, useActionState, useState } from "react";
-import { addToken, type AddTokenState } from "@/lib/actions";
+import { addGlobalLogo, type AddGlobalLogoState } from "@/lib/actions";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -11,12 +11,12 @@ import { SubmitButton } from "@/components/submit-button";
 import { UploadCloud } from "lucide-react";
 import Image from "next/image";
 
-const initialState: AddTokenState = {
+const initialState: AddGlobalLogoState = {
   status: "idle",
 };
 
 export function UploadForm() {
-  const [state, formAction] = useActionState(addToken, initialState);
+  const [state, formAction] = useActionState(addGlobalLogo, initialState);
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -104,11 +104,6 @@ export function UploadForm() {
               <Input id="name" name="name" placeholder="e.g., Wrapped Ether" />
             </div>
           </div>
-          <div className="space-y-2">
-              <Label htmlFor="contract">Contract Address (Optional)</Label>
-              <Input id="contract" name="contract" placeholder="0x... (leave blank for a global symbol logo)" />
-               <p className="text-xs text-muted-foreground">If provided, this logo will also be linked to this specific contract.</p>
-          </div>
           
           <SubmitButton>Add / Update Global Logo</SubmitButton>
         </form>
@@ -116,3 +111,5 @@ export function UploadForm() {
     </Card>
   );
 }
+
+    
