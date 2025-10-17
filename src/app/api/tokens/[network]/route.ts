@@ -52,7 +52,7 @@ export async function GET(
       // --- Fetch all tokens for the network ---
       const { data, error } = await supabaseAdmin
         .from("token_metadata")
-        .select("token_details, logo_url, contract_address, network, fetched_at, updated_at, verified, source")
+        .select("token_details, logo_url, contract_address, network")
         .eq("network", network.toLowerCase());
 
       if (error) throw error;

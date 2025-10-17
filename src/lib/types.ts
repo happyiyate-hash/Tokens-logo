@@ -28,7 +28,7 @@ export type TokenMetadata = {
 export type TokenLogo = {
     id: string;
     contract: string | null;
-    symbol: string | null;
+    symbol: string;
     network: string;
     storage_path: string;
     public_url: string;
@@ -36,10 +36,13 @@ export type TokenLogo = {
 }
 
 export type ApiKey = {
-  id: string;
-  name: string;
-  key: string;
+  id: number;
+  client_name: string;
+  api_key: string;
+  role: string;
+  is_active: boolean;
   created_at: string;
+  last_used_at: string | null;
 };
 
 export type Network = {
@@ -56,6 +59,5 @@ export type TokenFetchResult = {
     symbol: string;
     decimals: number;
     logoUrl?: string | null;
+    source?: string;
 };
-
-    

@@ -4,7 +4,6 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import type { ApiKey, Network, TokenFetchResult, TokenDetails, TokenMetadata } from "@/lib/types";
-import { randomBytes } from 'crypto';
 import chainsConfig from "@/lib/chains.json";
 import { ethers } from "ethers";
 import axios from "axios";
@@ -13,7 +12,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY;
 const COINGECKO_API_URL = process.env.COINGECKO_API_URL || "https://api.coingecko.com/api/v3";
-const STORAGE_BUCKET = "logos";
+const STORAGE_BUCKET = "token_logos";
 const CACHE_TTL = Number(process.env.CACHE_TTL_MS || 7 * 24 * 3600 * 1000);
 
 // --- ERC20 ABI for RPC fallback ---
@@ -22,7 +21,6 @@ const ERC20_ABI = [
   "function symbol() view returns (string)",
   "function decimals() view returns (uint8)",
 ];
-
 
 // --- Add/Update Token ---
 
@@ -182,11 +180,12 @@ export async function addToken(
   }
 }
 
+
 // --- API Key Management ---
 
 export async function getApiKeys(): Promise<ApiKey[]> {
   const { data, error } = await supabaseAdmin
-    .from('api_keys')
+    .from('api_clients')
     .select('*')
     .order('created_at', { ascending: false });
 
@@ -200,7 +199,7 @@ export async function getApiKeys(): Promise<ApiKey[]> {
 export type GenerateApiKeyState = {
   status: "idle" | "success" | "error";
   message?: string;
-  newKey?: ApiKey;
+  newKey?: string;
 };
 
 const generateApiKeySchema = z.object({
@@ -216,29 +215,28 @@ export async function generateNewApiKey(
   if (!validated.success) {
     return { status: "error", message: "Key name is required." };
   }
-
-  const newApiKeyString = `dcdn_${randomBytes(24).toString('hex')}`;
-  const keyData = { name: validated.data.name, key: newApiKeyString };
-
-  const { data, error } = await supabaseAdmin
-    .from('api_keys')
-    .insert(keyData)
-    .select()
-    .single();
-
-  if (error) {
-    return { status: "error", message: `Failed to generate key: ${error.message}` };
-  }
   
-  revalidatePath('/api-keys');
-  return { status: "success", message: "API Key generated successfully.", newKey: data };
+  try {
+    const { data: newKey, error } = await supabaseAdmin.rpc("generate_api_key", {
+      p_client_name: validated.data.name,
+    });
+  
+    if (error) {
+      throw new Error(`Failed to generate key: ${error.message}`);
+    }
+    
+    revalidatePath('/api-keys');
+    return { status: "success", message: "API Key generated successfully.", newKey: newKey };
+  } catch (e: any) {
+     return { status: "error", message: e.message };
+  }
 }
 
 export async function deleteApiKey(
-  keyId: string,
+  keyId: number,
 ): Promise<{ status: "success" | "error", message: string }> {
   const { error } = await supabaseAdmin
-    .from('api_keys')
+    .from('api_clients')
     .delete()
     .eq('id', keyId);
 

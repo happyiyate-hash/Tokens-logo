@@ -2,7 +2,7 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 /**
- * Validates an API key against the 'api_keys' table in Supabase.
+ * Validates an API key against the 'api_clients' table in Supabase.
  * Checks for both the static PUBLIC_API_KEY and dynamic keys.
  * @param apiKey The API key to validate.
  * @returns A boolean indicating if the key is valid.
@@ -19,9 +19,10 @@ export const isValidApiKey = async (apiKey: string | null): Promise<boolean> => 
     // 2. Check against the dynamic API keys in the database
     try {
         const { data, error } = await supabaseAdmin
-          .from('api_keys')
+          .from('api_clients')
           .select('id')
-          .eq('key', apiKey)
+          .eq('api_key', apiKey)
+          .eq('is_active', true)
           .single();
         
         // If there's no error and data is found, the key is valid.

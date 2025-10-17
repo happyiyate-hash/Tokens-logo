@@ -18,10 +18,10 @@ const initialGenerateState: GenerateApiKeyState = {
 
 export function ApiKeyManager() {
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
-  const [newlyGeneratedKey, setNewlyGeneratedKey] = useState<ApiKey | null>(null);
+  const [newlyGeneratedKey, setNewlyGeneratedKey] = useState<string | null>(null);
 
-  const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
-  const [visibleKeyId, setVisibleKeyId] = useState<string | null>(null);
+  const [copiedKeyId, setCopiedKeyId] = useState<number | null>(null);
+  const [visibleKeyId, setVisibleKeyId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [isDeleting, startDeleteTransition] = useTransition();
@@ -46,15 +46,22 @@ export function ApiKeyManager() {
     } else if (generateState.status === "success") {
       toast({ title: "Success", description: generateState.message });
       if (generateState.newKey) {
-        setApiKeys(currentKeys => [generateState.newKey!, ...currentKeys]);
-        setNewlyGeneratedKey(generateState.newKey);
-        setVisibleKeyId(generateState.newKey.id);
+        // Since we get the raw key back from the RPC, we need to refetch to get the full DB row
+        async function loadKeys() {
+          const keys = await getApiKeys();
+          setApiKeys(keys);
+          const newKeyRecord = keys.find(k => k.api_key === generateState.newKey);
+          if (newKeyRecord) {
+            setNewlyGeneratedKey(newKeyRecord.api_key);
+            setVisibleKeyId(newKeyRecord.id);
+          }
+        }
+        loadKeys();
       }
-      // Reset form if needed, though useActionState doesn't automatically do this
     }
   }, [generateState, toast]);
 
-  const handleDeleteKey = async (keyId: string) => {
+  const handleDeleteKey = async (keyId: number) => {
     if (!window.confirm("Are you sure you want to delete this API key?")) return;
     
     startDeleteTransition(async () => {
@@ -68,13 +75,13 @@ export function ApiKeyManager() {
     });
   };
 
-  const handleCopy = (key: string, keyId: string) => {
+  const handleCopy = (key: string, keyId: number) => {
     navigator.clipboard.writeText(key);
     setCopiedKeyId(keyId);
     setTimeout(() => setCopiedKeyId(null), 2000);
   };
   
-  const toggleVisibility = (keyId: string) => {
+  const toggleVisibility = (keyId: number) => {
     setVisibleKeyId(currentId => currentId === keyId ? null : keyId);
   }
 
@@ -124,13 +131,13 @@ export function ApiKeyManager() {
           <ul className="space-y-4">
             {apiKeys.map((apiKey) => {
               const isVisible = visibleKeyId === apiKey.id;
-              const displayKey = isVisible ? apiKey.key : `${apiKey.key.substring(0, 5)}...${apiKey.key.slice(-4)}`;
-              const isNewlyGenerated = newlyGeneratedKey?.id === apiKey.id;
+              const displayKey = isVisible ? apiKey.api_key : `${apiKey.api_key.substring(0, 7)}...${apiKey.api_key.slice(-4)}`;
+              const isNewlyGenerated = newlyGeneratedKey === apiKey.api_key;
 
               return (
                 <li key={apiKey.id} className={`bg-card p-4 border rounded-lg shadow-sm flex items-center justify-between transition-all ${isNewlyGenerated ? 'ring-2 ring-green-500' : ''}`}>
                   <div className="flex-1 overflow-hidden">
-                    <p className="font-semibold text-lg">{apiKey.name}</p>
+                    <p className="font-semibold text-lg">{apiKey.client_name}</p>
                     <p className="text-muted-foreground font-mono text-sm break-all pr-4">{displayKey}</p>
                     <p className="text-muted-foreground text-xs mt-1">Generated: {new Date(apiKey.created_at).toLocaleString()}</p>
                   </div>
@@ -146,7 +153,7 @@ export function ApiKeyManager() {
                    <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => handleCopy(apiKey.key, apiKey.id)}
+                    onClick={() => handleCopy(apiKey.api_key, apiKey.id)}
                     title="Copy Key"
                   >
                     {copiedKeyId === apiKey.id ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
@@ -170,5 +177,3 @@ export function ApiKeyManager() {
     </div>
   );
 }
-
-    
