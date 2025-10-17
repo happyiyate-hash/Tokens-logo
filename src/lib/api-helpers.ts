@@ -1,23 +1,26 @@
 
 import { createClient } from "@supabase/supabase-js";
 
-// This helper is for validating keys against the DB, for dynamic keys.
-// For the simple, single static key, we can just compare it directly.
-
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 /**
- * Validates a dynamic API key against the 'api_keys' table in Supabase.
+ * Validates an API key against the 'api_keys' table in Supabase.
+ * Checks for both the static PUBLIC_API_KEY and dynamic keys.
  * @param apiKey The API key to validate.
  * @returns A boolean indicating if the key is valid.
  */
-export const isDynamicApiKeyValid = async (apiKey: string): Promise<boolean> => {
+export const isValidApiKey = async (apiKey: string | null): Promise<boolean> => {
     if (!apiKey) return false;
-    
-    // This function is for when you store multiple API keys in the database.
-    // For a single static key, direct comparison is simpler.
+
+    // 1. Check against the static public API key
+    const staticKey = process.env.PUBLIC_API_KEY;
+    if (staticKey && apiKey === staticKey) {
+        return true;
+    }
+
+    // 2. Check against the dynamic API keys in the database
     try {
         const { data, error } = await supabaseAdmin
           .from('api_keys')
@@ -25,27 +28,10 @@ export const isDynamicApiKeyValid = async (apiKey: string): Promise<boolean> => 
           .eq('key', apiKey)
           .single();
         
+        // If there's no error and data is found, the key is valid.
         return !error && !!data;
     } catch (e) {
         console.error("API Key validation error:", e);
         return false;
     }
-}
-
-
-/**
- * Validates a static API key from environment variables.
- * @param apiKey The client-provided API key.
- * @returns A boolean indicating if the key is valid.
- */
-export const isValidApiKey = async (apiKey: string | null): Promise<boolean> => {
-    if (!apiKey) return false;
-    
-    const validKey = process.env.PUBLIC_API_KEY;
-    if (!validKey) {
-        console.error("PUBLIC_API_KEY is not set in environment variables.");
-        return false; // Or handle as a server configuration error
-    }
-
-    return apiKey === validKey;
 };
