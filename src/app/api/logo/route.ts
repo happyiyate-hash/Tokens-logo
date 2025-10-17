@@ -41,18 +41,7 @@ export async function GET(req: Request) {
   }
   
   if (!data) {
-     // If the specific search fails, fall back to searching by symbol only
-     const { data: fallbackData, error: fallbackError } = await supabaseAdmin
-      .from('token_logos')
-      .select('logo_url')
-      .eq('symbol', symbol.toUpperCase())
-      .limit(1)
-      .maybeSingle();
-
-      if (fallbackError || !fallbackData) {
-        return NextResponse.json({ error: 'Logo not found' }, { status: 404 });
-      }
-      return NextResponse.json(fallbackData);
+    return NextResponse.json({ error: 'Logo not found' }, { status: 404 });
   }
 
   return NextResponse.json(data);
