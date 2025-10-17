@@ -27,7 +27,7 @@ export async function GET(
       // --- Fetch a single token by symbol ---
       const { data, error } = await supabaseAdmin
         .from("token_metadata")
-        .select("token_details, logo_url")
+        .select("token_details, logo_url, contract_address, network")
         .eq("network", network.toLowerCase())
         .ilike("token_details->>symbol", symbol)
         .limit(1)
@@ -41,8 +41,8 @@ export async function GET(
         symbol: data.token_details.symbol,
         name: data.token_details.name,
         decimals: data.token_details.decimals,
-        network: data.token_details.network,
-        contract: data.token_details.contract_address,
+        network: data.network,
+        contract: data.contract_address,
         logo: data.logo_url,
       };
 
@@ -74,3 +74,5 @@ export async function GET(
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
+
+    

@@ -5,21 +5,13 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import type { ApiKey, TokenFetchResult, TokenDetails, TokenMetadata } from "@/lib/types";
 import chainsConfig from "@/lib/chains.json";
-import { ethers } from "ethers";
-import axios from "axios";
-import pRetry from "p-retry";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { fetchFromExplorer, fetchFromRpc, fetchLogoFromCoinGecko, uploadLogo } from "@/lib/fetchers";
+import axios from 'axios';
 
 const STORAGE_BUCKET = "token_logos";
 const CACHE_TTL = Number(process.env.CACHE_TTL_MS || 7 * 24 * 3600 * 1000);
 
-// --- ERC20 ABI for RPC fallback ---
-const ERC20_ABI = [
-  "function name() view returns (string)",
-  "function symbol() view returns (string)",
-  "function decimals() view returns (uint8)",
-];
 
 // --- Add/Update Token ---
 
@@ -215,8 +207,6 @@ export async function deleteToken(tokenId: string): Promise<{ status: "success" 
     .single();
 
   if (token && token.logo_key) {
-    // This assumes the logo is not shared. A more robust implementation
-    // would check if any other token uses the same logo_key before deleting.
     await supabaseAdmin.storage.from(STORAGE_BUCKET).remove([token.logo_key]);
   }
 
@@ -466,3 +456,5 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
         return { status: "error", message: e.message, networkId, contractAddress };
     }
 }
+
+    
