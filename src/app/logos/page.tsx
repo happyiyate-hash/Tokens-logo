@@ -2,11 +2,12 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { TokenLogo } from "@/lib/types";
 import Image from "next/image";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { PlusCircle } from "lucide-react";
+import { PlusCircle, Pencil } from "lucide-react";
 import Link from "next/link";
+import { EditLogoDialog } from "@/components/admin/edit-logo-dialog";
 
 async function getLogos(): Promise<TokenLogo[]> {
   const { data, error } = await supabaseAdmin
@@ -32,7 +33,7 @@ export default async function LogosPage() {
             Manage Global Logos
           </h1>
           <p className="text-muted-foreground">
-            View and manage all globally available token logos in your collection.
+            View, edit, and manage all globally available token logos in your collection.
           </p>
         </div>
         <Link href="/upload-token">
@@ -67,8 +68,17 @@ export default async function LogosPage() {
                 </CardHeader>
                 <CardContent className="flex-1 space-y-2 p-4 pt-0">
                    <CardTitle className="text-lg font-bold truncate">{logo.name || logo.symbol}</CardTitle>
-                   <Badge variant="secondary">{logo.symbol}</Badge>
                 </CardContent>
+                 <CardFooter className="p-2 bg-muted/50">
+                    <Badge variant="secondary" className="mx-auto">{logo.symbol}</Badge>
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <EditLogoDialog logo={logo}>
+                        <Button variant="ghost" size="icon" title="Edit Logo">
+                            <Pencil className="h-4 w-4" />
+                        </Button>
+                      </EditLogoDialog>
+                    </div>
+                </CardFooter>
               </Card>
             ))}
           </div>
@@ -77,3 +87,5 @@ export default async function LogosPage() {
     </div>
   );
 }
+
+    

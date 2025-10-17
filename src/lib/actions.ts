@@ -83,7 +83,7 @@ export async function addGlobalLogo(
             name: finalName,
             public_url: finalLogoUrl,
             network: 'all', // Satisfy the not-null constraint for 'network'
-            storage_path: filePath, // Satisfy the not-null constraint for 'storage_path'
+            storage_path: filePath,
         });
 
       if (insertError) {
@@ -99,6 +99,110 @@ export async function addGlobalLogo(
       console.error("[addGlobalLogo Error]", e);
       return { status: "error", message: e.message };
   }
+}
+
+// --- Updater for Global Logos ---
+
+export type UpdateGlobalLogoState = {
+    status: "idle" | "success" | "error";
+    message?: string;
+};
+
+const updateGlobalLogoSchema = z.object({
+  logoId: z.string().min(1, "Logo ID is required."),
+  symbol: z.string().min(1, "Symbol is required."),
+  name: z.string().optional(),
+  logoFile: z.instanceof(File).optional(),
+});
+
+
+export async function updateGlobalLogo(
+    prevState: UpdateGlobalLogoState,
+    formData: FormData
+): Promise<UpdateGlobalLogoState> {
+    const logoFileValue = formData.get('logo');
+    const validated = updateGlobalLogoSchema.safeParse({
+        logoId: formData.get('logoId'),
+        symbol: formData.get('symbol'),
+        name: formData.get('name') || undefined,
+        logoFile: logoFileValue instanceof File && logoFileValue.size > 0 ? logoFileValue : undefined,
+    });
+
+    if (!validated.success) {
+        const fieldErrors = validated.error.flatten().fieldErrors;
+        const firstError = Object.values(fieldErrors)[0]?.[0];
+        return { status: "error", message: firstError || "Invalid input." };
+    }
+
+    const { logoId, symbol, name, logoFile } = validated.data;
+
+    try {
+        const { data: existingLogo, error: fetchError } = await supabaseAdmin
+            .from("token_logos")
+            .select("storage_path")
+            .eq("id", logoId)
+            .single();
+
+        if (fetchError || !existingLogo) {
+            throw new Error("Original logo record not found.");
+        }
+
+        let newPublicUrl: string | undefined = undefined;
+        let newStoragePath: string | undefined = undefined;
+
+        // If a new file is uploaded, handle storage operations
+        if (logoFile) {
+            // 1. Upload the new file
+            const fileContents = await logoFile.arrayBuffer();
+            const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
+            const filePath = `global/${symbol.toLowerCase()}_${Date.now()}.${ext}`;
+
+            const { error: uploadError } = await supabaseAdmin.storage
+                .from(STORAGE_BUCKET)
+                .upload(filePath, fileContents, { contentType: logoFile.type, upsert: true });
+
+            if (uploadError) {
+                throw new Error(`Storage upload error: ${uploadError.message}`);
+            }
+
+            const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+            newPublicUrl = publicUrlData.publicUrl;
+            newStoragePath = filePath;
+
+            // 2. Delete the old file from storage, if it exists
+            if (existingLogo.storage_path) {
+                await supabaseAdmin.storage.from(STORAGE_BUCKET).remove([existingLogo.storage_path]);
+            }
+        }
+
+        // Prepare the data for the database update
+        const updateData: Partial<TokenLogo> = {
+            name: name || symbol,
+        };
+        if (newPublicUrl) {
+            updateData.public_url = newPublicUrl;
+        }
+        if (newStoragePath) {
+            updateData.storage_path = newStoragePath;
+        }
+
+        // Update the database record
+        const { error: updateError } = await supabaseAdmin
+            .from("token_logos")
+            .update(updateData)
+            .eq("id", logoId);
+
+        if (updateError) {
+            throw new Error(`Database update error: ${updateError.message}`);
+        }
+
+        revalidatePath("/logos");
+        return { status: "success", message: "Logo updated successfully!" };
+
+    } catch (e: any) {
+        console.error("[updateGlobalLogo Error]", e);
+        return { status: "error", message: e.message };
+    }
 }
 
 
@@ -220,7 +324,7 @@ export async function addToken(
             name: name,
             public_url: finalLogoUrl,
             network: networkForLogo,
-            storage_path: storagePath || 'unknown' // Provide a fallback
+            storage_path: storagePath || 'unknown'
           }, { onConflict: 'symbol, network' });
 
     if (logoUpsertError) {
@@ -612,3 +716,5 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
         return { status: "error", message: e.message, chainId, contractAddress };
     }
 }
+
+    
