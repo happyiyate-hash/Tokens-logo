@@ -12,8 +12,10 @@ const ERC20_ABI = [
 ];
 
 function findChainByName(name: string) {
-    return chainsConfig.find(c => c.name.toLowerCase().includes(String(name).toLowerCase()));
+    const lowercasedName = String(name).toLowerCase();
+    return chainsConfig.find(c => c.name.toLowerCase() === lowercasedName || c.id.toLowerCase() === lowercasedName);
 }
+
 
 export async function fetchFromExplorer(contract: string, networkName: string): Promise<Partial<{ name: string, symbol: string, decimals: number, totalSupply: string, source: string }> | null> {
   const chain = findChainByName(networkName);
@@ -122,4 +124,28 @@ export async function uploadLogo(logoFile: File, contract: string, networkName: 
     }
 
     return { storage_path: path, public_url: publicUrlData.publicUrl };
+}
+
+export async function uploadLogoFromBuffer(network: string, key: string, imageBuffer: ArrayBuffer, contentType="image/png"): Promise<string> {
+  const path = `${network}/${key}`;
+  const { data, error } = await supabaseAdmin.storage.from("token_logos").upload(path, imageBuffer, { contentType, upsert: true });
+  if (error) throw error;
+  
+  const { data: publicUrlData } = supabaseAdmin.storage.from("token_logos").getPublicUrl(path);
+
+  if (!publicUrlData) {
+      throw new Error("Could not get public URL for the uploaded logo.");
+  }
+  
+  const { publicUrl } = publicUrlData;
+  
+  // upsert token_logos table
+  await supabaseAdmin.rpc("upsert_token_logo", {
+    p_contract: key.split(".")[0], // Assuming key is contract.ext
+    p_symbol: key.split(".")[0],
+    p_network: network,
+    p_storage_path: path,
+    p_public_url: publicUrl
+  });
+  return publicUrl;
 }
