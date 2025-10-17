@@ -15,49 +15,31 @@ const defaultLogo = PlaceHolderImages.find(p => p.id === 'default-token-logo')!;
 
 
 async function getTokens(networkId: string): Promise<TokenMetadata[]> {
-  if (!networkId) {
-    // If no network is selected, fetch all tokens.
-    const { data, error } = await supabaseAdmin
-      .from("token_metadata")
-      .select("*")
-      .order("updated_at", { ascending: false });
-      
-    if (error) {
-      console.error("Error fetching all tokens:", error);
+  let query = supabaseAdmin.from("token_metadata").select("*");
+
+  // If a specific network is selected, filter by it.
+  if (networkId) {
+    // First, get the network name from its ID
+    const { data: networkData, error: networkError } = await supabaseAdmin
+      .from("networks")
+      .select("name")
+      .eq("id", networkId)
+      .single();
+
+    if (networkError || !networkData) {
+      console.error("Error fetching network name:", networkError);
+      // If network lookup fails, return empty or handle as needed
       return [];
     }
-    return data;
-  }
-  
-  // First, get the network name from its ID
-  const { data: networkData, error: networkError } = await supabaseAdmin
-    .from("networks")
-    .select("name")
-    .eq("id", networkId)
-    .single();
     
-  if (networkError || !networkData) {
-      console.error("Error fetching network name:", networkError);
-      // Fallback to fetching all tokens if network lookup fails
-       const { data, error } = await supabaseAdmin
-        .from("token_metadata")
-        .select("*")
-        .order("updated_at", { ascending: false });
-      if (error) {
-        console.error("Error fetching all tokens after network failure:", error);
-        return [];
-      }
-      return data;
+    query = query.eq("network", networkData.name.toLowerCase());
   }
-  
-  const { data, error } = await supabaseAdmin
-    .from("token_metadata")
-    .select("*")
-    .eq("network", networkData.name.toLowerCase())
-    .order("updated_at", { ascending: false });
+
+  // Always order by the most recently updated.
+  const { data, error } = await query.order("updated_at", { ascending: false });
 
   if (error) {
-    console.error("Error fetching tokens for network:", error);
+    console.error("Error fetching tokens:", error);
     return [];
   }
 
