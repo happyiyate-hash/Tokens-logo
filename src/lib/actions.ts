@@ -46,11 +46,12 @@ export async function addGlobalLogo(
 
   const { logoFile, symbol, name } = validated.data;
   const finalName = name || symbol; // Use symbol as name if name is not provided
+  const upperCaseSymbol = symbol.toUpperCase();
 
   try {
       const fileContents = await logoFile.arrayBuffer();
       const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
-      const filePath = `global/${symbol.toLowerCase()}_${Date.now()}.${ext}`;
+      const filePath = `global/${upperCaseSymbol.toLowerCase()}_${Date.now()}.${ext}`;
 
       const { error: uploadError } = await supabaseAdmin.storage
         .from(STORAGE_BUCKET)
@@ -63,22 +64,34 @@ export async function addGlobalLogo(
       const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
       const finalLogoUrl = publicUrlData.publicUrl;
 
-      // Upsert into the global token_logos table.
-      const { error: logoUpsertError } = await supabaseAdmin
-          .from('token_logos')
-          .upsert({ 
-              symbol: symbol.toUpperCase(), 
-              name: finalName,
-              logo_url: finalLogoUrl 
-          }, { onConflict: 'symbol' });
+      // New Strategy: Delete then Insert to bypass schema cache issues with upsert
+      // 1. Delete any existing record for this symbol
+      const { error: deleteError } = await supabaseAdmin
+        .from('token_logos')
+        .delete()
+        .eq('symbol', upperCaseSymbol);
 
-      if (logoUpsertError) {
-          throw new Error(`Database logo upsert error: ${logoUpsertError.message}`);
+      // Ignore 'not found' errors on delete, but throw others
+      if (deleteError && deleteError.code !== 'PGRST204') {
+          throw new Error(`Database delete error: ${deleteError.message}`);
+      }
+      
+      // 2. Insert the new record
+      const { error: insertError } = await supabaseAdmin
+        .from('token_logos')
+        .insert({ 
+            symbol: upperCaseSymbol, 
+            name: finalName,
+            logo_url: finalLogoUrl 
+        });
+
+      if (insertError) {
+          throw new Error(`Database insert error: ${insertError.message}`);
       }
 
       revalidatePath("/tokens");
       revalidatePath("/upload-token");
-      return { status: "success", message: `${symbol.toUpperCase()} global logo saved successfully!` };
+      return { status: "success", message: `${upperCaseSymbol} global logo saved successfully!` };
 
   } catch (e: any) {
       console.error("[addGlobalLogo Error]", e);
