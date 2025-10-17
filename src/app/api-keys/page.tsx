@@ -13,6 +13,10 @@ import { Input } from "@/components/ui/input";
 
 const codeSnippet = `
 /**
+ * Guide 1: Fetching Token Metadata
+ */
+
+/**
  * Fetches all tokens for a given network.
  * @param {string} network - The name of the network (e.g., 'ethereum', 'polygon').
  * @param {string} apiKey - Your generated API key.
@@ -70,9 +74,13 @@ async function getTokenBySymbol(network, symbol, apiKey) {
 
 
 /**
+ * Guide 2: Fetching a Token Logo
+ */
+
+/**
  * Fetches the logo URL for a token symbol.
- * This endpoint searches for the best available logo, prioritizing network-specific
- * logos if a name is provided, then falling back to a global logo for the symbol.
+ * This endpoint searches for the best available logo. For best results, provide
+ * both a symbol and a name to avoid ambiguity with tokens that share symbols.
  * @param {string} symbol - The token's symbol (e.g., 'WETH').
  * @param {string} apiKey - Your generated API key.
  * @param {string} [name] - Optional. The token's name (e.g., 'Wrapped Ether') to find a more specific logo.
@@ -108,6 +116,7 @@ async function getLogoBySymbol(symbol, apiKey, name) {
 // --- Example Usage ---
 // const apiKey = 'wevina_...'; // Your generated API key
 //
+// // --- Metadata Examples ---
 // // 1. Get all tokens on Polygon
 // getAllTokensByNetwork('polygon', apiKey).then(tokens => {
 //   console.log('All Polygon Tokens:', tokens);
@@ -118,12 +127,14 @@ async function getLogoBySymbol(symbol, apiKey, name) {
 //   console.log('Single Token:', token);
 // });
 //
-// // 3. Get the global logo for WETH
+//
+// // --- Logo Examples ---
+// // 3. Get the global logo for WETH (less specific)
 // getLogoBySymbol('WETH', apiKey).then(logoUrl => {
-//   console.log('WETH Logo URL:', logoUrl);
+//   console.log('Generic WETH Logo URL:', logoUrl);
 // });
 //
-// // 4. Get a specific logo for a token named 'Tether' with symbol 'USDT'
+// // 4. Get a specific logo for a token named 'Tether' with symbol 'USDT' (more specific)
 // getLogoBySymbol('USDT', apiKey, 'Tether').then(logoUrl => {
 //   console.log('Specific USDT Logo URL:', logoUrl);
 // });
@@ -178,7 +189,7 @@ export default function ApiKeysPage() {
     <div className="w-full space-y-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl">
-          API Keys & Integration
+          API Keys & Integration Guide
         </h1>
         <p className="text-muted-foreground">
           Manage access and learn how to integrate the Token CDN into your apps.
@@ -207,44 +218,43 @@ export default function ApiKeysPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>How to Integrate with the CDN</CardTitle>
+          <CardTitle>How to Integrate: A Guide for Developers</CardTitle>
           <CardDescription>
-            A guide to fetching token data and logos using your generated API keys.
+            Use the Javascript examples below to fetch token data and logos using your generated API keys.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-             <Accordion type="single" collapsible className="w-full">
+             <Accordion type="single" collapsible className="w-full" defaultValue="how-it-works">
                 <AccordionItem value="how-it-works">
                     <AccordionTrigger className="text-lg font-medium">How It Works</AccordionTrigger>
                     <AccordionContent className="prose prose-invert max-w-none text-muted-foreground space-y-2">
                         <p>This CDN serves as a centralized, high-performance service for your DApps and wallets to retrieve token information. Here’s the flow:</p>
                         <ol>
-                            <li><strong>Adding Tokens:</strong> You add tokens using the "Add Token (Auto)" or "Upload Logo (Manual)" pages. The system fetches on-chain metadata (name, symbol, decimals) and stores it along with a logo URL in a central database.</li>
-                            <li><strong>Logo Storage:</strong> All logos are stored in a Supabase Storage bucket for fast, reliable delivery. Logos can be specific to a contract or global for a symbol (e.g., a single logo for WETH across all networks).</li>
-                            <li><strong>API Endpoints:</strong> The CDN exposes simple REST API endpoints to query this data.</li>
-                            <li><strong>Authentication:</strong> Every request to the API must include an API key in the <code>x-api-key</code> header. You can generate and manage these keys above.</li>
+                            <li><strong>API Keys:</strong> Generate an API key from the manager above. Every request to the API must include this key in the <code>x-api-key</code> HTTP header.</li>
+                            <li><strong>Adding Tokens:</strong> You add tokens using the "Add Token" or "Upload Logo" pages. The system stores metadata and logo URLs in a central database.</li>
+                            <li><strong>API Endpoints:</strong> The CDN exposes simple REST API endpoints to query this data, which your application will call.</li>
                         </ol>
                     </AccordionContent>
                 </AccordionItem>
                  <AccordionItem value="api-endpoints">
-                    <AccordionTrigger className="text-lg font-medium">API Endpoints</AccordionTrigger>
-                    <AccordionContent className="space-y-4">
-                        <div>
-                            <h4 className="font-semibold text-card-foreground">Fetch Token(s) by Network</h4>
+                    <AccordionTrigger className="text-lg font-medium">API Endpoint Guides</AccordionTrigger>
+                    <AccordionContent className="space-y-6">
+                        <div className="p-4 border rounded-lg bg-background/50">
+                            <h4 className="font-semibold text-card-foreground text-lg mb-2">Guide 1: Fetching Token Metadata</h4>
                             <p className="font-mono text-sm bg-muted p-2 rounded-md my-2"><code>GET /api/tokens/[network]</code></p>
                             <p className="text-muted-foreground">Returns a list of all tokens on a specific network. You can also fetch a single token by providing a symbol.</p>
                             <ul className="list-disc pl-5 mt-2 text-muted-foreground space-y-1">
-                                <li><code>[network]</code> (required): The lowercase name of the network (e.g., <code>ethereum</code>, <code>polygon</code>).</li>
-                                <li><code>symbol</code> (optional): If provided, returns only the token matching that symbol on the specified network.</li>
+                                <li><code>[network]</code> (in URL path, required): The lowercase name of the network (e.g., <code>ethereum</code>, <code>polygon</code>).</li>
+                                <li><code>symbol</code> (query param, optional): If provided, returns only the token matching that symbol on the specified network.</li>
                             </ul>
                         </div>
-                         <div>
-                            <h4 className="font-semibold text-card-foreground">Fetch Logo by Symbol</h4>
+                         <div className="p-4 border rounded-lg bg-background/50">
+                            <h4 className="font-semibold text-card-foreground text-lg mb-2">Guide 2: Fetching a Token Logo</h4>
                             <p className="font-mono text-sm bg-muted p-2 rounded-md my-2"><code>GET /api/logo</code></p>
-                            <p className="text-muted-foreground">Returns the best-available logo URL for a given token symbol. It prioritizes logos associated with a specific name/network match if provided.</p>
+                            <p className="text-muted-foreground">Returns the best-available logo URL for a given token symbol. For best results, provide both a symbol and name to avoid conflicts.</p>
                             <ul className="list-disc pl-5 mt-2 text-muted-foreground space-y-1">
-                                <li><code>symbol</code> (required): The token symbol (e.g., <code>USDC</code>, <code>WETH</code>).</li>
-                                <li><code>name</code> (optional): The token name to find a more specific logo match (e.g., 'Tether' to differentiate from other 'USDT' tokens).</li>
+                                <li><code>symbol</code> (query param, required): The token symbol (e.g., <code>USDC</code>, <code>WETH</code>).</li>
+                                <li><code>name</code> (query param, optional): The token name to find a more specific logo match (e.g., 'Tether' to differentiate from other 'USDT' tokens).</li>
                             </ul>
                         </div>
                     </AccordionContent>
