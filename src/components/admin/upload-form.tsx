@@ -100,8 +100,8 @@ export function UploadForm() {
               <Input id="symbol" name="symbol" placeholder="e.g., WETH" required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="name">Token Name (Optional)</Label>
-              <Input id="name" name="name" placeholder="e.g., Wrapped Ether" />
+              <Label htmlFor="name">Token Name</Label>
+              <Input id="name" name="name" placeholder="e.g., Wrapped Ether" required/>
             </div>
           </div>
           
@@ -111,5 +111,3 @@ export function UploadForm() {
     </Card>
   );
 }
-
-    

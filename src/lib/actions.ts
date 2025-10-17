@@ -23,35 +23,27 @@ const CACHE_TTL = Number(process.env.CACHE_TTL_MS || 7 * 24 * 3600 * 1000);
  * @param networkName The optional network name to prioritize the search (e.g., "ethereum").
  * @returns The public URL of the logo, or null if not found.
  */
-async function getLogoUrlBySymbol(symbol: string, networkName?: string): Promise<string | null> {
+async function getLogoUrlBySymbol(symbol: string, name?: string): Promise<string | null> {
     if (!symbol) return null;
     const upperCaseSymbol = symbol.toUpperCase();
 
-    // 1. Prioritize a direct match in token_metadata for the specific network if provided.
-    if (networkName) {
-        const { data: specificToken } = await supabaseAdmin
-            .from("token_metadata")
-            .select("logo_url")
-            .eq("network", networkName.toLowerCase())
-            .ilike("token_details->>symbol", upperCaseSymbol)
-            .neq("logo_url", null)
-            .limit(1)
-            .maybeSingle();
-
-        if (specificToken?.logo_url) {
-            return specificToken.logo_url;
-        }
-    }
-
-    // 2. Fallback to the global token_logos table for a generic symbol match.
-    const { data: globalLogo } = await supabaseAdmin
+    let query = supabaseAdmin
         .from("token_logos")
         .select("public_url")
-        .eq("symbol", upperCaseSymbol)
-        .limit(1)
-        .maybeSingle();
+        .eq("symbol", upperCaseSymbol);
+
+    if (name) {
+        query = query.ilike('name', `%${name}%`);
+    }
+
+    const { data, error } = await query.limit(1).maybeSingle();
+
+    if (error) {
+        console.error(`Error fetching logo for symbol ${symbol}:`, error);
+        return null;
+    }
         
-    return globalLogo?.public_url || null;
+    return data?.public_url || null;
 }
 
 
@@ -104,23 +96,17 @@ export async function addGlobalLogo(
       
       const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
       const finalLogoUrl = publicUrlData.publicUrl;
-
-      // First, delete any existing global logo for this symbol.
-      await supabaseAdmin
-        .from('token_logos')
-        .delete()
-        .eq('symbol', upperCaseSymbol);
       
-      // Then, insert the new record.
+      // Upsert the new record based on symbol and name.
       const { error: insertError } = await supabaseAdmin
         .from('token_logos')
-        .insert({ 
+        .upsert({ 
             symbol: upperCaseSymbol, 
             name: finalName,
             public_url: finalLogoUrl,
-            network: 'all', // Satisfy the not-null constraint for 'network'
             storage_path: filePath,
-        });
+        }, { onConflict: 'symbol, name', ignoreDuplicates: false });
+
 
       if (insertError) {
           throw new Error(`Database insert error: ${insertError.message}`);
@@ -314,7 +300,7 @@ export async function addToken(
     let finalLogoUrl: string | undefined = undefined;
     let storagePath: string | undefined = undefined;
 
-    // Priority: 1. Uploaded file, 2. URL from AI/fetcher (which needs ingestion)
+    // Priority: 1. Uploaded file, 2. URL from AI/fetcher (which needs ingestion), 3. Look up in global logos
     if (logoFile) {
         const fileContents = await logoFile.arrayBuffer();
         const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
@@ -335,42 +321,28 @@ export async function addToken(
             storagePath = reuploaded?.storagePath;
         } else {
             finalLogoUrl = logoUrlFromForm;
-            // Attempt to derive storage path from URL
             const urlParts = logoUrlFromForm.split(`/storage/v1/object/public/${STORAGE_BUCKET}/`);
             if (urlParts.length > 1) {
               storagePath = urlParts[1];
             }
         }
+    } else {
+        // If no logo is provided, look up the logo from the global table.
+        const existingLogoUrl = await getLogoUrlBySymbol(symbol, name);
+        if (existingLogoUrl) {
+            finalLogoUrl = existingLogoUrl;
+        }
     }
 
     if (!finalLogoUrl) {
-       return { status: "error", message: "A logo image is required when creating a token." };
+       return { status: "error", message: "A logo for this token is required. Please upload one or ensure a global logo exists for this symbol." };
     }
     
-    // Upsert into the global token_logos table if we have a logo
-    const chainConfigForLogo = chainsConfig.find(c => c.chainId.toString() === chainId);
-    const networkForLogo = chainConfigForLogo ? chainConfigForLogo.name.toLowerCase() : 'all';
-
-    const { error: logoUpsertError } = await supabaseAdmin
-        .from('token_logos')
-        .upsert({ 
-            symbol: symbol.toUpperCase(), 
-            name: name,
-            public_url: finalLogoUrl,
-            network: networkForLogo,
-            storage_path: storagePath || 'unknown'
-          }, { onConflict: 'symbol, network' });
-
-    if (logoUpsertError) {
-        throw new Error(`Database logo upsert error: ${logoUpsertError.message}`);
-    }
-    
-
     // Save contract-specific metadata
     const chainConfig = chainsConfig.find(c => c.chainId.toString() === chainId);
     if (!chainConfig) throw new Error("Network not found for contract-specific metadata.");
 
-    const tokenDetails: TokenDetails = { name, symbol, decimals, network: chainConfig.name.toLowerCase(), contract_address: contract.toLowerCase() };
+    const tokenDetails: TokenDetails = { name, symbol, decimals };
     
     const { error: upsertError } = await supabaseAdmin
         .from("token_metadata")
@@ -378,7 +350,7 @@ export async function addToken(
             contract_address: contract.toLowerCase(),
             network: chainConfig.name.toLowerCase(),
             token_details: tokenDetails,
-            logo_url: finalLogoUrl,
+            logo_url: finalLogoUrl, // The linked logo URL
             source: "manual",
             verified: true,
             fetched_at: new Date().toISOString(),
@@ -388,7 +360,6 @@ export async function addToken(
     if (upsertError) {
       throw new Error(`Database metadata upsert error: ${upsertError.message}`);
     }
-
 
     revalidatePath("/tokens");
     revalidatePath("/add-token");
@@ -511,7 +482,6 @@ export async function searchToken(
   const upperCaseSymbol = tokenSymbol.toUpperCase();
 
   try {
-    // We prioritize an exact match on a contract first. We assume a symbol might not be unique.
     const { data, error } = await supabaseAdmin
       .from("token_metadata")
       .select("*")
@@ -520,45 +490,11 @@ export async function searchToken(
       .maybeSingle();
 
     if (data && !error) {
-        // Now that we have a token, find the best logo for it.
-        const logoUrl = await getLogoUrlBySymbol(upperCaseSymbol, data.network);
-        const finalData = { ...data, logo_url: logoUrl };
-        return { status: "success", token: finalData };
+        return { status: "success", token: data };
     }
     
-    // If no contract-specific token is found, fall back to the global logos table.
-    const { data: logoData, error: logoError } = await supabaseAdmin
-      .from("token_logos")
-      .select("symbol, name, public_url")
-      .eq("symbol", upperCaseSymbol)
-      .limit(1)
-      .maybeSingle();
-    
-    if (logoError || !logoData) {
-      return { status: "error", message: `Token "${tokenSymbol}" not found in metadata or global logos.` };
-    }
-    
-    // Construct a mock TokenMetadata object for display purposes
-    const mockToken: TokenMetadata = {
-      id: logoData.symbol,
-      contract_address: 'N/A (Global Logo)',
-      network: 'All',
-      token_details: {
-        name: logoData.name || logoData.symbol,
-        symbol: logoData.symbol,
-        decimals: 18,
-        network: 'all',
-        contract_address: ''
-      },
-      logo_key: null,
-      logo_url: logoData.public_url,
-      verified: true,
-      source: 'manual',
-      fetched_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    
-    return { status: "success", token: mockToken };
+    return { status: "error", message: `Token with symbol "${tokenSymbol}" not found.` };
+
   } catch (e: any) {
     return { status: "error", message: e.message };
   }
@@ -736,22 +672,20 @@ async function getCachedToken(contract: string, chainId: number): Promise<TokenM
         return null;
     };
 
-    if (data) {
-        const logoUrl = await getLogoUrlBySymbol(data.token_details.symbol, data.network);
-        // @ts-ignore
-        data.logo_url = logoUrl || data.logo_url;
-    }
-
     return data;
 }
 
-async function findGlobalLogo(symbol: string): Promise<TokenLogo | null> {
-    const { data, error } = await supabaseAdmin
+async function findGlobalLogo(symbol: string, name?:string): Promise<TokenLogo | null> {
+    let query = supabaseAdmin
         .from("token_logos")
         .select('*')
-        .eq('symbol', symbol.toUpperCase())
-        .limit(1)
-        .maybeSingle();
+        .eq('symbol', symbol.toUpperCase());
+    
+    if (name) {
+      query = query.ilike('name', `%${name}%`);
+    }
+
+    const { data, error } = await query.limit(1).maybeSingle();
 
     if (error || !data) return null;
     return data;
@@ -771,35 +705,32 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
         const chainConfig = chainsConfig.find(c => c.chainId.toString() === chainId);
         if (!chainConfig) throw new Error(`Configuration for chainId ${chainId} not found.`);
 
-        // Check for cached version first
         if (!forceRefresh) {
             const cached = await getCachedToken(contractAddress, chainConfig.chainId);
             if (cached && (Date.now() - new Date(cached.fetched_at).getTime()) < CACHE_TTL) {
-                 const logoUrl = await getLogoUrlBySymbol(cached.token_details.symbol, cached.network);
                 return {
                     status: "success",
-                    metadata: { ...cached.token_details, logoUrl: logoUrl ?? cached.logo_url, source: cached.source },
+                    metadata: { ...cached.token_details, logoUrl: cached.logo_url, source: cached.source },
                     chainId,
                     contractAddress,
                 };
             }
         }
         
-        // Fetch fresh metadata (Explorer first, then RPC fallback)
         const metadata = await fetchTokenMetadataFromSources(contractAddress, chainConfig.name);
         
         if (!metadata || !metadata.symbol || !metadata.name || metadata.decimals === undefined) {
             throw new Error("Could not fetch complete token metadata from any source.");
         }
         
-        // Find logo using our robust, centralized function
-        const logoUrl = await getLogoUrlBySymbol(metadata.symbol, chainConfig.name);
+        // Find logo from our global table
+        const logo = await findGlobalLogo(metadata.symbol, metadata.name);
 
         const result: TokenFetchResult = {
             name: metadata.name,
             symbol: metadata.symbol,
             decimals: metadata.decimals,
-            logoUrl: logoUrl,
+            logoUrl: logo?.public_url || null,
             source: metadata.source || 'unknown',
         };
         

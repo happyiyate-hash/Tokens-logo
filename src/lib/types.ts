@@ -3,13 +3,6 @@ export type TokenDetails = {
   name: string;
   symbol: string;
   decimals: number;
-  network: string;
-  contract_address: string;
-  logo_key?: string | null; // This field can be considered deprecated
-  extra?: {
-    coingecko_id?: string;
-    links?: { [key: string]: string };
-  };
 };
 
 export type TokenMetadata = {
@@ -31,7 +24,6 @@ export type TokenLogo = {
     symbol: string;
     name?: string | null;
     public_url: string;
-    network: string; // Added to satisfy not-null constraint
     storage_path: string; // Added to satisfy not-null constraint
     description?: string | null;
     created_at: string;
