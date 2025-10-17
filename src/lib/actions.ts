@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import type { ApiKey, TokenFetchResult, TokenDetails, TokenMetadata, TokenLogo } from "@/lib/types";
 import chainsConfig from "@/lib/chains.json";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { fetchFromExplorer, fetchFromRpc } from "@/lib/fetchers";
+import { fetchTokenMetadataFromSources } from "@/lib/fetchers";
 import axios from 'axios';
 import { autoFetchMissingLogo } from '@/ai/flows/auto-fetch-missing-logos';
 
@@ -478,15 +478,7 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
         }
         
         // Fetch fresh metadata (Explorer first, then RPC fallback)
-        let metadata: Partial<TokenFetchResult> | null = await fetchFromExplorer(contractAddress, chainConfig.name);
-        
-        if (!metadata || !metadata.name || !metadata.symbol || metadata.decimals === undefined) {
-             if (chainConfig.rpc) {
-                const rpcMetadata = await fetchFromRpc(contractAddress, chainConfig.rpc);
-                // Merge explorer and RPC data, preferring RPC for core fields if available
-                metadata = { ...metadata, ...rpcMetadata };
-             }
-        }
+        const metadata = await fetchTokenMetadataFromSources(contractAddress, chainConfig.name);
         
         if (!metadata || !metadata.symbol || !metadata.name || metadata.decimals === undefined) {
             throw new Error("Could not fetch complete token metadata from any source.");
@@ -513,5 +505,3 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
         return { status: "error", message: e.message, chainId, contractAddress };
     }
 }
-
-    
