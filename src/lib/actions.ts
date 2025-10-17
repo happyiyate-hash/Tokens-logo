@@ -28,7 +28,7 @@ const addGlobalLogoSchema = z.object({
 });
 
 export async function addGlobalLogo(
-  prevState: AddGlobalLogoState,
+  prevState: AddGlobalLogoState | undefined,
   formData: FormData
 ): Promise<AddGlobalLogoState> {
   const logoFileValue = formData.get('logo');
@@ -47,12 +47,12 @@ export async function addGlobalLogo(
   const { logoFile, symbol, name } = validated.data;
   const finalName = name || symbol; // Use symbol as name if name is not provided
   const upperCaseSymbol = symbol.toUpperCase();
+  const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
+  const filePath = `global/${upperCaseSymbol.toLowerCase()}_${Date.now()}.${ext}`;
 
   try {
       const fileContents = await logoFile.arrayBuffer();
-      const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
-      const filePath = `global/${upperCaseSymbol.toLowerCase()}_${Date.now()}.${ext}`;
-
+      
       const { error: uploadError } = await supabaseAdmin.storage
         .from(STORAGE_BUCKET)
         .upload(filePath, fileContents, { contentType: logoFile.type, upsert: true });
@@ -65,15 +65,10 @@ export async function addGlobalLogo(
       const finalLogoUrl = publicUrlData.publicUrl;
 
       // First, delete any existing global logo for this symbol.
-      const { error: deleteError } = await supabaseAdmin
+      await supabaseAdmin
         .from('token_logos')
         .delete()
         .eq('symbol', upperCaseSymbol);
-
-      // We ignore 'PGRST204' which means "No rows found to delete", which is fine.
-      if (deleteError && deleteError.code !== 'PGRST204') {
-          throw new Error(`Database delete error: ${deleteError.message}`);
-      }
       
       // Then, insert the new record.
       const { error: insertError } = await supabaseAdmin
@@ -97,6 +92,8 @@ export async function addGlobalLogo(
 
   } catch (e: any) {
       console.error("[addGlobalLogo Error]", e);
+      // Attempt to clean up storage if DB insert fails
+      await supabaseAdmin.storage.from(STORAGE_BUCKET).remove([filePath]);
       return { status: "error", message: e.message };
   }
 }
@@ -117,7 +114,7 @@ const updateGlobalLogoSchema = z.object({
 
 
 export async function updateGlobalLogo(
-    prevState: UpdateGlobalLogoState,
+    prevState: UpdateGlobalLogoState | undefined,
     formData: FormData
 ): Promise<UpdateGlobalLogoState> {
     const logoFileValue = formData.get('logo');
@@ -139,7 +136,7 @@ export async function updateGlobalLogo(
     try {
         const { data: existingLogo, error: fetchError } = await supabaseAdmin
             .from("token_logos")
-            .select("storage_path")
+            .select("storage_path, public_url")
             .eq("id", logoId)
             .single();
 
@@ -147,8 +144,8 @@ export async function updateGlobalLogo(
             throw new Error("Original logo record not found.");
         }
 
-        let newPublicUrl: string | undefined = undefined;
-        let newStoragePath: string | undefined = undefined;
+        let newPublicUrl: string | undefined = existingLogo.public_url;
+        let newStoragePath: string | undefined = existingLogo.storage_path;
 
         // If a new file is uploaded, handle storage operations
         if (logoFile) {
@@ -178,14 +175,10 @@ export async function updateGlobalLogo(
         // Prepare the data for the database update
         const updateData: Partial<TokenLogo> = {
             name: name || symbol,
+            public_url: newPublicUrl,
+            storage_path: newStoragePath
         };
-        if (newPublicUrl) {
-            updateData.public_url = newPublicUrl;
-        }
-        if (newStoragePath) {
-            updateData.storage_path = newStoragePath;
-        }
-
+        
         // Update the database record
         const { error: updateError } = await supabaseAdmin
             .from("token_logos")
@@ -253,7 +246,7 @@ async function uploadLogoFromUrl(url: string, symbol: string): Promise<{publicUr
 
 
 export async function addToken(
-  prevState: AddTokenState,
+  prevState: AddTokenState | undefined,
   formData: FormData
 ): Promise<AddTokenState> {
   const logoFileValue = formData.get('logo');
@@ -393,7 +386,7 @@ const generateApiKeySchema = z.object({
 });
 
 export async function generateNewApiKey(
-  prevState: GenerateApiKeyState,
+  prevState: GenerateApiKeyState | undefined,
   formData: FormData
 ): Promise<GenerateApiKeyState> {
   const validated = generateApiKeySchema.safeParse(Object.fromEntries(formData.entries()));
@@ -464,7 +457,7 @@ const searchTokenSchema = z.object({
 });
 
 export async function searchToken(
-  prevState: SearchState,
+  prevState: SearchState | undefined,
   formData: FormData
 ): Promise<SearchState> {
   const validated = searchTokenSchema.safeParse(Object.fromEntries(formData.entries()));
@@ -542,7 +535,7 @@ const addNetworkSchema = z.object({
   explorer_api_base_url: z.string().url("Must be a valid URL."),
 });
 
-export async function addNetwork(prevState: AddNetworkState, formData: FormData): Promise<AddNetworkState> {
+export async function addNetwork(prevState: AddNetworkState | undefined, formData: FormData): Promise<AddNetworkState> {
   const validated = addNetworkSchema.safeParse(Object.fromEntries(formData.entries()));
 
   if (!validated.success) {
@@ -658,7 +651,7 @@ async function findGlobalLogo(symbol: string): Promise<TokenLogo | null> {
     return data;
 }
 
-export async function fetchTokenMetadata(prevState: FetchMetadataState, formData: FormData): Promise<FetchMetadataState> {
+export async function fetchTokenMetadata(prevState: FetchMetadataState | undefined, formData: FormData): Promise<FetchMetadataState> {
     const validated = fetchMetadataSchema.safeParse(Object.fromEntries(formData.entries()));
 
     if (!validated.success) {
@@ -716,5 +709,3 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
         return { status: "error", message: e.message, chainId, contractAddress };
     }
 }
-
-    

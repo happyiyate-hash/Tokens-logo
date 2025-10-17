@@ -1,8 +1,7 @@
 
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useActionState } from "react-dom";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { updateGlobalLogo, type UpdateGlobalLogoState } from "@/lib/actions";
 import type { TokenLogo } from "@/lib/types";
 
@@ -13,11 +12,8 @@ import { SubmitButton } from "@/components/submit-button";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { UploadCloud } from "lucide-react";
-
-const initialState: UpdateGlobalLogoState = {
-  status: "idle",
-};
+import { UploadCloud, Pencil } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 interface EditLogoDialogProps {
   logo: TokenLogo;
@@ -25,35 +21,21 @@ interface EditLogoDialogProps {
 }
 
 export function EditLogoDialog({ logo, children }: EditLogoDialogProps) {
-  const [state, formAction] = useActionState(updateGlobalLogo, initialState);
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [previewUrl, setPreviewUrl] = useState<string | null>(logo.public_url);
   const [open, setOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (state.status === "success") {
-      toast({
-        title: "Success",
-        description: state.message,
-      });
-      setOpen(false); // Close dialog on success
-    } else if (state.status === "error") {
-      toast({
-        variant: "destructive",
-        title: "Update Failed",
-        description: state.message,
-      });
-    }
-  }, [state, toast]);
-  
   // Reset form state when dialog is closed
   useEffect(() => {
     if (!open) {
       formRef.current?.reset();
       setPreviewUrl(logo.public_url);
+      setError(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -78,6 +60,27 @@ export function EditLogoDialog({ logo, children }: EditLogoDialogProps) {
     fileInputRef.current?.click();
   };
 
+  const handleSubmit = async (formData: FormData) => {
+    setError(null);
+    startTransition(async () => {
+        const result = await updateGlobalLogo(undefined, formData);
+        if (result.status === "success") {
+            toast({
+                title: "Success",
+                description: result.message,
+            });
+            setOpen(false);
+        } else {
+            toast({
+                variant: "destructive",
+                title: "Update Failed",
+                description: result.message,
+            });
+            setError(result.message ?? "An unknown error occurred.");
+        }
+    });
+  }
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
@@ -89,7 +92,7 @@ export function EditLogoDialog({ logo, children }: EditLogoDialogProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <form ref={formRef} action={formAction} className="grid gap-6 py-4">
+        <form ref={formRef} action={handleSubmit} className="grid gap-6 py-4">
             <input type="hidden" name="logoId" value={logo.id} />
             <input type="hidden" name="symbol" value={logo.symbol} />
 
@@ -140,12 +143,13 @@ export function EditLogoDialog({ logo, children }: EditLogoDialogProps) {
                 <DialogClose asChild>
                     <Button type="button" variant="secondary">Cancel</Button>
                 </DialogClose>
-                <SubmitButton>Save Changes</SubmitButton>
+                <Button type="submit" disabled={isPending}>
+                    {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Save Changes
+                </Button>
             </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
   );
 }
-
-    
