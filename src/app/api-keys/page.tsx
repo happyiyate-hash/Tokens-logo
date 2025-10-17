@@ -140,44 +140,9 @@ async function getLogoBySymbol(symbol, apiKey, name) {
 // });
 `;
 
-function CopyableInput({ id, label, value }: { id: string, label: string, value: string }) {
-    const [copied, setCopied] = useState(false);
-  
-    const handleCopy = () => {
-      navigator.clipboard.writeText(value);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    };
-  
-    return (
-      <div className="space-y-2">
-        <Label htmlFor={id}>{label}</Label>
-        <div className="relative">
-          <Input id={id} value={value} readOnly className="pr-10" />
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute top-1/2 right-2 -translate-y-1/2 h-7 w-7"
-            onClick={handleCopy}
-            title="Copy"
-          >
-            {copied ? (
-              <Check className="h-4 w-4 text-green-500" />
-            ) : (
-              <Copy className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
-      </div>
-    );
-}
 
 export default function ApiKeysPage() {
   const [copied, setCopied] = useState(false);
-  // These variables are now read from the environment by Next.js
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-
 
   const handleCopy = () => {
     navigator.clipboard.writeText(codeSnippet.trim());
@@ -195,24 +160,6 @@ export default function ApiKeysPage() {
           Manage access and learn how to integrate the Token CDN into your apps.
         </p>
       </div>
-
-       <Card>
-        <CardHeader>
-          <CardTitle>Project Connection Details</CardTitle>
-          <CardDescription>
-            These are your project's main connection details. The server uses the secret Service Role Key from your environment variables.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <CopyableInput id="supabase-url" label="Project URL (NEXT_PUBLIC_SUPABASE_URL)" value={supabaseUrl} />
-          <CopyableInput id="supabase-anon-key" label="Public Anon Key (NEXT_PUBLIC_SUPABASE_ANON_KEY)" value={supabaseAnonKey} />
-           <div className="space-y-2">
-                <Label htmlFor="supabase-service-key">Service Role Key (SUPABASE_SERVICE_ROLE_KEY)</Label>
-                <Input id="supabase-service-key" placeholder="This key is kept secret on the server" readOnly value="**************************************************************************************************" />
-                <p className="text-xs text-muted-foreground">This key is used for server-side operations and is not exposed to the public.</p>
-            </div>
-        </CardContent>
-      </Card>
 
       <ApiKeyManager />
 
