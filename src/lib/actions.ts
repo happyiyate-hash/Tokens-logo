@@ -459,7 +459,9 @@ async function findGlobalLogo(symbol: string): Promise<TokenLogo | null> {
         .from("token_logos")
         .select('*')
         .eq('symbol', symbol.toUpperCase())
-        .single();
+        .limit(1)
+        .maybeSingle();
+
     if (error || !data) return null;
     return data;
 }
@@ -522,3 +524,5 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
         return { status: "error", message: e.message, chainId, contractAddress };
     }
 }
+
+    
