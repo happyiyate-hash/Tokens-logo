@@ -82,10 +82,11 @@ export async function addGlobalLogo(
         .insert({ 
             symbol: upperCaseSymbol, 
             name: finalName,
-            logo_url: finalLogoUrl 
+            public_url: finalLogoUrl 
         });
 
       if (insertError) {
+          // This is where the schema error was happening
           throw new Error(`Database insert error: ${insertError.message}`);
       }
 
@@ -208,7 +209,7 @@ export async function addToken(
           .upsert({ 
               symbol: symbol.toUpperCase(), 
               name: name,
-              logo_url: finalLogoUrl 
+              public_url: finalLogoUrl // CORRECTED COLUMN NAME
             }, { onConflict: 'symbol' });
 
       if (logoUpsertError) {
@@ -228,7 +229,7 @@ export async function addToken(
             contract_address: contract.toLowerCase(),
             network: chainConfig.name.toLowerCase(),
             token_details: tokenDetails,
-            logo_url: finalLogoUrl, // Store denormalized URL for faster joins
+            logo_url: finalLogoUrl, // This column name is correct for 'token_metadata'
             source: "manual",
             verified: true,
             fetched_at: new Date().toISOString(),
@@ -362,14 +363,14 @@ export async function searchToken(
     // First, try to find a contract-specific token. We prioritize an exact symbol match.
     const { data, error } = await supabaseAdmin
       .from("token_metadata")
-      .select("*, token_logos(logo_url)")
+      .select("*, token_logos(public_url)") // CORRECTED COLUMN NAME
       .ilike("token_details->>symbol", tokenSymbol)
       .limit(1)
       .maybeSingle();
 
     if (data && !error) {
       // @ts-ignore
-      const finalData = { ...data, logo_url: data.token_logos?.logo_url || data.logo_url };
+      const finalData = { ...data, logo_url: data.token_logos?.public_url || data.logo_url };
       return { status: "success", token: finalData };
     }
     
@@ -377,7 +378,7 @@ export async function searchToken(
     // Here we prioritize an exact match on symbol first.
     const { data: logoData, error: logoError } = await supabaseAdmin
       .from("token_logos")
-      .select("symbol, name, logo_url")
+      .select("symbol, name, public_url") // CORRECTED COLUMN NAME
       .eq("symbol", tokenSymbol.toUpperCase())
       .limit(1)
       .single();
@@ -399,7 +400,7 @@ export async function searchToken(
         contract_address: ''
       },
       logo_key: null,
-      logo_url: logoData.logo_url,
+      logo_url: logoData.public_url, // CORRECTED FIELD
       verified: true,
       source: 'manual',
       fetched_at: new Date().toISOString(),
@@ -511,7 +512,7 @@ async function getCachedToken(contract: string, chainId: number): Promise<TokenM
     
     const { data, error } = await supabaseAdmin
         .from("token_metadata")
-        .select("*, token_logos(logo_url)")
+        .select("*, token_logos(public_url)") // CORRECTED COLUMN NAME
         .eq("contract_address", contract.toLowerCase())
         .eq("network", chainConfig.name.toLowerCase())
         .maybeSingle();
@@ -523,7 +524,7 @@ async function getCachedToken(contract: string, chainId: number): Promise<TokenM
 
     if (data) {
         // @ts-ignore
-        data.logo_url = data.token_logos?.logo_url || data.logo_url;
+        data.logo_url = data.token_logos?.public_url || data.logo_url;
     }
 
     return data;
@@ -576,7 +577,7 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
         }
         
         // Find logo: 1. Global DB, 2. AI Fetch (CoinGecko fallback)
-        let logoUrl: string | null = (await findGlobalLogo(metadata.symbol))?.logo_url || null;
+        let logoUrl: string | null = (await findGlobalLogo(metadata.symbol))?.public_url || null; // CORRECTED FIELD
         if (!logoUrl) {
             const aiResult = await autoFetchMissingLogo({ 
                 tokenSymbol: metadata.symbol,

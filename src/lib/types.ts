@@ -30,7 +30,7 @@ export type TokenLogo = {
     id: string;
     symbol: string;
     name?: string | null;
-    logo_url: string;
+    public_url: string; // CORRECTED COLUMN NAME
     description?: string | null;
     created_at: string;
 }
@@ -61,5 +61,3 @@ export type TokenFetchResult = {
     logoUrl?: string | null;
     source?: string;
 };
-
-    

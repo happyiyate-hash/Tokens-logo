@@ -21,7 +21,7 @@ export async function GET(req: Request) {
   // --- Build the query ---
   let query = supabaseAdmin
     .from('token_logos')
-    .select('logo_url')
+    .select('public_url') // CORRECTED COLUMN NAME
     .eq('symbol', symbol.toUpperCase());
 
   // If a name is provided, add it to the query for a more specific search.
@@ -44,5 +44,6 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Logo not found' }, { status: 404 });
   }
 
-  return NextResponse.json(data);
+  // Return the URL under a consistent name 'logo_url' for the API consumer
+  return NextResponse.json({ logo_url: data.public_url });
 }

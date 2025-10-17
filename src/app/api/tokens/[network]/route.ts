@@ -26,10 +26,10 @@ export async function GET(
     const getLogoUrl = async (tokenSymbol: string) => {
         const { data: logoData } = await supabaseAdmin
             .from('token_logos')
-            .select('logo_url')
+            .select('public_url') // CORRECTED COLUMN NAME
             .eq('symbol', tokenSymbol.toUpperCase())
             .single();
-        return logoData?.logo_url || null;
+        return logoData?.public_url || null; // CORRECTED FIELD
     };
 
     // 2. Handle single token fetch vs. all tokens for a network
@@ -46,7 +46,9 @@ export async function GET(
       if (error) throw error;
       if (!data) return NextResponse.json({ error: "Token not found" }, { status: 404 });
 
-      const logoUrl = await getLogoUrl(data.token_details.symbol);
+      // The logo_url in token_metadata is already denormalized and correct.
+      // We only need the helper for joins, which we are not doing here.
+      const logoUrl = data.token_details.logo_url || await getLogoUrl(data.token_details.symbol);
 
       const response = {
         success: true,
@@ -65,13 +67,14 @@ export async function GET(
       // --- Fetch all tokens for the network ---
       const { data, error } = await supabaseAdmin
         .from("token_metadata")
-        .select("token_details, contract_address, network")
+        .select("token_details, contract_address, network, logo_url") // Select logo_url directly
         .eq("network", network.toLowerCase());
 
       if (error) throw error;
 
       const tokens = await Promise.all((data || []).map(async (token) => {
-          const logoUrl = await getLogoUrl(token.token_details.symbol);
+          // Use the directly selected logo_url, fall back to querying token_logos only if needed
+          const logoUrl = token.logo_url || await getLogoUrl(token.token_details.symbol);
           return {
               symbol: token.token_details.symbol,
               name: token.token_details.name,
@@ -91,5 +94,3 @@ export async function GET(
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
-
-    
