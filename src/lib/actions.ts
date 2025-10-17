@@ -511,3 +511,5 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
         return { status: "error", message: e.message, chainId, contractAddress };
     }
 }
+
+    
