@@ -1,5 +1,4 @@
 
-import { createClient } from "@supabase/supabase-js";
 import type { TokenMetadata, Network } from "@/lib/types";
 import {
   Table,

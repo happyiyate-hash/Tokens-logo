@@ -364,10 +364,15 @@ export async function addNetwork(prevState: AddNetworkState, formData: FormData)
 
 export async function deleteNetwork(networkId: string): Promise<{ status: "success" | "error", message: string }> {
   // Before deleting a network, we should check if any tokens are using it.
+  const { data: network } = await supabaseAdmin.from("networks").select('name').eq("id", networkId).single();
+  if (!network) {
+    return { status: "error", message: "Network not found."};
+  }
+
   const { data: tokens, error: tokenError } = await supabaseAdmin
     .from("token_metadata")
     .select("id")
-    .eq("network", networkId) // This assumes network name is used in tokens table. Adjust if it's network ID.
+    .eq("network", network.name.toLowerCase()) 
     .limit(1);
 
   if (tokenError) {

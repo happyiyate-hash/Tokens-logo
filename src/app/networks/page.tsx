@@ -53,7 +53,6 @@ export default async function NetworkManagementPage() {
                   <TableHead>Chain ID</TableHead>
                   <TableHead>Network ID</TableHead>
                   <TableHead>Explorer API URL</TableHead>
-                  <TableHead>API Key ENV Var</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -72,9 +71,6 @@ export default async function NetworkManagementPage() {
                     </TableCell>
                     <TableCell className="font-code text-xs">
                       {network.explorer_api_base_url}
-                    </TableCell>
-                    <TableCell className="font-code text-xs">
-                      {network.explorer_api_key_env_var}
                     </TableCell>
                     <TableCell className="text-right">
                       <DeleteNetworkButton networkId={network.id} />

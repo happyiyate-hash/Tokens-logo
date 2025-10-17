@@ -8,7 +8,7 @@ async function getNetworks(): Promise<Network[]> {
   const { data, error } = await supabaseAdmin.from("networks").select("*").order('name', { ascending: true });
 
   if (error) {
-    console.error("Error fetching networks:", error);
+    console.error("[ Server ] Error fetching networks:", error);
     return [];
   }
 
