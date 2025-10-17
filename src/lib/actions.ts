@@ -64,29 +64,25 @@ export async function addGlobalLogo(
       const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
       const finalLogoUrl = publicUrlData.publicUrl;
 
-      // New Strategy: Delete then Insert to bypass schema cache issues with upsert
-      // 1. Delete any existing record for this symbol
       const { error: deleteError } = await supabaseAdmin
         .from('token_logos')
         .delete()
         .eq('symbol', upperCaseSymbol);
 
-      // Ignore 'not found' errors on delete, but throw others
       if (deleteError && deleteError.code !== 'PGRST204') {
           throw new Error(`Database delete error: ${deleteError.message}`);
       }
       
-      // 2. Insert the new record
       const { error: insertError } = await supabaseAdmin
         .from('token_logos')
         .insert({ 
             symbol: upperCaseSymbol, 
             name: finalName,
-            public_url: finalLogoUrl 
+            public_url: finalLogoUrl,
+            network: 'all' // Satisfy the not-null constraint
         });
 
       if (insertError) {
-          // This is where the schema error was happening
           throw new Error(`Database insert error: ${insertError.message}`);
       }
 
@@ -204,12 +200,16 @@ export async function addToken(
     
     // Upsert into the global token_logos table if we have a logo
     if (finalLogoUrl) {
+      const chainConfigForLogo = chainsConfig.find(c => c.chainId.toString() === chainId);
+      const networkForLogo = chainConfigForLogo ? chainConfigForLogo.name.toLowerCase() : 'all';
+
       const { error: logoUpsertError } = await supabaseAdmin
           .from('token_logos')
           .upsert({ 
               symbol: symbol.toUpperCase(), 
               name: name,
-              public_url: finalLogoUrl
+              public_url: finalLogoUrl,
+              network: networkForLogo
             }, { onConflict: 'symbol' });
 
       if (logoUpsertError) {

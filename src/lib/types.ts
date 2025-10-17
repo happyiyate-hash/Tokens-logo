@@ -31,6 +31,7 @@ export type TokenLogo = {
     symbol: string;
     name?: string | null;
     public_url: string;
+    network: string; // Added to satisfy not-null constraint
     description?: string | null;
     created_at: string;
 }
