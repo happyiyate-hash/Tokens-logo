@@ -18,50 +18,78 @@ const findChainByName = (networkName: string) => {
     return chainsConfig.find(c => c.name.toLowerCase() === lowercasedName);
 };
 
+// --- Helper function to attempt fetching from an explorer ---
+async function fetchFromExplorer(chain: any, contractAddress: string): Promise<Partial<TokenFetchResult> | null> {
+    const apikey = process.env.ETHERSCAN_API_KEY || "";
+    if (!chain.explorerApi) return null;
+
+    // --- Attempt 1: Using 'tokeninfo' action (less common, but direct) ---
+    try {
+        const { data } = await axios.get(chain.explorerApi, { 
+            params: {
+                module: "token",
+                action: "tokeninfo",
+                contractaddress: contractAddress,
+                apikey,
+            },
+            timeout: 5000 
+        });
+        if (data && data.status === "1" && data.result) {
+            const tokenInfo = Array.isArray(data.result) ? data.result[0] : data.result;
+            const name = decodeBytes32(tokenInfo.name || tokenInfo.tokenName);
+            const symbol = decodeBytes32(tokenInfo.symbol);
+            const decimals = tokenInfo.decimals !== undefined ? Number(tokenInfo.decimals) : undefined;
+            if (name && symbol && decimals !== undefined) {
+                return { name, symbol, decimals, source: "explorer" };
+            }
+        }
+    } catch (e) {
+        // Ignore timeout or other errors, we'll try the next method
+    }
+
+    // --- Attempt 2: Using 'tokentx' to infer details (more common) ---
+    try {
+        const { data } = await axios.get(chain.explorerApi, {
+            params: {
+                module: "account",
+                action: "tokentx",
+                contractaddress: contractAddress,
+                page: 1,
+                offset: 1,
+                apikey,
+            },
+            timeout: 5000
+        });
+
+        if (data && data.status === "1" && data.result?.length > 0) {
+            const tx = data.result[0];
+            const name = decodeBytes32(tx.tokenName);
+            const symbol = decodeBytes32(tx.tokenSymbol);
+            const decimals = tx.tokenDecimal !== undefined ? Number(tx.tokenDecimal) : undefined;
+            if (name && symbol && decimals !== undefined) {
+                return { name, symbol, decimals, source: "explorer" };
+            }
+        }
+    } catch (e) {
+        // Ignore timeout or other errors, proceed to RPC fallback
+    }
+
+    return null; // Return null if explorer methods fail
+}
+
+
 export async function fetchTokenMetadataFromSources(contractAddress: string, networkName: string): Promise<Partial<TokenFetchResult>> {
     const chain = findChainByName(networkName);
     if (!chain) throw new Error(`Unsupported network: ${networkName}`);
     
-    // 1. Try Block Explorer First (now using the correct endpoint for each chain)
-    try {
-        const params = {
-            module: "token",
-            action: "tokeninfo",
-            contractaddress: contractAddress,
-            apikey: process.env.ETHERSCAN_API_KEY || "",
-        };
-
-        const { data } = await axios.get(chain.explorerApi, { params, timeout: 8000 });
-        
-        // Etherscan-like APIs return `result` which can be an array or object.
-        if (data && data.result) {
-            // Handle cases where result is an array or a single object
-            const tokenInfo = Array.isArray(data.result) ? data.result[0] : data.result;
-
-            if (tokenInfo) {
-                // Explorer APIs have inconsistent naming, so we check multiple possibilities
-                const name = decodeBytes32(tokenInfo.tokenName || tokenInfo.name);
-                const symbol = decodeBytes32(tokenInfo.symbol);
-                const decimals = tokenInfo.decimals !== undefined && tokenInfo.decimals !== null 
-                                 ? Number(tokenInfo.decimals) 
-                                 : undefined;
-
-                // If explorer returns all key fields, we are done.
-                if (name && symbol && decimals !== undefined) {
-                    return {
-                        name,
-                        symbol,
-                        decimals,
-                        source: "explorer"
-                    };
-                }
-            }
-        }
-    } catch (e: any) {
-        console.warn(`Explorer fetch failed for ${contractAddress} on ${networkName}, falling back to RPC. Error: ${e.message}`);
+    // 1. Try Block Explorer First (with multiple methods)
+    const explorerResult = await fetchFromExplorer(chain, contractAddress);
+    if (explorerResult) {
+        return explorerResult;
     }
 
-    // 2. Fallback to RPC if explorer fails or returns partial data
+    // 2. Fallback to RPC if explorer fails
+    console.warn(`Explorer fetch failed for ${contractAddress} on ${networkName}, falling back to RPC.`);
     if (!chain.rpc) {
         throw new Error(`No RPC URL configured for network: ${networkName}`);
     }
