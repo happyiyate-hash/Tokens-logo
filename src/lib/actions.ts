@@ -39,7 +39,9 @@ export async function addGlobalLogo(
   });
 
   if (!validated.success) {
-      return { status: "error", message: validated.error.flatten().fieldErrors.logoFile?.[0] || "Invalid input." };
+      const fieldErrors = validated.error.flatten().fieldErrors;
+      const firstError = Object.values(fieldErrors)[0]?.[0];
+      return { status: "error", message: firstError || "Invalid input." };
   }
 
   const { logoFile, symbol, name } = validated.data;
@@ -75,6 +77,7 @@ export async function addGlobalLogo(
       return { status: "success", message: `${symbol.toUpperCase()} global logo saved successfully!` };
 
   } catch (e: any) {
+      console.error("[addGlobalLogo Error]", e);
       return { status: "error", message: e.message };
   }
 }
@@ -585,5 +588,3 @@ logoUrl: logoUrl,
         return { status: "error", message: e.message, chainId, contractAddress };
     }
 }
-
-    
