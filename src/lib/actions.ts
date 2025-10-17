@@ -24,7 +24,7 @@ const addTokenSchema = z.object({
   name: z.string().min(1, "Token name is required."),
   symbol: z.string().min(1, "Token symbol is required."),
   networkId: z.string().min(1, "Network ID is required."), // This is the UUID from our networks table
-  decimals: z.coerce.number().int().min(0, "Decimals must be a positive integer."),
+  decimals: z.coerce.number().int().min(0, "Decimals must be a positive integer.").optional().default(18),
   logoFile: z.instanceof(File).optional(),
   logo_url: z.string().optional(), // This can be a URL from CoinGecko fetch
   contract: z.string().optional(),
@@ -34,12 +34,13 @@ export async function addToken(
   prevState: AddTokenState,
   formData: FormData
 ): Promise<AddTokenState> {
+  const logoFileValue = formData.get('logo');
   const validated = addTokenSchema.safeParse({
       name: formData.get('name'),
       symbol: formData.get('symbol'),
       networkId: formData.get('networkId'),
       decimals: formData.get('decimals'),
-      logoFile: formData.get('logo'),
+      logoFile: logoFileValue instanceof File && logoFileValue.size > 0 ? logoFileValue : undefined,
       logo_url: formData.get('logo_url'),
       contract: formData.get('contract') || '', // Treat empty string as optional
   });
@@ -55,15 +56,6 @@ export async function addToken(
   try {
     const { data: network } = await supabaseAdmin.from("networks").select('name').eq('id', networkId).single();
     if (!network) throw new Error("Network not found.");
-
-    // If no contract, but logo is present, this is a "global symbol" logo.
-    const isGlobalSymbol = !contract && logoFile && logoFile.size > 0;
-    // If contract is present, it's a standard token.
-    const isStandardToken = !!contract;
-
-    if (!isGlobalSymbol && !isStandardToken && !logo_url) {
-        return { status: "error", message: "A contract address or a logo file is required." };
-    }
 
     let finalLogoUrl: string | undefined;
 
@@ -89,52 +81,55 @@ export async function addToken(
             console.error(`Failed to import logo from ${logo_url}: ${e.message}`);
         }
     }
+
+    if (!finalLogoUrl) {
+        return { status: "error", message: "A logo image is required. Please upload one." };
+    }
     
     // Upsert into the new global token_logos table
-    if (finalLogoUrl) {
-         const { error: logoUpsertError } = await supabaseAdmin
-            .from('token_logos')
-            .upsert(
-                { symbol: symbol.toUpperCase(), name, logo_url: finalLogoUrl },
-                { onConflict: 'symbol' }
-            );
+    const { error: logoUpsertError } = await supabaseAdmin
+        .from('token_logos')
+        .upsert(
+            { symbol: symbol.toUpperCase(), name, logo_url: finalLogoUrl },
+            { onConflict: 'symbol' }
+        );
 
-        if (logoUpsertError) {
-          throw new Error(`Database logo upsert error: ${logoUpsertError.message}`);
+    if (logoUpsertError) {
+        throw new Error(`Database logo upsert error: ${logoUpsertError.message}`);
+    }
+
+    // Only save contract-specific metadata if a contract address is provided
+    if (contract) {
+        const tokenDetails: TokenDetails = {
+            name,
+            symbol,
+            decimals,
+            network: network.name.toLowerCase(),
+            contract_address: contract.toLowerCase(),
+            logo_key: null,
+            extra: {}
+        };
+        
+        const { error: upsertError } = await supabaseAdmin.rpc('upsert_token_metadata', {
+            p_contract: contract.toLowerCase(),
+            p_network: network.name.toLowerCase(),
+            p_token_details: tokenDetails,
+            p_logo_key: null, // Deprecated
+            p_logo_url: finalLogoUrl || null,
+            p_source: "manual",
+            p_verified: true,
+        });
+
+        if (upsertError) {
+          throw new Error(`Database metadata upsert error: ${upsertError.message}`);
         }
     }
 
-    // Prepare token details for the token_metadata table
-    const tokenDetails: TokenDetails = {
-        name,
-        symbol,
-        decimals,
-        network: network.name.toLowerCase(),
-        contract_address: contract ? contract.toLowerCase() : '',
-        logo_key: null, // This field is deprecated
-        extra: {}
-    };
-    
-    // We still save metadata per network, but the logo is now global.
-    // The primary key for this table is a composite of contract and network.
-    const { error: upsertError } = await supabaseAdmin.rpc('upsert_token_metadata', {
-        p_contract: contract ? contract.toLowerCase() : symbol.toLowerCase(), // Use symbol as PK if no contract
-        p_network: network.name.toLowerCase(),
-        p_token_details: tokenDetails,
-        p_logo_key: null, // Deprecated
-        p_logo_url: finalLogoUrl || null, // We can still cache it here
-        p_source: "manual",
-        p_verified: true,
-    });
-
-    if (upsertError) {
-      throw new Error(`Database metadata upsert error: ${upsertError.message}`);
-    }
 
     revalidatePath("/tokens");
     revalidatePath("/add-token");
     revalidatePath("/upload-token");
-    return { status: "success", message: `${symbol.toUpperCase()} on ${network.name} saved successfully!` };
+    return { status: "success", message: `${symbol.toUpperCase()} logo and metadata saved successfully!` };
 
   } catch (e: any) {
     return { status: "error", message: e.message };
@@ -253,16 +248,51 @@ export async function searchToken(
   try {
     const { data, error } = await supabaseAdmin
       .from("token_metadata")
-      .select("*")
+      .select("*, token_logos(logo_url)")
       .ilike("token_details->>symbol", tokenSymbol)
       .limit(1)
       .single();
 
     if (error || !data) {
-      return { status: "error", message: `Token "${tokenSymbol}" not found.` };
+      // Fallback to searching the global logos table if no contract-specific one is found
+      const { data: logoData, error: logoError } = await supabaseAdmin
+        .from("token_logos")
+        .select("symbol, name, logo_url")
+        .ilike("symbol", tokenSymbol)
+        .limit(1)
+        .single();
+      
+      if (logoError || !logoData) {
+        return { status: "error", message: `Token "${tokenSymbol}" not found.` };
+      }
+      
+      // Construct a mock TokenMetadata object for display
+      const mockToken: TokenMetadata = {
+        id: logoData.symbol,
+        contract_address: 'N/A (Global Logo)',
+        network: 'All',
+        token_details: {
+          name: logoData.name || logoData.symbol,
+          symbol: logoData.symbol,
+          decimals: 18, // Default decimals
+          network: 'all',
+          contract_address: ''
+        },
+        logo_key: null,
+        logo_url: logoData.logo_url,
+        verified: true,
+        source: 'manual',
+        fetched_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
+      return { status: "success", token: mockToken };
     }
     
-    return { status: "success", token: data };
+    // @ts-ignore
+    const finalData = { ...data, logo_url: data.token_logos?.logo_url || data.logo_url };
+
+    return { status: "success", token: finalData };
   } catch (e: any) {
     return { status: "error", message: e.message };
   }
@@ -375,7 +405,7 @@ async function getCachedToken(contract: string, chainId: number) {
     
     const { data, error } = await supabaseAdmin
         .from("token_metadata")
-        .select("*")
+        .select("*, token_logos(logo_url)")
         .eq("contract_address", contract.toLowerCase())
         .eq("network", network.name.toLowerCase())
         .maybeSingle();
@@ -384,6 +414,11 @@ async function getCachedToken(contract: string, chainId: number) {
         console.error("Error fetching cached token:", error);
         return null;
     };
+
+    if (data) {
+        // @ts-ignore
+        data.logo_url = data.token_logos?.logo_url || data.logo_url;
+    }
 
     return data;
 }
@@ -458,5 +493,3 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
         return { status: "error", message: e.message, networkId, contractAddress };
     }
 }
-
-    
