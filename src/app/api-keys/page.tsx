@@ -8,15 +8,37 @@ import { Button } from "@/components/ui/button";
 import { Check, Copy } from "lucide-react";
 
 const codeSnippet = `
-// Example: Fetch all registered tokens on the Ethereum network
-// You can use either the network ID or its full name (e.g., "Ethereum Mainnet")
-async function getTokensByNetwork(networkIdentifier: string, apiKey: string) {
+// Example: Fetch a single token (USDT on Ethereum)
+async function getToken(network, symbol, apiKey) {
   const baseUrl = window.location.origin;
+  const url = new URL(\`\${baseUrl}/api/tokens/\${network}\`);
+  url.searchParams.set('symbol', symbol);
+
   try {
-    const response = await fetch(\`\${baseUrl}/api/tokens/\${networkIdentifier}\`, {
-      headers: {
-        'x-api-key': apiKey,
-      }
+    const response = await fetch(url.toString(), {
+      headers: { 'x-api-key': apiKey }
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error(\`API Error: \${errorData.error}\`);
+      return null;
+    }
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching token:', error);
+    return null;
+  }
+}
+
+// Example: Fetch all tokens for a network (Polygon)
+async function getAllTokens(network, apiKey) {
+  const baseUrl = window.location.origin;
+  const url = \`\${baseUrl}/api/tokens/\${network}\`;
+
+  try {
+    const response = await fetch(url, {
+      headers: { 'x-api-key': apiKey }
     });
     
     if (!response.ok) {
@@ -24,30 +46,25 @@ async function getTokensByNetwork(networkIdentifier: string, apiKey: string) {
       console.error(\`API Error: \${errorData.error}\`);
       return [];
     }
-
-    const tokenList = await response.json();
-    // tokenList is an array of token objects, e.g.:
-    // [
-    //   { name: "Tether", symbol: "USDT", decimals: 6, ..., logo_url: "..." },
-    //   { name: "Wrapped Ether", symbol: "WETH", decimals: 18, ..., logo_url: "..." }
-    // ]
-    return tokenList;
+    return response.json();
   } catch (error) {
     console.error('Error fetching token list:', error);
     return [];
   }
 }
 
+
 // --- Example Usage ---
 // const apiKey = 'dcdn_...'; // Your generated API key
 //
-// // 1. Using network name (case-insensitive, space-friendly)
-// const ethereumTokens = await getTokensByNetwork('Ethereum Mainnet', apiKey);
-// console.log('Ethereum Tokens:', ethereumTokens);
+// // 1. Get a single token
+// const usdt = await getToken('ethereum', 'USDT', apiKey);
+// console.log('USDT Token:', usdt);
 //
-// // 2. Using network ID (UUID from the 'Manage Networks' page)
-// const bscTokens = await getTokensByNetwork('your-bnb-chain-network-id', apiKey);
-// console.log('BNB Chain Tokens:', bscTokens);
+// // 2. Get all tokens on a network
+// const polygonTokens = await getAllTokens('polygon', apiKey);
+// console.log('All Polygon Tokens:', polygonTokens);
+
 `;
 
 export default function ApiKeysPage() {
@@ -76,7 +93,7 @@ export default function ApiKeysPage() {
         <CardHeader>
           <CardTitle>How to Integrate</CardTitle>
           <CardDescription>
-            Use the following Javascript function in your crypto wallet or DApp
+            Use the following Javascript functions in your crypto wallet or DApp
             to fetch token data using a generated API key.
           </CardDescription>
         </CardHeader>
