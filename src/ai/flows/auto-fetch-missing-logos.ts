@@ -10,6 +10,8 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import { fetchLogoFromCoinGeckoBySymbol } from '@/lib/fetchers';
+
 
 const AutoFetchMissingLogoInputSchema = z.object({
   tokenSymbol: z.string().describe('The symbol of the token for which to fetch the logo.'),
@@ -27,52 +29,57 @@ export async function autoFetchMissingLogo(
   return autoFetchMissingLogoFlow(input);
 }
 
-const fetchLogoFromCoinGecko = ai.defineTool({
-  name: 'fetchLogoFromCoinGecko',
-  description: 'Fetches the logo URL of a token from CoinGecko using the token symbol.',
+const findLogoTool = ai.defineTool({
+  name: 'findLogoTool',
+  description: 'Searches for a token logo URL from external sources like CoinGecko using the token symbol.',
   inputSchema: z.object({
-    tokenSymbol: z.string().describe('The symbol of the token.'),
+    symbol: z.string().describe('The symbol of the token (e.g., "BTC", "ETH", "USDT").'),
   }),
-  outputSchema: z.string().nullable().describe('The URL of the token logo, or null if not found.'),
+  outputSchema: z.string().nullable(),
 },
-async (input) => {
-  // This is a placeholder implementation.
-  // In a real application, this would call the CoinGecko API
-  // to fetch the logo URL based on the token symbol.
-  // For demonstration purposes, it always returns null.
-  console.log(`Attempting to fetch logo from CoinGecko for ${input.tokenSymbol}`);
-  return null; // Simulate logo not found
+async ({ symbol }) => {
+  try {
+    // In a real scenario, you might have multiple sources.
+    // We are using the fetcher function directly here.
+    const logoUrl = await fetchLogoFromCoinGeckoBySymbol(symbol);
+    return logoUrl;
+  } catch (error) {
+    console.error(`Error fetching logo for ${symbol}:`, error);
+    return null;
+  }
 });
 
-const autoFetchMissingLogoPrompt = ai.definePrompt({
-  name: 'autoFetchMissingLogoPrompt',
-  tools: [fetchLogoFromCoinGecko],
-  input: {schema: AutoFetchMissingLogoInputSchema},
-  output: {schema: AutoFetchMissingLogoOutputSchema},
-  prompt: `You are tasked with fetching a missing token logo.
-
-  The token symbol is: {{{tokenSymbol}}}.
-
-  Use the fetchLogoFromCoinGecko tool to find the logo URL for the token symbol.
-
-  If a logo URL is found, return it. If no logo URL is found, return null.
-  `,
-});
 
 const autoFetchMissingLogoFlow = ai.defineFlow(
   {
     name: 'autoFetchMissingLogoFlow',
     inputSchema: AutoFetchMissingLogoInputSchema,
     outputSchema: AutoFetchMissingLogoOutputSchema,
+    system: "You are an expert at finding cryptocurrency token logos. Your task is to use the provided tools to find a logo URL for a given token symbol.",
   },
-  async input => {
-    const {output} = await autoFetchMissingLogoPrompt(input);
-    
-    if (output && output.logoUrl) {
-      return { logoUrl: output.logoUrl };
+  async (input) => {
+    const llmResponse = await ai.generate({
+      prompt: `Find the logo for the token symbol: ${input.tokenSymbol}. Prioritize using the findLogoTool. If the tool returns a valid URL, output it directly. If the tool fails or returns null, you must return null.`,
+      model: 'googleai/gemini-2.5-flash',
+      tools: [findLogoTool],
+      output: {
+        schema: AutoFetchMissingLogoOutputSchema,
+      }
+    });
+
+    const toolChoice = llmResponse.choices[0].toolCalls?.[0];
+
+    if (toolChoice && toolChoice.tool.name === 'findLogoTool') {
+      const logoUrl = await toolChoice.tool.fn(toolChoice.input);
+      return { logoUrl: logoUrl ?? null };
     }
-    
-    // Fallback if the AI doesn't find a logo
+
+    // Fallback if the model doesn't use the tool as expected
+    const directOutput = llmResponse.output();
+    if(directOutput?.logoUrl) {
+      return directOutput;
+    }
+
     return { logoUrl: null };
   }
 );

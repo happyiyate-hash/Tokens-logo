@@ -15,7 +15,7 @@ const initialState: AddTokenState = {
   status: "idle",
 };
 
-export function UploadForm({ networkId }: { networkId: string }) {
+export function UploadForm() {
   const [state, formAction] = useActionState(addToken, initialState);
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
@@ -59,14 +59,13 @@ export function UploadForm({ networkId }: { networkId: string }) {
   return (
     <Card className="w-full max-w-lg border-0 shadow-none">
       <CardHeader className="p-0 pb-6 text-center">
-        <CardTitle>Add or Update Token</CardTitle>
+        <CardTitle>Add or Update Global Logo</CardTitle>
         <CardDescription>
-          Upload a logo and provide token details. The logo will be linked to the symbol globally.
+          Upload a logo and provide token details. This logo will be linked to the symbol globally.
         </CardDescription>
       </CardHeader>
       <CardContent className="p-0">
         <form ref={formRef} action={formAction} className="grid gap-6">
-          <input type="hidden" name="networkId" value={networkId} />
           
           <div className="flex justify-center">
              <input 
@@ -113,7 +112,7 @@ export function UploadForm({ networkId }: { networkId: string }) {
           <div className="space-y-2">
               <Label htmlFor="contract">Contract Address (Optional)</Label>
               <Input id="contract" name="contract" placeholder="0x... (leave blank for a global symbol logo)" />
-               <p className="text-xs text-muted-foreground">Link this logo to a specific contract on the selected network.</p>
+               <p className="text-xs text-muted-foreground">If provided, this logo will also be linked to this specific contract.</p>
           </div>
           
           <SubmitButton>Add / Update Token</SubmitButton>

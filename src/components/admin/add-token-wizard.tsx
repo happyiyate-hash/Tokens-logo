@@ -3,6 +3,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { fetchTokenMetadata, addToken, type FetchMetadataState, type AddTokenState } from "@/lib/actions";
+import { autoFetchMissingLogo } from "@/ai/flows/auto-fetch-missing-logos";
 import type { Network } from "@/lib/types";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SubmitButton } from "@/components/submit-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Terminal, CheckCircle, ArrowLeft } from "lucide-react";
+import { Terminal, CheckCircle, ArrowLeft, Loader2, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -25,13 +26,14 @@ const initialSaveState: AddTokenState = {
 }
 
 export function AddTokenWizard({ networks }: { networks: Network[] }) {
-  const [fetchState, fetchAction] = useActionState(fetchTokenMetadata, initialFetchState);
+  const [fetchState, fetchAction, isFetching] = useActionState(fetchTokenMetadata, initialFetchState);
   const [saveState, saveAction] = useActionState(addToken, initialSaveState);
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isFetchingLogo, setIsFetchingLogo] = useState(false);
 
   const step = fetchState.status === 'success' && fetchState.metadata ? 2 : 1;
 
@@ -44,12 +46,33 @@ export function AddTokenWizard({ networks }: { networks: Network[] }) {
     }
   }, [saveState, toast]);
   
-  // Set preview URL from fetched data
+  // Set preview URL from fetched data, including from our global logo table
   useEffect(() => {
     if (fetchState.status === 'success' && fetchState.metadata?.logoUrl) {
       setPreviewUrl(fetchState.metadata.logoUrl);
     }
   }, [fetchState]);
+
+  // AI-powered logo fetch
+  const handleAutoFetchLogo = async () => {
+    if (!fetchState.metadata?.symbol) return;
+    
+    setIsFetchingLogo(true);
+    try {
+        const result = await autoFetchMissingLogo({ tokenSymbol: fetchState.metadata.symbol });
+        if (result.logoUrl) {
+            setPreviewUrl(result.logoUrl);
+            toast({ title: "AI Found a Logo!", description: `A logo for ${fetchState.metadata.symbol} was found and pre-filled.` });
+        } else {
+            toast({ variant: "destructive", title: "AI Fetch Failed", description: `Could not automatically find a logo for ${fetchState.metadata.symbol}.` });
+        }
+    } catch (error) {
+        console.error("AI logo fetch error:", error);
+        toast({ variant: "destructive", title: "Error", description: "An unexpected error occurred while fetching the logo." });
+    } finally {
+        setIsFetchingLogo(false);
+    }
+  };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -70,8 +93,6 @@ export function AddTokenWizard({ networks }: { networks: Network[] }) {
     const form = document.createElement('form');
     fetchAction(new FormData(form));
     
-    // Reset save state by creating a new form data and calling the action.
-    // This is a workaround for the lack of a built-in reset for useActionState.
     const emptySaveForm = new FormData();
     saveAction(emptySaveForm);
     
@@ -116,7 +137,10 @@ export function AddTokenWizard({ networks }: { networks: Network[] }) {
                         <Label htmlFor="contractAddress">Token Contract Address</Label>
                         <Input id="contractAddress" name="contractAddress" placeholder="0x..." required />
                     </div>
-                    <SubmitButton className="w-full">Fetch Metadata</SubmitButton>
+                    <SubmitButton className="w-full" disabled={isFetching}>
+                        {isFetching && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Fetch Metadata
+                    </SubmitButton>
 
                     {fetchState.status === "error" && (
                         <Alert variant="destructive" className="mt-4">
@@ -130,13 +154,13 @@ export function AddTokenWizard({ networks }: { networks: Network[] }) {
                 <form ref={formRef} action={saveAction} className="space-y-6">
                     <input type="hidden" name="contract" value={fetchState.contractAddress} />
                     <input type="hidden" name="networkId" value={fetchState.networkId} />
-                    {fetchState.metadata?.logoUrl && <input type="hidden" name="logo_url" value={fetchState.metadata.logoUrl} />}
+                    {previewUrl && <input type="hidden" name="logo_url" value={previewUrl} />}
 
                     {fetchState.status === "success" && (
                         <Alert>
                             <CheckCircle className="h-4 w-4" />
                             <AlertTitle>Metadata Found!</AlertTitle>
-                            <AlertDescription>Verify the details below before saving. You can override the fetched logo by uploading a new one.</AlertDescription>
+                            <AlertDescription>Verify the details below before saving. You can override the fetched logo by uploading a new one, or use AI to find one.</AlertDescription>
                         </Alert>
                     )}
 
@@ -157,9 +181,15 @@ export function AddTokenWizard({ networks }: { networks: Network[] }) {
 
                     <div className="flex gap-6 items-center">
                         <div className="space-y-2 flex-1">
-                            <Label htmlFor="logo">Logo Image (Optional)</Label>
-                            <Input id="logo" name="logo" type="file" ref={fileInputRef} accept="image/png, image/jpeg, image/svg+xml, image/webp, image/gif" onChange={handleFileChange} />
-                             <p className="text-xs text-muted-foreground">You can override the logo found by uploading a new image.</p>
+                            <Label htmlFor="logo">Logo Image</Label>
+                            <div className="flex gap-2">
+                                <Input id="logo" name="logo" type="file" ref={fileInputRef} accept="image/png, image/jpeg, image/svg+xml, image/webp, image/gif" onChange={handleFileChange} />
+                                <Button type="button" variant="outline" onClick={handleAutoFetchLogo} disabled={isFetchingLogo}>
+                                    {isFetchingLogo ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                                    AI Fetch
+                                </Button>
+                            </div>
+                             <p className="text-xs text-muted-foreground">Upload a logo or use AI to find one. Found logos are pre-filled.</p>
                         </div>
                         {previewUrl && (
                             <div className="flex-shrink-0">
