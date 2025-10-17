@@ -178,12 +178,17 @@ export default function ApiKeysPage() {
         <CardHeader>
           <CardTitle>Project Connection Details</CardTitle>
           <CardDescription>
-            Use these values to connect to your Supabase project from a client-side application.
+            Use these values in your .env.local file. The server requires the Service Role Key for administrative tasks.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <CopyableInput id="supabase-url" label="Project URL" value={supabaseUrl} />
-          <CopyableInput id="supabase-anon-key" label="Public (anon) Key" value={supabaseAnonKey} />
+          <CopyableInput id="supabase-url" label="NEXT_PUBLIC_SUPABASE_URL" value={supabaseUrl} />
+          <CopyableInput id="supabase-anon-key" label="NEXT_PUBLIC_SUPABASE_ANON_KEY" value={supabaseAnonKey} />
+           <div className="space-y-2">
+                <Label htmlFor="supabase-service-key">SUPABASE_SERVICE_ROLE_KEY</Label>
+                <Input id="supabase-service-key" placeholder="Paste your Service Role Key here" readOnly value="****************** (Must be kept secret in .env.local)" />
+                <p className="text-xs text-muted-foreground">This key is used for server-side operations and must not be exposed to the public.</p>
+            </div>
         </CardContent>
       </Card>
 
