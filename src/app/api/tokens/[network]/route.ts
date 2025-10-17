@@ -3,6 +3,41 @@ import { NextResponse } from "next/server";
 import { isValidApiKey } from "@/lib/api-helpers";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
+/**
+ * A robust, centralized function to find the best available logo for a token symbol.
+ * This is a self-contained version for use within this API route.
+ */
+async function getLogoUrlBySymbol(symbol: string, networkName?: string): Promise<string | null> {
+    if (!symbol) return null;
+    const upperCaseSymbol = symbol.toUpperCase();
+
+    // 1. Prioritize a direct match in token_metadata for the specific network if provided.
+    if (networkName) {
+        const { data: specificToken } = await supabaseAdmin
+            .from("token_metadata")
+            .select("logo_url")
+            .eq("network", networkName.toLowerCase())
+            .ilike("token_details->>symbol", upperCaseSymbol)
+            .neq("logo_url", null)
+            .limit(1)
+            .maybeSingle();
+
+        if (specificToken?.logo_url) {
+            return specificToken.logo_url;
+        }
+    }
+
+    // 2. Fallback to the global token_logos table for a generic symbol match.
+    const { data: globalLogo } = await supabaseAdmin
+        .from("token_logos")
+        .select("public_url")
+        .eq("symbol", upperCaseSymbol)
+        .limit(1)
+        .maybeSingle();
+        
+    return globalLogo?.public_url || null;
+}
+
 export async function GET(
   request: Request,
   { params }: { params: { network: string } }
@@ -22,17 +57,6 @@ export async function GET(
       return NextResponse.json({ error: "Network parameter is required." }, { status: 400 });
     }
 
-    // --- Helper to get logo URL by symbol (fallback) ---
-    const getGlobalLogoBySymbol = async (tokenSymbol: string) => {
-        const { data: logoData } = await supabaseAdmin
-            .from('token_logos')
-            .select('public_url')
-            .eq('symbol', tokenSymbol.toUpperCase())
-            .limit(1)
-            .maybeSingle();
-        return logoData?.public_url || null;
-    };
-
     if (symbol) {
       // --- Fetch a single token by symbol on a specific network ---
       const { data, error } = await supabaseAdmin
@@ -46,8 +70,8 @@ export async function GET(
       if (error) throw error;
       if (!data) return NextResponse.json({ error: "Token not found" }, { status: 404 });
       
-      // Use the specific logo_url from the metadata if it exists, otherwise fall back to the global logo.
-      const logoUrl = data.logo_url || await getGlobalLogoBySymbol(data.token_details.symbol);
+      // Use the robust centralized function to get the best logo URL
+      const logoUrl = await getLogoUrlBySymbol(data.token_details.symbol, data.network);
 
       const response = {
         success: true,
@@ -72,8 +96,8 @@ export async function GET(
       if (error) throw error;
 
       const tokens = await Promise.all((data || []).map(async (token) => {
-          // Use the specific logo_url, fall back to querying the global token_logos table if needed
-          const logoUrl = token.logo_url || await getGlobalLogoBySymbol(token.token_details.symbol);
+          // Use the robust centralized function to find the best logo for each token
+          const logoUrl = await getLogoUrlBySymbol(token.token_details.symbol, token.network);
           return {
               symbol: token.token_details.symbol,
               name: token.token_details.name,

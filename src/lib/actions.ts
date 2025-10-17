@@ -14,6 +14,47 @@ const STORAGE_BUCKET = "token_logos";
 const CACHE_TTL = Number(process.env.CACHE_TTL_MS || 7 * 24 * 3600 * 1000);
 
 
+// --- Internal Centralized Logo Fetcher ---
+/**
+ * A robust, centralized function to find the best available logo for a token symbol.
+ * It checks contract-specific metadata first, then falls back to the global logo table.
+ * This is an internal function and should not be exposed as an action.
+ * @param symbol The token symbol to look up (e.g., "USDT").
+ * @param networkName The optional network name to prioritize the search (e.g., "ethereum").
+ * @returns The public URL of the logo, or null if not found.
+ */
+async function getLogoUrlBySymbol(symbol: string, networkName?: string): Promise<string | null> {
+    if (!symbol) return null;
+    const upperCaseSymbol = symbol.toUpperCase();
+
+    // 1. Prioritize a direct match in token_metadata for the specific network if provided.
+    if (networkName) {
+        const { data: specificToken } = await supabaseAdmin
+            .from("token_metadata")
+            .select("logo_url")
+            .eq("network", networkName.toLowerCase())
+            .ilike("token_details->>symbol", upperCaseSymbol)
+            .neq("logo_url", null)
+            .limit(1)
+            .maybeSingle();
+
+        if (specificToken?.logo_url) {
+            return specificToken.logo_url;
+        }
+    }
+
+    // 2. Fallback to the global token_logos table for a generic symbol match.
+    const { data: globalLogo } = await supabaseAdmin
+        .from("token_logos")
+        .select("public_url")
+        .eq("symbol", upperCaseSymbol)
+        .limit(1)
+        .maybeSingle();
+        
+    return globalLogo?.public_url || null;
+}
+
+
 // --- Uploader for Global Logos ---
 
 export type AddGlobalLogoState = {
@@ -467,36 +508,37 @@ export async function searchToken(
   }
   
   const { tokenSymbol } = validated.data;
+  const upperCaseSymbol = tokenSymbol.toUpperCase();
 
   try {
-    // First, try to find a contract-specific token. We prioritize an exact symbol match.
+    // We prioritize an exact match on a contract first. We assume a symbol might not be unique.
     const { data, error } = await supabaseAdmin
       .from("token_metadata")
-      .select("*, token_logos(public_url)")
-      .ilike("token_details->>symbol", tokenSymbol)
+      .select("*")
+      .ilike("token_details->>symbol", upperCaseSymbol)
       .limit(1)
       .maybeSingle();
 
     if (data && !error) {
-      // @ts-ignore
-      const finalData = { ...data, logo_url: data.token_logos?.public_url || data.logo_url };
-      return { status: "success", token: finalData };
+        // Now that we have a token, find the best logo for it.
+        const logoUrl = await getLogoUrlBySymbol(upperCaseSymbol, data.network);
+        const finalData = { ...data, logo_url: logoUrl };
+        return { status: "success", token: finalData };
     }
     
-    // If not found, fall back to the global logos table.
-    // Here we prioritize an exact match on symbol first.
+    // If no contract-specific token is found, fall back to the global logos table.
     const { data: logoData, error: logoError } = await supabaseAdmin
       .from("token_logos")
       .select("symbol, name, public_url")
-      .eq("symbol", tokenSymbol.toUpperCase())
+      .eq("symbol", upperCaseSymbol)
       .limit(1)
-      .single();
+      .maybeSingle();
     
     if (logoError || !logoData) {
       return { status: "error", message: `Token "${tokenSymbol}" not found in metadata or global logos.` };
     }
     
-    // Construct a mock TokenMetadata object for display since it's a global logo
+    // Construct a mock TokenMetadata object for display purposes
     const mockToken: TokenMetadata = {
       id: logoData.symbol,
       contract_address: 'N/A (Global Logo)',
@@ -504,7 +546,7 @@ export async function searchToken(
       token_details: {
         name: logoData.name || logoData.symbol,
         symbol: logoData.symbol,
-        decimals: 18, // Default decimals for display
+        decimals: 18,
         network: 'all',
         contract_address: ''
       },
@@ -684,7 +726,7 @@ async function getCachedToken(contract: string, chainId: number): Promise<TokenM
     
     const { data, error } = await supabaseAdmin
         .from("token_metadata")
-        .select("*, token_logos(public_url)")
+        .select("*")
         .eq("contract_address", contract.toLowerCase())
         .eq("network", chainConfig.name.toLowerCase())
         .maybeSingle();
@@ -695,8 +737,9 @@ async function getCachedToken(contract: string, chainId: number): Promise<TokenM
     };
 
     if (data) {
+        const logoUrl = await getLogoUrlBySymbol(data.token_details.symbol, data.network);
         // @ts-ignore
-        data.logo_url = data.token_logos?.public_url || data.logo_url;
+        data.logo_url = logoUrl || data.logo_url;
     }
 
     return data;
@@ -732,9 +775,10 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
         if (!forceRefresh) {
             const cached = await getCachedToken(contractAddress, chainConfig.chainId);
             if (cached && (Date.now() - new Date(cached.fetched_at).getTime()) < CACHE_TTL) {
+                 const logoUrl = await getLogoUrlBySymbol(cached.token_details.symbol, cached.network);
                 return {
                     status: "success",
-                    metadata: { ...cached.token_details, logoUrl: cached.logo_url, source: cached.source },
+                    metadata: { ...cached.token_details, logoUrl: logoUrl ?? cached.logo_url, source: cached.source },
                     chainId,
                     contractAddress,
                 };
@@ -748,15 +792,8 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
             throw new Error("Could not fetch complete token metadata from any source.");
         }
         
-        // Find logo: 1. Global DB, 2. AI Fetch (CoinGecko fallback)
-        let logoUrl: string | null = (await findGlobalLogo(metadata.symbol))?.public_url || null;
-        if (!logoUrl) {
-            const aiResult = await autoFetchMissingLogo({ 
-                tokenSymbol: metadata.symbol,
-                tokenName: metadata.name,
-            });
-            logoUrl = aiResult.logoUrl;
-        }
+        // Find logo using our robust, centralized function
+        const logoUrl = await getLogoUrlBySymbol(metadata.symbol, chainConfig.name);
 
         const result: TokenFetchResult = {
             name: metadata.name,
@@ -772,6 +809,3 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
         return { status: "error", message: e.message, chainId, contractAddress };
     }
 }
-
-
-    
