@@ -1,6 +1,7 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { isValidApiKey } from "@/lib/api-helpers";
 
 // Initialize Supabase client (private, server-only)
 const supabase = createClient(
@@ -19,7 +20,7 @@ export async function GET(
     const clientKey = request.headers.get("x-api-key");
     
     // 1. Validate API Key
-    if (clientKey !== process.env.PUBLIC_API_KEY) {
+    if (!await isValidApiKey(clientKey)) {
       return NextResponse.json({ error: "Invalid or missing API key" }, { status: 403 });
     }
 
@@ -62,22 +63,20 @@ export async function GET(
 
       if (error) throw error;
 
-      const response = (data || []).map(token => ({
-          contract_address: token.contract_address,
+      const tokens = (data || []).map(token => ({
+          symbol: token.token_details.symbol,
+          name: token.token_details.name,
+          decimals: token.token_details.decimals,
           network: token.network,
-          token_details: token.token_details,
-          logo_url: token.logo_url || null,
-          verified: token.verified,
-          source: token.source,
-          fetched_at: token.fetched_at,
-          updated_at: token.updated_at,
+          contract: token.contract_address,
+          logo: token.logo_url || null,
       }));
 
-      return NextResponse.json(response);
+      return NextResponse.json(tokens);
     }
 
   } catch (err: any) {
-    console.error("Error fetching token:", err);
+    console.error("Error fetching token(s):", err);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
