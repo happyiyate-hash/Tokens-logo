@@ -271,7 +271,7 @@ export async function searchToken(
   const { tokenSymbol } = validated.data;
 
   try {
-    // First, try to find a contract-specific token.
+    // First, try to find a contract-specific token. We prioritize an exact symbol match.
     const { data, error } = await supabaseAdmin
       .from("token_metadata")
       .select("*, token_logos(logo_url)")
@@ -286,10 +286,11 @@ export async function searchToken(
     }
     
     // If not found, fall back to the global logos table.
+    // Here we prioritize an exact match on symbol first.
     const { data: logoData, error: logoError } = await supabaseAdmin
       .from("token_logos")
       .select("symbol, name, logo_url")
-      .ilike("symbol", tokenSymbol)
+      .eq("symbol", tokenSymbol.toUpperCase())
       .limit(1)
       .single();
     
@@ -487,7 +488,10 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState, formData
         // Find logo: 1. Global DB, 2. AI Fetch
         let logoUrl: string | null = (await findGlobalLogo(metadata.symbol))?.logo_url || null;
         if (!logoUrl) {
-            const aiResult = await autoFetchMissingLogo({ tokenSymbol: metadata.symbol });
+            const aiResult = await autoFetchMissingLogo({ 
+                tokenSymbol: metadata.symbol,
+                tokenName: metadata.name,
+            });
             logoUrl = aiResult.logoUrl;
         }
 
