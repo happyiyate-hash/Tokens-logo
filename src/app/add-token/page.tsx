@@ -22,7 +22,7 @@ export default async function AddTokenPage() {
         <div className="w-full space-y-8">
             <div>
                 <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl">Add a New Token</h1>
-                <p className="text-muted-foreground">A two-step process to add a token by fetching its metadata first.</p>
+                <p className="text-muted-foreground">A smart, two-step process to add a token by first fetching its on-chain data and logo.</p>
             </div>
             
             <AddTokenWizard networks={networks} />

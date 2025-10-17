@@ -4,7 +4,7 @@
 import { useEffect, useRef, useActionState, useState } from "react";
 import { addToken, type AddTokenState } from "@/lib/actions";
 import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/submit-button";
@@ -30,6 +30,7 @@ export function UploadForm() {
       });
       formRef.current?.reset();
       setPreviewUrl(null);
+      if(fileInputRef.current) fileInputRef.current.value = "";
     } else if (state.status === "error") {
       toast({
         variant: "destructive",
@@ -57,14 +58,8 @@ export function UploadForm() {
   };
 
   return (
-    <Card className="w-full max-w-lg border-0 shadow-none">
-      <CardHeader className="p-0 pb-6 text-center">
-        <CardTitle>Add or Update Global Logo</CardTitle>
-        <CardDescription>
-          Upload a logo and provide token details. This logo will be linked to the symbol globally.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="p-0">
+    <Card className="w-full max-w-md border-2 border-dashed shadow-none">
+      <CardContent className="p-6">
         <form ref={formRef} action={formAction} className="grid gap-6">
           
           <div className="flex justify-center">
@@ -99,14 +94,14 @@ export function UploadForm() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="name">Token Name</Label>
-              <Input id="name" name="name" placeholder="e.g., Tether" required />
-            </div>
+          <div className="grid grid-cols-1 gap-4">
             <div className="space-y-2">
               <Label htmlFor="symbol">Symbol</Label>
-              <Input id="symbol" name="symbol" placeholder="e.g., USDT" required />
+              <Input id="symbol" name="symbol" placeholder="e.g., WETH" required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="name">Token Name (Optional)</Label>
+              <Input id="name" name="name" placeholder="e.g., Wrapped Ether" />
             </div>
           </div>
           <div className="space-y-2">
@@ -115,7 +110,7 @@ export function UploadForm() {
                <p className="text-xs text-muted-foreground">If provided, this logo will also be linked to this specific contract.</p>
           </div>
           
-          <SubmitButton>Add / Update Token</SubmitButton>
+          <SubmitButton>Add / Update Global Logo</SubmitButton>
         </form>
       </CardContent>
     </Card>

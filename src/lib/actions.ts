@@ -22,7 +22,7 @@ export type AddTokenState = {
 };
 
 const addTokenSchema = z.object({
-  name: z.string().min(1, "Token name is required."),
+  name: z.string().min(1, "Token name is required.").optional(), // Name is optional for global logo uploads
   symbol: z.string().min(1, "Token symbol is required."),
   networkId: z.string().optional(), // Optional, for global logos
   decimals: z.coerce.number().int().min(0).optional().default(18),
@@ -65,7 +65,7 @@ export async function addToken(
 ): Promise<AddTokenState> {
   const logoFileValue = formData.get('logo');
   const validated = addTokenSchema.safeParse({
-      name: formData.get('name'),
+      name: formData.get('name') || undefined,
       symbol: formData.get('symbol'),
       networkId: formData.get('networkId'),
       decimals: formData.get('decimals'),
@@ -102,26 +102,34 @@ export async function addToken(
         finalLogoUrl = reuploadedUrl ?? logo_url; // Fallback to original URL if re-upload fails
     }
 
-    if (!finalLogoUrl) {
-       return { status: "error", message: "A logo image is required. Please upload one or fetch one." };
+    if (!finalLogoUrl && !contract) {
+       return { status: "error", message: "A logo image is required when creating a global logo." };
     }
     
-    // Upsert into the global token_logos table
-    const { error: logoUpsertError } = await supabaseAdmin
-        .from('token_logos')
-        .upsert({ symbol: symbol.toUpperCase(), name, logo_url: finalLogoUrl }, { onConflict: 'symbol' });
+    // Upsert into the global token_logos table if we have a logo
+    if (finalLogoUrl) {
+      const { error: logoUpsertError } = await supabaseAdmin
+          .from('token_logos')
+          .upsert({ symbol: symbol.toUpperCase(), name, logo_url: finalLogoUrl }, { onConflict: 'symbol' });
 
-    if (logoUpsertError) {
-        throw new Error(`Database logo upsert error: ${logoUpsertError.message}`);
+      if (logoUpsertError) {
+          throw new Error(`Database logo upsert error: ${logoUpsertError.message}`);
+      }
     }
 
     // Only save contract-specific metadata if a network and contract address are provided
-    if (contract && networkId) {
+    if (contract && networkId && name) { // Name is required for specific metadata
         const { data: network } = await supabaseAdmin.from("networks").select('name').eq('id', networkId).single();
         if (!network) throw new Error("Network not found for contract-specific metadata.");
 
         const tokenDetails: TokenDetails = { name, symbol, decimals, network: network.name.toLowerCase(), contract_address: contract.toLowerCase() };
         
+        // Find logo again in case it was just added
+        if (!finalLogoUrl) {
+            const { data: logo } = await supabaseAdmin.from('token_logos').select('logo_url').eq('symbol', symbol.toUpperCase()).single();
+            finalLogoUrl = logo?.logo_url;
+        }
+
         const { error: upsertError } = await supabaseAdmin
             .from("token_metadata")
             .upsert({ 

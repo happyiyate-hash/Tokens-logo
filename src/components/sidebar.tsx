@@ -12,7 +12,7 @@ const navigation = [
   { name: "Search", href: "/search", icon: Search },
   { name: "Manage Tokens", href: "/tokens", icon: List },
    { name: "Add Token (Auto)", href: "/add-token", icon: PlusCircle },
-   { name: "Upload Token (Manual)", href: "/upload-token", icon: Upload },
+   { name: "Upload Logo (Manual)", href: "/upload-token", icon: Upload },
   { name: "Manage Networks", href: "/networks", icon: NetworkIcon },
   { name: "API Keys", href: "/api-keys", icon: KeyRound },
 ];

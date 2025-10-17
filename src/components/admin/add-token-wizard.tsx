@@ -160,7 +160,7 @@ export function AddTokenWizard({ networks }: { networks: Network[] }) {
                         <Alert>
                             <CheckCircle className="h-4 w-4" />
                             <AlertTitle>Metadata Found!</AlertTitle>
-                            <AlertDescription>Verify the details below before saving. You can override the fetched logo by uploading a new one, or use AI to find one.</AlertDescription>
+                            <AlertDescription>Verify the details below. A logo was pre-filled from our global library or by AI. You can override it by uploading a new one.</AlertDescription>
                         </Alert>
                     )}
 
