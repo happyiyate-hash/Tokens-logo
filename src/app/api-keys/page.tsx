@@ -71,15 +71,20 @@ async function getTokenBySymbol(network, symbol, apiKey) {
 
 /**
  * Fetches the logo URL for a token symbol.
- * This endpoint returns the globally available logo for a symbol, regardless of network.
+ * This endpoint searches for the best available logo, prioritizing network-specific
+ * logos if a name is provided, then falling back to a global logo for the symbol.
  * @param {string} symbol - The token's symbol (e.g., 'WETH').
  * @param {string} apiKey - Your generated API key.
+ * @param {string} [name] - Optional. The token's name (e.g., 'Wrapped Ether') to find a more specific logo.
  * @returns {Promise<string|null>} The logo URL or null on error.
  */
-async function getLogoBySymbol(symbol, apiKey) {
+async function getLogoBySymbol(symbol, apiKey, name) {
     const baseUrl = window.location.origin;
     const url = new URL(\`\${baseUrl}/api/logo\`);
     url.searchParams.set('symbol', symbol);
+    if (name) {
+      url.searchParams.set('name', name);
+    }
 
     try {
         const response = await fetch(url.toString(), {
@@ -116,6 +121,11 @@ async function getLogoBySymbol(symbol, apiKey) {
 // // 3. Get the global logo for WETH
 // getLogoBySymbol('WETH', apiKey).then(logoUrl => {
 //   console.log('WETH Logo URL:', logoUrl);
+// });
+//
+// // 4. Get a specific logo for a token named 'Tether' with symbol 'USDT'
+// getLogoBySymbol('USDT', apiKey, 'Tether').then(logoUrl => {
+//   console.log('Specific USDT Logo URL:', logoUrl);
 // });
 `;
 
@@ -229,11 +239,12 @@ export default function ApiKeysPage() {
                             </ul>
                         </div>
                          <div>
-                            <h4 className="font-semibold text-card-foreground">Fetch Global Logo by Symbol</h4>
+                            <h4 className="font-semibold text-card-foreground">Fetch Logo by Symbol</h4>
                             <p className="font-mono text-sm bg-muted p-2 rounded-md my-2"><code>GET /api/logo</code></p>
-                            <p className="text-muted-foreground">Returns the globally-stored logo URL for a given token symbol.</p>
+                            <p className="text-muted-foreground">Returns the best-available logo URL for a given token symbol. It prioritizes logos associated with a specific name/network match if provided.</p>
                             <ul className="list-disc pl-5 mt-2 text-muted-foreground space-y-1">
                                 <li><code>symbol</code> (required): The token symbol (e.g., <code>USDC</code>, <code>WETH</code>).</li>
+                                <li><code>name</code> (optional): The token name to find a more specific logo match (e.g., 'Tether' to differentiate from other 'USDT' tokens).</li>
                             </ul>
                         </div>
                     </AccordionContent>

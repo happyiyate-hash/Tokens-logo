@@ -22,22 +22,22 @@ export async function GET(
       return NextResponse.json({ error: "Network parameter is required." }, { status: 400 });
     }
 
-    // --- Helper to get logo URL ---
-    const getLogoUrl = async (tokenSymbol: string) => {
+    // --- Helper to get logo URL by symbol (fallback) ---
+    const getGlobalLogoBySymbol = async (tokenSymbol: string) => {
         const { data: logoData } = await supabaseAdmin
             .from('token_logos')
             .select('public_url')
             .eq('symbol', tokenSymbol.toUpperCase())
-            .single();
+            .limit(1)
+            .maybeSingle();
         return logoData?.public_url || null;
     };
 
-    // 2. Handle single token fetch vs. all tokens for a network
     if (symbol) {
-      // --- Fetch a single token by symbol ---
+      // --- Fetch a single token by symbol on a specific network ---
       const { data, error } = await supabaseAdmin
         .from("token_metadata")
-        .select("token_details, contract_address, network")
+        .select("token_details, contract_address, network, logo_url")
         .eq("network", network.toLowerCase())
         .ilike("token_details->>symbol", symbol)
         .limit(1)
@@ -45,10 +45,9 @@ export async function GET(
 
       if (error) throw error;
       if (!data) return NextResponse.json({ error: "Token not found" }, { status: 404 });
-
-      // The logo_url in token_metadata is already denormalized and correct.
-      // We only need the helper for joins, which we are not doing here.
-      const logoUrl = data.token_details.logo_url || await getLogoUrl(data.token_details.symbol);
+      
+      // Use the specific logo_url from the metadata if it exists, otherwise fall back to the global logo.
+      const logoUrl = data.logo_url || await getGlobalLogoBySymbol(data.token_details.symbol);
 
       const response = {
         success: true,
@@ -67,14 +66,14 @@ export async function GET(
       // --- Fetch all tokens for the network ---
       const { data, error } = await supabaseAdmin
         .from("token_metadata")
-        .select("token_details, contract_address, network, logo_url") // Select logo_url directly
+        .select("token_details, contract_address, network, logo_url")
         .eq("network", network.toLowerCase());
 
       if (error) throw error;
 
       const tokens = await Promise.all((data || []).map(async (token) => {
-          // Use the directly selected logo_url, fall back to querying token_logos only if needed
-          const logoUrl = token.logo_url || await getLogoUrl(token.token_details.symbol);
+          // Use the specific logo_url, fall back to querying the global token_logos table if needed
+          const logoUrl = token.logo_url || await getGlobalLogoBySymbol(token.token_details.symbol);
           return {
               symbol: token.token_details.symbol,
               name: token.token_details.name,
