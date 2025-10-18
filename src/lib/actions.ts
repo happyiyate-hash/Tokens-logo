@@ -308,7 +308,7 @@ export async function generateNewApiKey(
   }
   
   try {
-    // Generate the key directly in the server action.
+    // Generate the key directly in the server action. This is more robust.
     const { data: uuidData } = await supabaseAdmin.rpc('uuid_generate_v4');
     if (!uuidData) throw new Error("Failed to generate UUID from database.");
     const newKey = `wevina_${uuidData.replace(/-/g, '')}`;
@@ -323,7 +323,8 @@ export async function generateNewApiKey(
         .single();
   
     if (error) {
-      throw new Error(`Failed to generate key: ${error.message}`);
+      // This will catch unique constraint violations if the key somehow already exists.
+      throw new Error(`Failed to insert new key: ${error.message}`);
     }
     
     revalidatePath('/api-keys');
