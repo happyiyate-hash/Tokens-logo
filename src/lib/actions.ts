@@ -62,9 +62,9 @@ export async function addGlobalLogo(
   const upperCaseSymbol = symbol.toUpperCase();
   const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
   
-  // The storage path is now just based on the symbol for simplicity.
-  // The database will link the symbol to this path.
-  const filePath = `global/${upperCaseSymbol.toLowerCase()}.${ext}`;
+  // The storage path now includes the name to ensure uniqueness for shared symbols.
+  const sanitizedName = name.toLowerCase().replace(/\s+/g, '-');
+  const filePath = `global/${sanitizedName}-${upperCaseSymbol.toLowerCase()}.${ext}`;
 
   try {
       const fileContents = await logoFile.arrayBuffer();
@@ -79,15 +79,15 @@ export async function addGlobalLogo(
       
       const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
       
-      // Upsert the new record based on symbol. Name helps with uniqueness.
+      // Upsert based on the NAME column to allow different logos for the same symbol.
       const { error: insertError } = await supabaseAdmin
         .from('token_logos')
         .upsert({ 
             symbol: upperCaseSymbol, 
-            name: name,
-            public_url: publicUrlData.publicUrl, // Direct URL to Supabase (The Origin)
+            name: name, // The name is now the unique key for this operation
+            public_url: publicUrlData.publicUrl,
             storage_path: filePath,
-        }, { onConflict: 'symbol', ignoreDuplicates: false });
+        }, { onConflict: 'name', ignoreDuplicates: false });
 
 
       if (insertError) {
@@ -97,7 +97,7 @@ export async function addGlobalLogo(
       revalidatePath("/tokens");
       revalidatePath("/upload-token");
       revalidatePath("/logos");
-      return { status: "success", message: `${upperCaseSymbol} global logo saved successfully!` };
+      return { status: "success", message: `Logo for ${name} (${upperCaseSymbol}) saved successfully!` };
 
   } catch (e: any) {
       console.error("[addGlobalLogo Error]", e);
@@ -160,7 +160,8 @@ export async function updateGlobalLogo(
         if (logoFile) {
             const fileContents = await logoFile.arrayBuffer();
             const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
-            const filePath = `global/${symbol.toLowerCase()}.${ext}`;
+            const sanitizedName = name.toLowerCase().replace(/\s+/g, '-');
+            const filePath = `global/${sanitizedName}-${symbol.toLowerCase()}.${ext}`;
 
             const { error: uploadError } = await supabaseAdmin.storage
                 .from(STORAGE_BUCKET)
