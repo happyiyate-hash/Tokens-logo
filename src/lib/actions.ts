@@ -308,16 +308,26 @@ export async function generateNewApiKey(
   }
   
   try {
-    const { data: newKeyRecord, error } = await supabaseAdmin.rpc("generate_api_key", {
-      p_client_name: validated.data.name,
-    });
+    // Generate the key directly in the server action.
+    const { data: uuidData } = await supabaseAdmin.rpc('uuid_generate_v4');
+    if (!uuidData) throw new Error("Failed to generate UUID from database.");
+    const newKey = `wevina_${uuidData.replace(/-/g, '')}`;
+
+    const { data, error } = await supabaseAdmin
+        .from('api_clients')
+        .insert({
+            client_name: validated.data.name,
+            api_key: newKey
+        })
+        .select()
+        .single();
   
     if (error) {
       throw new Error(`Failed to generate key: ${error.message}`);
     }
     
     revalidatePath('/api-keys');
-    return { status: "success", message: "API Key generated successfully.", newKey: newKeyRecord };
+    return { status: "success", message: "API Key generated successfully.", newKey: data.api_key };
   } catch (e: any) {
      return { status: "error", message: e.message };
   }
@@ -661,5 +671,3 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
         return { status: "error", message: `Could not find token with address ${contractAddress} on ${chainConfig.name}. Error: ${error.message}` };
     }
 }
-
-    
