@@ -8,9 +8,9 @@ import chainsConfig from "@/lib/chains.json";
 
 // This is the new function that ONLY uses the Etherscan V2 API structure.
 async function fetchFromEtherscanV2(chainId: number, contractAddress: string): Promise<Partial<TokenFetchResult>> {
-    const apiKey = process.env.ETHERSCAN_API_KEY;
+    const apiKey = process.env.ETHERSCAN_V2_API_KEY;
     if (!apiKey) {
-        throw new Error("Etherscan API key is not configured in environment variables (ETHERSCAN_API_KEY).");
+        throw new Error("Etherscan API key is not configured in environment variables (ETHERSCAN_V2_API_KEY).");
     }
 
     const chain = chainsConfig.find(c => c.chainId === chainId);
@@ -18,11 +18,12 @@ async function fetchFromEtherscanV2(chainId: number, contractAddress: string): P
         throw new Error(`Explorer API endpoint not configured for chain ID ${chainId}.`);
     }
 
-    // The baseUrl is now dynamically selected from the chains.json config
+    // The baseUrl is now the unified V2 endpoint.
     const baseUrl = chain.explorerApi;
     
     const params = {
-        // chainid is NOT needed for the individual explorer APIs, only for the unified V2 endpoint
+        // **BUG FIX**: The chainid parameter was missing from the request.
+        chainid: chainId,
         module: "token",
         action: "tokeninfo",
         contractaddress: contractAddress,
@@ -46,6 +47,7 @@ async function fetchFromEtherscanV2(chainId: number, contractAddress: string): P
             throw new Error(`Explorer API Error: ${errorMessage}`);
         }
         
+        // Etherscan V2 returns an array for tokeninfo
         const tokenInfo = data.result[0];
         
         if (!tokenInfo || !tokenInfo.symbol || !tokenInfo.name) {
@@ -56,7 +58,7 @@ async function fetchFromEtherscanV2(chainId: number, contractAddress: string): P
             name: tokenInfo.name,
             symbol: tokenInfo.symbol,
             decimals: Number(tokenInfo.decimals) || 18, // Fallback to 18 if decimals is missing/falsy
-            source: `${chain.name} Explorer`
+            source: `Etherscan V2 API (${chain.name})`
         };
 
     } catch (e: any) {
@@ -67,7 +69,7 @@ async function fetchFromEtherscanV2(chainId: number, contractAddress: string): P
 
 
 export async function fetchTokenMetadataFromSources(contractAddress: string, chainId: number): Promise<Partial<TokenFetchResult>> {
-    // Per your final instructions, we now ONLY use the Etherscan V2-like API fetcher.
+    // Only use the corrected Etherscan V2 fetcher.
     return fetchFromEtherscanV2(chainId, contractAddress);
 }
 
