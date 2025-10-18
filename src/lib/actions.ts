@@ -554,7 +554,7 @@ export type FetchMetadataState = {
 
 const fetchMetadataSchema = z.object({
   contractAddress: z.string().min(1, "Contract address is required."),
-  // chainId is no longer required from the form
+  chainId: z.string().min(1, "Network selection is required."),
 });
 
 async function getCachedToken(contract: string, networkName: string): Promise<TokenMetadata | null> {
@@ -577,56 +577,53 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
     const validated = fetchMetadataSchema.safeParse(Object.fromEntries(formData.entries()));
 
     if (!validated.success) {
-        return { status: "error", message: "A contract address is required." };
+        return { status: "error", message: "Contract address and network are required." };
     }
 
-    const { contractAddress } = validated.data;
+    const { contractAddress, chainId } = validated.data;
     const forceRefresh = formData.get("forceRefresh") === "true";
-  
-    // Iterate through all configured chains
-    for (const chainConfig of chainsConfig) {
-      try {
-        if (!forceRefresh) {
-            const cached = await getCachedToken(contractAddress, chainConfig.name);
-            if (cached && (Date.now() - new Date(cached.fetched_at).getTime()) < CACHE_TTL) {
-                return {
-                    status: "success",
-                    metadata: { ...cached.token_details, logoUrl: cached.logo_url, source: `cache (${cached.source})` },
-                    chainId: chainConfig.chainId.toString(),
-                    contractAddress,
-                };
-            }
-        }
-        
-        const metadata = await fetchTokenMetadataFromSources(contractAddress, chainConfig.name);
-        
-        // If metadata is found, we've found our token.
-        if (metadata && metadata.symbol && metadata.name && metadata.decimals !== undefined) {
-             const logoUrl = getCdnLogoUrl(metadata.symbol);
 
-            const result: TokenFetchResult = {
-                name: metadata.name,
-                symbol: metadata.symbol,
-                decimals: metadata.decimals,
-                logoUrl: logoUrl,
-                source: `${metadata.source} on ${chainConfig.name}`,
-            };
-            
-            return { 
-              status: "success", 
-              metadata: result, 
-              chainId: chainConfig.chainId.toString(),
-              contractAddress 
-            };
-        }
-      } catch (error) {
-        // This is expected if the contract isn't on the current chain, so we just continue to the next one.
-        // We log it quietly for debugging purposes.
-        // console.log(`Contract ${contractAddress} not found on ${chainConfig.name}. Trying next chain.`);
-      }
+    const chainConfig = chainsConfig.find(c => c.chainId.toString() === chainId);
+    if (!chainConfig) {
+      return { status: "error", message: "Invalid network selected." };
     }
+  
+    try {
+      if (!forceRefresh) {
+          const cached = await getCachedToken(contractAddress, chainConfig.name);
+          if (cached && (Date.now() - new Date(cached.fetched_at).getTime()) < CACHE_TTL) {
+              return {
+                  status: "success",
+                  metadata: { ...cached.token_details, logoUrl: cached.logo_url, source: `cache (${cached.source})` },
+                  chainId: chainConfig.chainId.toString(),
+                  contractAddress,
+              };
+          }
+      }
+      
+      const metadata = await fetchTokenMetadataFromSources(contractAddress, chainConfig.name);
+      
+      if (metadata && metadata.symbol && metadata.name && metadata.decimals !== undefined) {
+          const logoUrl = getCdnLogoUrl(metadata.symbol);
 
-    // If we get here, the token was not found on any network.
-    return { status: "error", message: `Could not find token with address ${contractAddress} on any supported network.` };
+          const result: TokenFetchResult = {
+              name: metadata.name,
+              symbol: metadata.symbol,
+              decimals: metadata.decimals,
+              logoUrl: logoUrl,
+              source: `${metadata.source} on ${chainConfig.name}`,
+          };
+          
+          return { 
+            status: "success", 
+            metadata: result, 
+            chainId: chainConfig.chainId.toString(),
+            contractAddress 
+          };
+      } else {
+        throw new Error("Incomplete metadata received from sources.");
+      }
+    } catch (error: any) {
+        return { status: "error", message: `Could not find token with address ${contractAddress} on ${chainConfig.name}. Error: ${error.message}` };
+    }
 }
-

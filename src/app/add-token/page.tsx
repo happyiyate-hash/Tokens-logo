@@ -1,7 +1,7 @@
 
 import { AddTokenWizard } from "@/components/admin/add-token-wizard";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { Network } from "@/lib/types";
-import chainsConfig from "@/lib/chains.json";
 
 // The Network type needs a unique ID for keys and values, which chainId provides.
 // We also need to map the chainId to the name for the backend action.
@@ -11,18 +11,24 @@ type DropdownNetwork = {
   name: string;
 };
 
-// This function now reads directly from the chains.json file
-// and formats it for use in the AddTokenWizard component.
+// This function now reads from the 'networks' table in Supabase
 async function getNetworks(): Promise<DropdownNetwork[]> {
-  const networks = chainsConfig.map(chain => ({
-    id: chain.chainId.toString(), // Use the chainId as the unique identifier
-    name: chain.name,
-  }));
-  
-  // Sort networks alphabetically by name
-  networks.sort((a, b) => a.name.localeCompare(b.name));
+    const { data, error } = await supabaseAdmin
+        .from("networks")
+        .select("chain_id, name")
+        .order("name", { ascending: true });
+    
+    if (error) {
+        console.error("[AddTokenPage] Error fetching networks:", error);
+        return [];
+    }
 
-  return networks;
+    const networks = data.map(chain => ({
+        id: chain.chain_id.toString(), // Use the chainId as the unique identifier
+        name: chain.name,
+    }));
+
+    return networks;
 }
 
 export default async function AddTokenPage() {

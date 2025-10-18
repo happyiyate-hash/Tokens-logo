@@ -8,6 +8,7 @@ import { autoFetchMissingLogo } from "@/ai/flows/auto-fetch-missing-logos";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SubmitButton } from "@/components/submit-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal, CheckCircle, ArrowLeft, Loader2, Sparkles, Search } from "lucide-react";
@@ -26,7 +27,7 @@ const initialSaveState: AddTokenState = {
 // A simplified type for the dropdown networks
 type DropdownNetwork = {
   id: string; // Corresponds to chainId
-  name: string;
+  name:string;
 };
 
 
@@ -82,7 +83,7 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
                         Step {step}: {step === 1 ? "Find Token By Contract" : "Verify & Save Token"}
                     </CardTitle>
                     <CardDescription>
-                        {step === 1 ? "Enter a contract address. The system will search for it across all supported networks." : "Verify the metadata. The logo will be automatically linked from your global library."}
+                        {step === 1 ? "Select a network and enter a contract address to find its metadata." : "Verify the metadata. The logo will be automatically linked from your global library."}
                     </CardDescription>
                 </div>
                 {step === 2 && <Button variant="ghost" onClick={handleReset}><ArrowLeft className="mr-2 h-4 w-4"/>Start Over</Button>}
@@ -91,10 +92,27 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
         <CardContent>
             {step === 1 ? (
                 <form action={fetchAction} className="space-y-6">
-                     <div className="space-y-2">
-                        <Label htmlFor="contractAddress">Token Contract Address</Label>
-                        <Input id="contractAddress" name="contractAddress" placeholder="0x..." required />
-                    </div>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                           <Label htmlFor="chainId">Network</Label>
+                           <Select name="chainId" required>
+                                <SelectTrigger id="chainId">
+                                    <SelectValue placeholder="Select a network..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {networks.map((network) => (
+                                    <SelectItem key={network.id} value={network.id}>
+                                        {network.name}
+                                    </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                           <Label htmlFor="contractAddress">Token Contract Address</Label>
+                           <Input id="contractAddress" name="contractAddress" placeholder="0x..." required />
+                        </div>
+                     </div>
                     <SubmitButton className="w-full" disabled={isFetching}>
                         {isFetching && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         <Search className="mr-2 h-4 w-4" />
