@@ -273,7 +273,7 @@ export type AddTokenState = {
 const addTokenSchema = z.object({
   name: z.string().min(1, "Token name is required."),
   symbol: z.string().min(1, "Token symbol is required."),
-  chainId: z.string().min(1, "Chain ID is required."),
+  networkId: z.string().min(1, "Network ID is required."),
   decimals: z.coerce.number().int().min(0).default(18),
   contract: z.string().min(1, "Contract address is required."),
 });
@@ -286,7 +286,7 @@ export async function addToken(
   const validated = addTokenSchema.safeParse({
       name: formData.get('name'),
       symbol: formData.get('symbol'),
-      chainId: formData.get('chainId'),
+      networkId: formData.get('networkId'),
       decimals: formData.get('decimals'),
       contract: formData.get('contract'), 
   });
@@ -297,13 +297,21 @@ export async function addToken(
     return { status: "error", message: firstError || "Invalid input." };
   }
   
-  const { symbol, name, decimals, chainId, contract } = validated.data;
+  const { symbol, name, decimals, networkId, contract } = validated.data;
   
   try {
     const finalLogoUrl = getCdnLogoUrl(name, symbol);
     
-    const chainConfig = chainsConfig.find(c => c.chainId.toString() === chainId);
-    if (!chainConfig) throw new Error("Network not found for contract-specific metadata.");
+    // Use the networkId to get the network name directly from the database.
+    const { data: network, error: networkError } = await supabaseAdmin
+      .from('networks')
+      .select('name')
+      .eq('id', networkId)
+      .single();
+
+    if (networkError || !network) {
+      throw new Error("Network not found for the provided ID.");
+    }
 
     const tokenDetails: TokenDetails = { name, symbol, decimals };
     
@@ -311,7 +319,7 @@ export async function addToken(
         .from("token_metadata")
         .upsert({ 
             contract_address: contract.toLowerCase(),
-            network: chainConfig.name.toLowerCase(),
+            network: network.name.toLowerCase(),
             token_details: tokenDetails,
             logo_url: finalLogoUrl, // The linked CDN URL
             source: "manual",
@@ -646,13 +654,13 @@ export type FetchMetadataState = {
   status: "idle" | "success" | "error";
   message?: string;
   metadata?: TokenFetchResult;
-  chainId?: string;
+  networkId?: string;
   contractAddress?: string;
 }
 
 const fetchMetadataSchema = z.object({
   contractAddress: z.string().min(1, "Contract address is required."),
-  chainId: z.string().min(1, "Network selection is required."),
+  networkId: z.string().min(1, "Network selection is required."),
 });
 
 async function getCachedToken(contract: string, networkName: string): Promise<TokenMetadata | null> {
@@ -678,28 +686,33 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
         return { status: "error", message: "Contract address and network are required." };
     }
 
-    const { contractAddress, chainId } = validated.data;
+    const { contractAddress, networkId } = validated.data;
     const forceRefresh = formData.get("forceRefresh") === "true";
 
-    const chainConfig = chainsConfig.find(c => c.chainId.toString() === chainId);
-    if (!chainConfig) {
+    const { data: network, error: networkError } = await supabaseAdmin
+        .from('networks')
+        .select('name, chain_id')
+        .eq('id', networkId)
+        .single();
+
+    if (networkError || !network) {
       return { status: "error", message: "Invalid network selected." };
     }
   
     try {
       if (!forceRefresh) {
-          const cached = await getCachedToken(contractAddress, chainConfig.name);
+          const cached = await getCachedToken(contractAddress, network.name);
           if (cached && (Date.now() - new Date(cached.fetched_at).getTime()) < CACHE_TTL) {
               return {
                   status: "success",
                   metadata: { ...cached.token_details, logoUrl: cached.logo_url, source: `cache (${cached.source})` },
-                  chainId: chainConfig.chainId.toString(),
+                  networkId: networkId,
                   contractAddress,
               };
           }
       }
       
-      const metadata = await fetchTokenMetadataFromSources(contractAddress, chainConfig.name);
+      const metadata = await fetchTokenMetadataFromSources(contractAddress, network.chain_id);
       
       if (metadata && metadata.symbol && metadata.name && metadata.decimals !== undefined) {
           const { data: logoResult } = await autoFetchMissingLogo({ tokenSymbol: metadata.symbol, tokenName: metadata.name });
@@ -709,19 +722,21 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
               symbol: metadata.symbol,
               decimals: metadata.decimals,
               logoUrl: logoResult?.logoUrl ?? getCdnLogoUrl(metadata.name, metadata.symbol),
-              source: `${metadata.source} on ${chainConfig.name}`,
+              source: `${metadata.source} on ${network.name}`,
           };
           
           return { 
             status: "success", 
             metadata: result, 
-            chainId: chainConfig.chainId.toString(),
+            networkId: networkId,
             contractAddress 
           };
       } else {
         throw new Error("Incomplete metadata received from sources.");
       }
     } catch (error: any) {
-        return { status: "error", message: `Could not find token with address ${contractAddress} on ${chainConfig.name}. Error: ${error.message}` };
+        return { status: "error", message: `Could not find token with address ${contractAddress} on ${network.name}. Error: ${error.message}` };
     }
 }
+
+    

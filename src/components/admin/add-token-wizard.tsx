@@ -24,9 +24,9 @@ const initialSaveState: AddTokenState = {
     status: "idle",
 }
 
-// A simplified type for the dropdown networks
+// The component receives networks with { id, name }
 type DropdownNetwork = {
-  id: string; // Corresponds to chainId
+  id: string; // This is the UUID from the database
   name:string;
 };
 
@@ -119,9 +119,9 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
                 <form action={fetchAction} className="space-y-6">
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                           <Label htmlFor="chainId">Network</Label>
-                           <Select name="chainId" required>
-                                <SelectTrigger id="chainId">
+                           <Label htmlFor="networkId">Network</Label>
+                           <Select name="networkId" required>
+                                <SelectTrigger id="networkId">
                                     <SelectValue placeholder="Select a network..." />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -155,7 +155,7 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
             ) : (
                 <form ref={formRef} action={saveAction} className="space-y-6">
                     <input type="hidden" name="contract" value={fetchState.contractAddress} />
-                    <input type="hidden" name="chainId" value={fetchState.chainId} />
+                    <input type="hidden" name="networkId" value={fetchState.networkId} />
                     
                     {fetchState.status === "success" && (
                         <Alert>

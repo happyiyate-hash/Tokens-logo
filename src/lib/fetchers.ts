@@ -3,26 +3,19 @@
 
 import axios from "axios";
 import type { TokenFetchResult } from "@/lib/types";
-import chainsConfig from "@/lib/chains.json";
 import pRetry from 'p-retry';
 
-const findChainByName = (networkName: string) => {
-    const lowercasedName = networkName.toLowerCase();
-    return chainsConfig.find(c => c.name.toLowerCase() === lowercasedName);
-};
-
 // This is the new function that ONLY uses the Etherscan V2 API.
-async function fetchFromEtherscanV2(chain: any, contractAddress: string): Promise<Partial<TokenFetchResult>> {
+async function fetchFromEtherscanV2(chainId: number, contractAddress: string): Promise<Partial<TokenFetchResult>> {
     const apiKey = process.env.ETHERSCAN_API_KEY;
     if (!apiKey) {
         throw new Error("Etherscan API key is not configured in environment variables (ETHERSCAN_API_KEY).");
     }
 
-    // The base URL for the unified Etherscan V2 API
     const baseUrl = "https://api.etherscan.io/v2/api";
     
     const params = {
-        chainid: chain.chainId,
+        chainid: chainId,
         module: "token",
         action: "tokeninfo",
         contractaddress: contractAddress,
@@ -34,15 +27,13 @@ async function fetchFromEtherscanV2(chain: any, contractAddress: string): Promis
             retries: 2,
             minTimeout: 500,
             onFailedAttempt: error => {
-                console.warn(`Etherscan API attempt ${error.attemptNumber} failed. Retries left: ${error.retriesLeft}.`);
+                console.warn(`Etherscan API attempt ${error.attemptNumber} failed for chain ${chainId}. Retries left: ${error.retriesLeft}.`);
             }
         });
 
         const { data } = response;
 
-        // Check for an error response from the Etherscan API
         if (data.status === "0" || data.message !== "OK") {
-            // Sometimes the error is in result (e.g. "Error! Invalid contract address")
             const errorMessage = typeof data.result === 'string' ? data.result : data.message;
             throw new Error(`Etherscan API Error: ${errorMessage}`);
         }
@@ -57,23 +48,19 @@ async function fetchFromEtherscanV2(chain: any, contractAddress: string): Promis
             name: tokenInfo.name,
             symbol: tokenInfo.symbol,
             decimals: Number(tokenInfo.decimals) || 18,
-            source: `Etherscan API on ${chain.name}`
+            source: `Etherscan API V2`
         };
 
     } catch (e: any) {
-        console.error(`Etherscan V2 API call failed for ${contractAddress} on ${chain.name}:`, e.message);
+        console.error(`Etherscan V2 API call failed for ${contractAddress} on chain ${chainId}:`, e.message);
         throw new Error(`Could not fetch token details from Etherscan API. Ensure the address is valid and the network is supported.`);
     }
 }
 
 
-export async function fetchTokenMetadataFromSources(contractAddress: string, networkName: string): Promise<Partial<TokenFetchResult>> {
-    const chain = findChainByName(networkName);
-    if (!chain) throw new Error(`Unsupported network: ${networkName}`);
-    
+export async function fetchTokenMetadataFromSources(contractAddress: string, chainId: number): Promise<Partial<TokenFetchResult>> {
     // As per your final instruction, we now ONLY use the Etherscan V2 API fetcher.
-    // All RPC logic has been removed.
-    return fetchFromEtherscanV2(chain, contractAddress);
+    return fetchFromEtherscanV2(chainId, contractAddress);
 }
 
 
@@ -95,3 +82,5 @@ export async function fetchLogoFromCoinGeckoBySymbol(symbol: string): Promise<st
     return null;
   }
 }
+
+    
