@@ -38,6 +38,7 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
   const formRef = useRef<HTMLFormElement>(null);
   
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isAiSearching, setIsAiSearching] = useState(false);
   const [isLogoAvailable, setIsLogoAvailable] = useState(false);
 
   const step = fetchState.status === 'success' && fetchState.metadata ? 2 : 1;
@@ -51,14 +52,38 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
     }
   }, [saveState, toast]);
   
-  // Set preview URL from fetched data, including from our global logo table
+  // New effect to handle AI logo fetching
   useEffect(() => {
-    if (fetchState.status === 'success' && fetchState.metadata?.logoUrl) {
-      setPreviewUrl(fetchState.metadata.logoUrl);
-      // We assume if a URL is generated, the logo exists in the global table.
-      setIsLogoAvailable(true); 
+    if (step === 2 && fetchState.status === 'success' && fetchState.metadata) {
+      const { logoUrl, symbol, name } = fetchState.metadata;
+      if (logoUrl) {
+        setPreviewUrl(logoUrl);
+        setIsLogoAvailable(true);
+      } else if (symbol && name) {
+        // If no logo URL is present, trigger the AI to find one.
+        setIsAiSearching(true);
+        autoFetchMissingLogo({ tokenSymbol: symbol, tokenName: name })
+          .then(result => {
+            if (result.logoUrl) {
+              setPreviewUrl(result.logoUrl);
+              toast({ title: "AI Found a Logo!", description: `Found a logo for ${symbol} using external sources.` });
+              setIsLogoAvailable(true);
+            } else {
+              toast({ variant: "destructive", title: "No Logo Found", description: `Could not find a logo for ${symbol}. Please upload one manually.` });
+              setIsLogoAvailable(false);
+            }
+          })
+          .catch(err => {
+            console.error("AI logo fetch error:", err);
+            toast({ variant: "destructive", title: "AI Search Failed", description: "The AI agent could not search for a logo."});
+            setIsLogoAvailable(false);
+          })
+          .finally(() => {
+            setIsAiSearching(false);
+          });
+      }
     }
-  }, [fetchState]);
+  }, [step, fetchState, toast]);
 
   const handleReset = () => {
     // A bit of a hack to reset the fetch state to initial
@@ -83,7 +108,7 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
                         Step {step}: {step === 1 ? "Find Token By Contract" : "Verify & Save Token"}
                     </CardTitle>
                     <CardDescription>
-                        {step === 1 ? "Select a network and enter a contract address to find its metadata." : "Verify the metadata. The logo will be automatically linked from your global library."}
+                        {step === 1 ? "Select a network and enter a contract address to find its metadata." : "Verify the metadata. If a logo isn't found in your library, the AI will try to find one."}
                     </CardDescription>
                 </div>
                 {step === 2 && <Button variant="ghost" onClick={handleReset}><ArrowLeft className="mr-2 h-4 w-4"/>Start Over</Button>}
@@ -136,7 +161,7 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
                         <Alert>
                             <CheckCircle className="h-4 w-4" />
                             <AlertTitle>Metadata Found!</AlertTitle>
-                            <AlertDescription>Found on: <strong>{fetchState.metadata?.source}</strong>. Verify the details below. A matching logo from your global library has been pre-filled.</AlertDescription>
+                            <AlertDescription>Found on: <strong>{fetchState.metadata?.source}</strong>. Verify the details below.</AlertDescription>
                         </Alert>
                     )}
 
@@ -159,27 +184,27 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
                         <div className="space-y-2 flex-1">
                             <Label>Matched Logo</Label>
                              <p className="text-sm text-muted-foreground">
-                                This logo was found in your global library based on the token's symbol. 
-                                It will be automatically linked when you save. If no logo is shown, please go to "Upload Logo" to add one for this token first.
+                                This logo was found in your global library or by the AI agent. It will be automatically linked when you save.
                              </p>
                         </div>
-                        {previewUrl ? (
-                            <div className="flex-shrink-0">
-                                <Label>Preview</Label>
+                        <div className="flex-shrink-0 text-center">
+                            <Label>{isAiSearching ? "AI Searching..." : "Logo Preview"}</Label>
+                            {isAiSearching ? (
+                                <div className="w-16 h-16 rounded-full mt-2 bg-muted flex items-center justify-center">
+                                    <Sparkles className="h-6 w-6 text-primary animate-pulse" />
+                                </div>
+                            ) : previewUrl ? (
                                 <Image src={previewUrl} alt="Logo preview" width={64} height={64} className="rounded-full mt-2 bg-muted" unoptimized />
-                            </div>
-                        ) : (
-                            <div className="flex-shrink-0 text-center">
-                                <Label>No Logo Found</Label>
+                            ) : (
                                 <div className="w-16 h-16 rounded-full mt-2 bg-muted flex items-center justify-center text-xs text-muted-foreground">
                                     Missing
                                 </div>
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
                     
-                    <SubmitButton className="w-full" disabled={!isLogoAvailable}>
-                        { !isLogoAvailable ? "Cannot Save Without Logo" : "Save Token" }
+                    <SubmitButton className="w-full" disabled={!isLogoAvailable || isAiSearching}>
+                        { isAiSearching ? "AI is working..." : !isLogoAvailable ? "Cannot Save Without Logo" : "Save Token" }
                     </SubmitButton>
 
                      {saveState.status === "error" && (
@@ -195,3 +220,5 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
     </Card>
   )
 }
+
+    

@@ -638,13 +638,13 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
       const metadata = await fetchTokenMetadataFromSources(contractAddress, chainConfig.name);
       
       if (metadata && metadata.symbol && metadata.name && metadata.decimals !== undefined) {
-          const logoUrl = getCdnLogoUrl(metadata.symbol);
+          const { data: logoResult } = await autoFetchMissingLogo({ tokenSymbol: metadata.symbol, tokenName: metadata.name });
 
           const result: TokenFetchResult = {
               name: metadata.name,
               symbol: metadata.symbol,
               decimals: metadata.decimals,
-              logoUrl: logoUrl,
+              logoUrl: logoResult?.logoUrl ?? getCdnLogoUrl(metadata.symbol),
               source: `${metadata.source} on ${chainConfig.name}`,
           };
           
@@ -661,3 +661,5 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
         return { status: "error", message: `Could not find token with address ${contractAddress} on ${chainConfig.name}. Error: ${error.message}` };
     }
 }
+
+    
