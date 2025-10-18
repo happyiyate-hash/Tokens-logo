@@ -153,8 +153,8 @@ export async function updateGlobalLogo(
             throw new Error("Original logo record not found.");
         }
 
-        let newPublicUrl: string | undefined = existingLogo.public_url;
-        let newStoragePath: string | undefined = existingLogo.storage_path;
+        let newPublicUrl: string = existingLogo.public_url;
+        let newStoragePath: string = existingLogo.storage_path;
 
         // If a new file is uploaded, handle storage operations
         if (logoFile) {
