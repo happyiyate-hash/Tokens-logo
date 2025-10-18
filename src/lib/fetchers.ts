@@ -1,10 +1,8 @@
 
 "use server";
 
-import { ethers } from "ethers";
 import axios from "axios";
 import type { TokenFetchResult } from "@/lib/types";
-import { decodeBytes32 } from "./hextools";
 import chainsConfig from "@/lib/chains.json";
 import pRetry from 'p-retry';
 
@@ -13,52 +11,58 @@ const findChainByName = (networkName: string) => {
     return chainsConfig.find(c => c.name.toLowerCase() === lowercasedName);
 };
 
-async function fetchFromRpc(chain: any, contractAddress: string): Promise<Partial<TokenFetchResult>> {
-    if (!chain.rpc) {
-        throw new Error(`No RPC URL configured for network: ${chain.name}`);
+// This is the new function that ONLY uses the Etherscan V2 API.
+async function fetchFromEtherscanV2(chain: any, contractAddress: string): Promise<Partial<TokenFetchResult>> {
+    const apiKey = process.env.ETHERSCAN_API_KEY;
+    if (!apiKey) {
+        throw new Error("Etherscan API key is not configured in environment variables (ETHERSCAN_API_KEY).");
     }
+
+    // The base URL for the unified Etherscan V2 API
+    const baseUrl = "https://api.etherscan.io/v2/api";
     
-    const standardAbi = [
-        'function name() view returns (string)',
-        'function symbol() view returns (string)',
-        'function decimals() view returns (uint8)'
-    ];
+    const params = {
+        chainid: chain.chainId,
+        module: "token",
+        action: "tokeninfo",
+        contractaddress: contractAddress,
+        apikey: apiKey,
+    };
 
     try {
-        const provider = new ethers.providers.JsonRpcProvider(chain.rpc);
-        const token = new ethers.Contract(contractAddress, standardAbi, provider);
-
-        const fetchWithRetry = (fn: () => Promise<any>) => pRetry(fn, { 
-            retries: 2, 
+        const response = await pRetry(() => axios.get(baseUrl, { params, timeout: 10000 }), {
+            retries: 2,
             minTimeout: 500,
             onFailedAttempt: error => {
-                console.warn(`Attempt ${error.attemptNumber} failed for ${contractAddress} on ${chain.name}. Retries left: ${error.retriesLeft}.`);
+                console.warn(`Etherscan API attempt ${error.attemptNumber} failed. Retries left: ${error.retriesLeft}.`);
             }
         });
 
-        const [nameResult, symbolResult, decimalsResult] = await Promise.allSettled([
-            fetchWithRetry(() => token.name()),
-            fetchWithRetry(() => token.symbol()),
-            fetchWithRetry(() => token.decimals())
-        ]);
+        const { data } = response;
 
-        const name = nameResult.status === 'fulfilled' ? decodeBytes32(nameResult.value) : undefined;
-        const symbol = symbolResult.status === 'fulfilled' ? decodeBytes32(symbolResult.value) : undefined;
-        const decimals = decimalsResult.status === 'fulfilled' ? Number(decimalsResult.value) : undefined;
-
-        if (name === undefined && symbol === undefined) {
-             throw new Error("Could not fetch name or symbol from RPC after retries.");
+        // Check for an error response from the Etherscan API
+        if (data.status === "0" || data.message !== "OK") {
+            // Sometimes the error is in result (e.g. "Error! Invalid contract address")
+            const errorMessage = typeof data.result === 'string' ? data.result : data.message;
+            throw new Error(`Etherscan API Error: ${errorMessage}`);
+        }
+        
+        const tokenInfo = data.result[0];
+        
+        if (!tokenInfo || !tokenInfo.symbol || !tokenInfo.name) {
+            throw new Error("Incomplete token data received from Etherscan API.");
         }
 
         return {
-            name: name || symbol || "Unknown Token",
-            symbol: symbol || name || "???",
-            decimals: decimals ?? 18,
-            source: `rpc (${chain.name})`
+            name: tokenInfo.name,
+            symbol: tokenInfo.symbol,
+            decimals: Number(tokenInfo.decimals) || 18,
+            source: `Etherscan API on ${chain.name}`
         };
+
     } catch (e: any) {
-        console.error(`RPC call failed for ${contractAddress} on ${chain.name}:`, e.message);
-        throw new Error(`Could not fetch token details. Ensure the address is a valid token contract on the selected network.`);
+        console.error(`Etherscan V2 API call failed for ${contractAddress} on ${chain.name}:`, e.message);
+        throw new Error(`Could not fetch token details from Etherscan API. Ensure the address is valid and the network is supported.`);
     }
 }
 
@@ -67,8 +71,9 @@ export async function fetchTokenMetadataFromSources(contractAddress: string, net
     const chain = findChainByName(networkName);
     if (!chain) throw new Error(`Unsupported network: ${networkName}`);
     
-    // Per your direction, we now ONLY use the direct RPC fetching method. No fallbacks.
-    return fetchFromRpc(chain, contractAddress);
+    // As per your final instruction, we now ONLY use the Etherscan V2 API fetcher.
+    // All RPC logic has been removed.
+    return fetchFromEtherscanV2(chain, contractAddress);
 }
 
 
