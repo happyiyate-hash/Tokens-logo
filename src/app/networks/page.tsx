@@ -1,3 +1,4 @@
+
 "use client";
 
 import { NetworkForm } from "@/components/admin/network-form";
@@ -12,8 +13,13 @@ import { useEffect, useState } from "react";
 
 const defaultLogo = PlaceHolderImages.find(p => p.id === 'default-token-logo')!;
 
+// Simple in-memory cache
+let cachedNetworks: Network[] | null = null;
 
 async function getNetworks(): Promise<Network[]> {
+  if (cachedNetworks) {
+    return cachedNetworks;
+  }
   const { data, error } = await supabase
     .from("networks")
     .select("*")
@@ -23,19 +29,21 @@ async function getNetworks(): Promise<Network[]> {
     console.error("[ Client ] Error fetching networks:", error);
     return [];
   }
-
+  cachedNetworks = data;
   return data;
 }
 
 export default function NetworkManagementPage() {
-  const [networks, setNetworks] = useState<Network[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [networks, setNetworks] = useState<Network[]>(cachedNetworks || []);
+  const [loading, setLoading] = useState(!cachedNetworks);
 
   useEffect(() => {
-    getNetworks().then(data => {
-      setNetworks(data);
-      setLoading(false);
-    })
+    if (!cachedNetworks) {
+      getNetworks().then(data => {
+        setNetworks(data);
+        setLoading(false);
+      })
+    }
   }, []);
 
   return (

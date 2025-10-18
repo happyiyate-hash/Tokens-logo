@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { TokenMetadata, Network } from "@/lib/types";
@@ -16,7 +17,16 @@ import { useSearchParams } from "next/navigation";
 
 const defaultLogo = PlaceHolderImages.find(p => p.id === 'default-token-logo')!;
 
+// Simple in-memory cache
+let cachedTokens: { [networkId: string]: TokenMetadata[] } = {};
+let cachedNetworks: Network[] | null = null;
+
 async function getTokens(networkId: string): Promise<TokenMetadata[]> {
+  const cacheKey = networkId || 'all';
+  if (cachedTokens[cacheKey]) {
+    return cachedTokens[cacheKey];
+  }
+
   let query = supabase.from("token_metadata").select("*");
 
   if (networkId) {
@@ -41,10 +51,14 @@ async function getTokens(networkId: string): Promise<TokenMetadata[]> {
     return [];
   }
 
+  cachedTokens[cacheKey] = data;
   return data;
 }
 
 async function getNetworks(): Promise<Network[]> {
+  if (cachedNetworks) {
+    return cachedNetworks;
+  }
   const { data, error } = await supabase
     .from("networks")
     .select("id, name")
@@ -53,6 +67,7 @@ async function getNetworks(): Promise<Network[]> {
     console.error("Error fetching networks:", error);
     return [];
   }
+  cachedNetworks = data;
   return data;
 }
 
@@ -60,12 +75,13 @@ export default function TokensListPage() {
   const searchParams = useSearchParams();
   const selectedNetworkId = searchParams.get("network") ?? "";
   
-  const [networks, setNetworks] = useState<Network[]>([]);
-  const [tokens, setTokens] = useState<TokenMetadata[]>([]);
+  const [networks, setNetworks] = useState<Network[]>(cachedNetworks || []);
+  const [tokens, setTokens] = useState<TokenMetadata[]>(cachedTokens[selectedNetworkId || 'all'] || []);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
+    // Fetch networks and tokens in parallel
     Promise.all([getNetworks(), getTokens(selectedNetworkId)]).then(([nets, toks]) => {
       setNetworks(nets);
       setTokens(toks);

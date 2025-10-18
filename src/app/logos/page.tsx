@@ -1,3 +1,4 @@
+
 "use client";
 
 import { supabase } from "@/lib/supabase/client";
@@ -11,26 +12,35 @@ import Link from "next/link";
 import { EditLogoDialog } from "@/components/admin/edit-logo-dialog";
 import { useEffect, useState } from "react";
 
-// This is a client component, so we fetch data in a useEffect hook.
+// Simple in-memory cache
+let cachedLogos: TokenLogo[] | null = null;
+
 async function getLogos(): Promise<TokenLogo[]> {
+  if (cachedLogos) {
+    return cachedLogos;
+  }
   const { data, error } = await supabase.rpc('get_all_token_logos');
 
   if (error) {
     console.error("[Client] Error fetching global logos:", error);
     return [];
   }
-  return data || [];
+  cachedLogos = data || [];
+  return cachedLogos;
 }
 
 export default function LogosPage() {
-  const [logos, setLogos] = useState<TokenLogo[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [logos, setLogos] = useState<TokenLogo[]>(cachedLogos || []);
+  const [loading, setLoading] = useState(!cachedLogos);
 
   useEffect(() => {
-    getLogos().then(data => {
-      setLogos(data);
-      setLoading(false);
-    });
+    // Only fetch if the cache is empty on initial load
+    if (!cachedLogos) {
+      getLogos().then(data => {
+        setLogos(data);
+        setLoading(false);
+      });
+    }
   }, []);
 
 
