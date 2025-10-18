@@ -10,11 +10,8 @@ import Link from "next/link";
 import { EditLogoDialog } from "@/components/admin/edit-logo-dialog";
 
 async function getLogos(): Promise<TokenLogo[]> {
-  // Directly query the 'token_logos' table, which is more reliable.
-  const { data, error } = await supabaseAdmin
-    .from('token_logos')
-    .select('*')
-    .order('name', { ascending: true });
+  // This now calls the dedicated database function we created.
+  const { data, error } = await supabaseAdmin.rpc('get_all_token_logos');
 
   if (error) {
     // Log the actual error for debugging.
