@@ -18,13 +18,13 @@ const CACHE_TTL = Number(process.env.CACHE_TTL_MS || 7 * 24 * 3600 * 1000);
 /**
  * This function does NOT fetch the logo. It constructs the URL that points
  * to our new CDN endpoint. This is the single source of truth for generating logo URLs.
- * @param symbol The token symbol (e.g., "USDT").
+ * @param name The token name (e.g., "Arbitrum").
+ * @param symbol The token symbol (e.g., "ETH").
  * @returns The CDN URL for the logo.
  */
-function getCdnLogoUrl(symbol: string): string {
-    // This now points to our new, smart caching endpoint.
-    // The wallet will call this URL, and our server will handle fetching from origin and caching.
-    return `/api/cdn/logo/${symbol.toLowerCase()}`;
+function getCdnLogoUrl(name: string, symbol: string): string {
+    const sanitizedName = name.toLowerCase().replace(/\s+/g, '-');
+    return `/api/cdn/logo/${sanitizedName}/${symbol.toLowerCase()}`;
 }
 
 
@@ -255,7 +255,7 @@ export async function addToken(
   const { symbol, name, decimals, chainId, contract } = validated.data;
   
   try {
-    const finalLogoUrl = getCdnLogoUrl(symbol);
+    const finalLogoUrl = getCdnLogoUrl(name, symbol);
     
     const chainConfig = chainsConfig.find(c => c.chainId.toString() === chainId);
     if (!chainConfig) throw new Error("Network not found for contract-specific metadata.");
@@ -697,7 +697,7 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
               name: metadata.name,
               symbol: metadata.symbol,
               decimals: metadata.decimals,
-              logoUrl: logoResult?.logoUrl ?? getCdnLogoUrl(metadata.symbol),
+              logoUrl: logoResult?.logoUrl ?? getCdnLogoUrl(metadata.name, metadata.symbol),
               source: `${metadata.source} on ${chainConfig.name}`,
           };
           
@@ -714,3 +714,5 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
         return { status: "error", message: `Could not find token with address ${contractAddress} on ${chainConfig.name}. Error: ${error.message}` };
     }
 }
+
+    

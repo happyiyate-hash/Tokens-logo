@@ -3,6 +3,9 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
 const STORAGE_BUCKET = "token_logos";
+// This is a simplified in-memory cache. For a production serverless environment,
+// a distributed cache like Redis or Vercel KV would be more robust.
+// However, this demonstrates the caching proxy architecture.
 const cache = new Map<string, { buffer: Buffer; contentType: string; timestamp: number }>();
 const CACHE_TTL = 3600 * 1000; // 1 hour cache
 
@@ -54,7 +57,7 @@ export async function GET(
       query = query.ilike('symbol', symbol);
     }
 
-    const { data: logoData, error: dbError } = await query.limit(1).single();
+    let { data: logoData, error: dbError } = await query.limit(1).single();
 
     if (dbError || !logoData) {
        // If lookup by name fails, try a fallback to just the symbol
@@ -69,7 +72,8 @@ export async function GET(
           if (fallbackError || !fallbackData) {
             return NextResponse.json({ error: 'Logo not found in database' }, { status: 404 });
           }
-          logoData.storage_path = fallbackData.storage_path;
+          // Use the fallback data if the primary query fails
+          logoData = fallbackData;
        } else {
           return NextResponse.json({ error: 'Logo not found in database' }, { status: 404 });
        }
@@ -103,14 +107,10 @@ export async function GET(
     });
 
   } catch (error: any) {
-    console.error(`[CDN LOGO FETCH ERROR] for ${symbol}:`, error);
+    console.error(`[CDN LOGO FETCH ERROR] for ${name}/${symbol}:`, error);
     // Serve a default placeholder or return an error
     return NextResponse.json({ error: 'Failed to fetch logo.' }, { status: 500 });
   }
 }
-
-// Update the file path to handle catch-all routes
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
 
     
