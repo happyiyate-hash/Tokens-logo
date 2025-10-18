@@ -8,65 +8,59 @@ import { decodeBytes32 } from "./hextools";
 import chainsConfig from "@/lib/chains.json";
 import pRetry from 'p-retry';
 
-const ERC20_MIN_ABI = [
-  "function name() view returns (string)",
-  "function symbol() view returns (string)",
-  "function decimals() view returns (uint8)",
-];
-
 const findChainByName = (networkName: string) => {
     const lowercasedName = networkName.toLowerCase();
     return chainsConfig.find(c => c.name.toLowerCase() === lowercasedName);
 };
 
-// --- Helper function to attempt fetching from an explorer ---
-async function fetchFromExplorer(chain: any, contractAddress: string): Promise<Partial<TokenFetchResult> | null> {
+// --- Helper to get ABI from Etherscan-like APIs ---
+async function getContractAbi(chain: any, contractAddress: string): Promise<any> {
     const apikey = process.env.ETHERSCAN_API_KEY || "";
-    if (!chain.explorerApi) return null;
+    if (!chain.explorerApi) {
+        throw new Error(`No explorer API configured for ${chain.name}`);
+    }
 
-    // Use 'tokeninfo' for Polygon, which is more direct
-    const isPolygon = chain.chainId === 137;
-    const module = isPolygon ? "token" : "account";
-    const action = isPolygon ? "tokeninfo" : "tokentx";
+    // A map for explorers that have slightly different API structures.
+    const apiAdapter: { [key: string]: { module: string, action: string } } = {
+        'api.gnosisscan.io': { module: 'contract', action: 'getabi' },
+        'api.ftmscan.com': { module: 'contract', action: 'getabi' },
+        'api.arbiscan.io': { module: 'contract', action: 'getabi' },
+        // Default to Etherscan standard
+        'default': { module: 'contract', action: 'getabi' },
+    };
+
+    const explorerHost = new URL(chain.explorerApi).hostname;
+    const adapter = apiAdapter[explorerHost] || apiAdapter['default'];
 
     try {
         const { data } = await axios.get(chain.explorerApi, {
             params: {
-                module,
-                action,
-                contractaddress: contractAddress,
-                // params for tokentx
-                page: 1,
-                offset: 1,
-                // params for tokeninfo
-                token_address: contractAddress, 
+                module: adapter.module,
+                action: adapter.action,
+                address: contractAddress,
                 apikey,
             },
-            timeout: 5000 // 5-second timeout
+            timeout: 7000 // 7-second timeout
         });
-        
-        let resultData = data.result;
-        // The 'tokeninfo' on polygonscan returns the object directly in `result`
-        if (isPolygon && resultData) {
-           resultData = [resultData]; // Normalize to an array
-        }
 
-        if (data && (data.status === "1" || data.message === "OK") && resultData?.length > 0) {
-            const tx = resultData[0];
-            
-            const name = decodeBytes32(tx.tokenName || tx.name);
-            const symbol = decodeBytes32(tx.tokenSymbol || tx.symbol);
-            const decimals = Number(tx.tokenDecimal || tx.decimals);
-
-            if (name && symbol && !isNaN(decimals)) {
-                return { name, symbol, decimals, source: "explorer" };
-            }
+        if (data.status === "1" || (data.message === "OK" && data.result)) {
+            return JSON.parse(data.result);
+        } else {
+            // Handle cases where API returns "NOTOK" with a useful message
+            const errorMessage = data.result || data.message || 'Failed to fetch ABI';
+            throw new Error(`Explorer API Error for ${chain.name}: ${errorMessage}`);
         }
     } catch (e: any) {
-        console.warn(`Explorer API call failed for ${contractAddress} on ${chain.name}: ${e.message}`);
+        console.error(`ABI fetch failed for ${contractAddress} on ${chain.name}: ${e.message}`);
+        // As a fallback, we can use a minimal ABI. This ensures that even if the explorer API is down,
+        // we can still fetch data for standard ERC20 tokens.
+        console.warn(`Falling back to minimal ABI for ${contractAddress}`);
+        return [
+            "function name() view returns (string)",
+            "function symbol() view returns (string)",
+            "function decimals() view returns (uint8)",
+        ];
     }
-
-    return null;
 }
 
 
@@ -76,15 +70,15 @@ async function fetchFromRpc(chain: any, contractAddress: string): Promise<Partia
     }
 
     try {
+        const abi = await getContractAbi(chain, contractAddress);
         const provider = new ethers.providers.JsonRpcProvider(chain.rpc);
-        const token = new ethers.Contract(contractAddress, ERC20_MIN_ABI, provider);
+        const token = new ethers.Contract(contractAddress, abi, provider);
 
-        // Using pRetry to handle intermittent RPC errors
         const fetchWithRetry = (fn: () => Promise<any>) => pRetry(fn, { 
             retries: 2, 
             minTimeout: 500,
             onFailedAttempt: error => {
-                console.warn(`Attempt ${error.attemptNumber} failed. There are ${error.retriesLeft} retries left. For ${contractAddress} on ${chain.name}`);
+                console.warn(`Attempt ${error.attemptNumber} failed for ${contractAddress} on ${chain.name}. Retries left: ${error.retriesLeft}.`);
             }
         });
 
@@ -98,19 +92,19 @@ async function fetchFromRpc(chain: any, contractAddress: string): Promise<Partia
         const symbol = symbolResult.status === 'fulfilled' ? decodeBytes32(symbolResult.value) : undefined;
         const decimals = decimalsResult.status === 'fulfilled' ? Number(decimalsResult.value) : undefined;
 
-        if (!name && !symbol) {
+        if (name === undefined && symbol === undefined) {
              throw new Error("Could not fetch name or symbol from RPC after retries.");
         }
 
         return {
-            name: name || symbol || "Unknown",
+            name: name || symbol || "Unknown Token",
             symbol: symbol || name || "???",
             decimals: decimals ?? 18,
-            source: "rpc"
+            source: `rpc (${chain.name})`
         };
     } catch (e: any) {
-        console.error(`RPC fallback failed for ${contractAddress} on ${chain.name}:`, e.message);
-        throw new Error("Could not fetch complete token metadata from any source.");
+        console.error(`RPC call failed for ${contractAddress} on ${chain.name}:`, e.message);
+        throw new Error(`Could not fetch complete token metadata from ${chain.name}.`);
     }
 }
 
@@ -119,15 +113,7 @@ export async function fetchTokenMetadataFromSources(contractAddress: string, net
     const chain = findChainByName(networkName);
     if (!chain) throw new Error(`Unsupported network: ${networkName}`);
     
-    // 1. Try Block Explorer First
-    const explorerResult = await fetchFromExplorer(chain, contractAddress);
-    if (explorerResult?.name && explorerResult?.symbol && explorerResult.decimals !== undefined) {
-        return explorerResult;
-    }
-
-    // 2. Fallback to RPC if explorer fails
-    console.warn(`Explorer fetch failed or returned incomplete data for ${contractAddress} on ${networkName}. Falling back to RPC.`);
-    
+    // The new logic directly uses the more robust RPC-based fetching with ABI lookup.
     return fetchFromRpc(chain, contractAddress);
 }
 
