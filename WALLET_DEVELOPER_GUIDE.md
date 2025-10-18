@@ -77,7 +77,7 @@ To get a logo for any cryptocurrency, you should query the `token_logos` table u
  * Fetches a token's logo URL directly from the Supabase 'token_logos' table using its name.
  * This is the recommended method to avoid symbol conflicts.
  *
- * @param {string} name - The full name of the token (e.g., 'Arbitrum One', 'Wrapped Ether').
+ * @param {string} name - The full name of the token (e.g., 'Arbitrum', 'Wrapped Ether').
  * @returns {Promise<string|null>} A promise that resolves to the public logo URL, or null if not found.
  */
 async function fetchLogoUrlByName(name) {
@@ -99,11 +99,11 @@ async function fetchLogoUrlByName(name) {
 }
 
 // --- Example Usage in Wallet App ---
-// fetchLogoUrlByName('Arbitrum One').then(logoUrl => {
+// fetchLogoUrlByName('Arbitrum').then(logoUrl => {
 //   if (logoUrl) {
-//     console.log('Found Arbitrum One logo:', logoUrl);
+//     console.log('Found Arbitrum logo:', logoUrl);
 //     // Now use this URL directly in an <img> tag in your UI.
-//     // For example: <img src={logoUrl} alt="Arbitrum One logo" />
+//     // For example: <img src={logoUrl} alt="Arbitrum logo" />
 //   }
 // });
 ```

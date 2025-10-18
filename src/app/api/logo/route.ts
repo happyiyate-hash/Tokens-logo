@@ -52,9 +52,10 @@ export async function GET(req: Request) {
 
   // Instead of returning the direct Supabase URL, we redirect to our own CDN endpoint.
   // This makes the entire system act as a unified CDN layer.
-  // We use the original symbol if available, otherwise a placeholder from the name.
-  const cdnSymbol = symbol || name!.toLowerCase().replace(/\s/g, '-');
-  const cdnUrl = `/api/cdn/logo/${cdnSymbol.toLowerCase()}`;
+  // The name is required for the new, more specific CDN URL structure.
+  const cdnName = (name || symbol)!.toLowerCase().replace(/\s/g, '-');
+  const cdnSymbol = (symbol || name)!.toLowerCase().replace(/\s/g, '-');
+  const cdnUrl = `/api/cdn/logo/${cdnName}/${cdnSymbol}`;
   
   // Return the URL to our caching CDN layer
   return NextResponse.json({ logo_url: cdnUrl });
