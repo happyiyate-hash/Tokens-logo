@@ -10,16 +10,14 @@ import Link from "next/link";
 import { EditLogoDialog } from "@/components/admin/edit-logo-dialog";
 
 async function getLogos(): Promise<TokenLogo[]> {
-  const { data, error } = await supabaseAdmin
-    .from("token_logos")
-    .select("*")
-    .order("symbol", { ascending: true });
+  // Use a direct RPC call for robustness, which is less likely to fail silently.
+  const { data, error } = await supabaseAdmin.rpc('get_all_token_logos');
 
   if (error) {
-    console.error("Error fetching global logos:", error);
+    console.error("Error fetching global logos via RPC:", error);
     return [];
   }
-  return data;
+  return data || [];
 }
 
 export default async function LogosPage() {
@@ -49,7 +47,7 @@ export default async function LogosPage() {
           <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 bg-card p-12 text-center">
               <h3 className="text-xl font-semibold tracking-tight">No Global Logos Found</h3>
               <p className="text-muted-foreground mt-2">
-                Use the "Upload Logo" button to add a new global logo.
+                It looks like there are no logos in your database. Use the "Upload Logo" button to add one.
               </p>
           </div>
         ) : (
@@ -87,5 +85,3 @@ export default async function LogosPage() {
     </div>
   );
 }
-
-    
