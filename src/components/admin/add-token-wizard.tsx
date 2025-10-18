@@ -8,10 +8,9 @@ import { autoFetchMissingLogo } from "@/ai/flows/auto-fetch-missing-logos";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SubmitButton } from "@/components/submit-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Terminal, CheckCircle, ArrowLeft, Loader2, Sparkles } from "lucide-react";
+import { Terminal, CheckCircle, ArrowLeft, Loader2, Sparkles, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -80,10 +79,10 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
              <div className="flex items-center justify-between">
                 <div>
                      <CardTitle className="text-2xl">
-                        Step {step}: {step === 1 ? "Fetch Token Metadata" : "Verify & Save Token"}
+                        Step {step}: {step === 1 ? "Find Token By Contract" : "Verify & Save Token"}
                     </CardTitle>
                     <CardDescription>
-                        {step === 1 ? "Enter a contract address to look up its details from the blockchain." : "Verify the metadata. The logo will be automatically linked from your global library."}
+                        {step === 1 ? "Enter a contract address. The system will search for it across all supported networks." : "Verify the metadata. The logo will be automatically linked from your global library."}
                     </CardDescription>
                 </div>
                 {step === 2 && <Button variant="ghost" onClick={handleReset}><ArrowLeft className="mr-2 h-4 w-4"/>Start Over</Button>}
@@ -92,26 +91,14 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
         <CardContent>
             {step === 1 ? (
                 <form action={fetchAction} className="space-y-6">
-                    <div className="space-y-2">
-                        <Label htmlFor="chainId">Blockchain Network</Label>
-                        <Select name="chainId" required>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select a network" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {networks.map(network => (
-                                    <SelectItem key={network.id} value={network.id}>{network.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
                      <div className="space-y-2">
                         <Label htmlFor="contractAddress">Token Contract Address</Label>
                         <Input id="contractAddress" name="contractAddress" placeholder="0x..." required />
                     </div>
                     <SubmitButton className="w-full" disabled={isFetching}>
                         {isFetching && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Fetch Metadata
+                        <Search className="mr-2 h-4 w-4" />
+                        Find Token
                     </SubmitButton>
 
                     {fetchState.status === "error" && (
@@ -131,7 +118,7 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
                         <Alert>
                             <CheckCircle className="h-4 w-4" />
                             <AlertTitle>Metadata Found!</AlertTitle>
-                            <AlertDescription>Verify the details below. A matching logo from your global library has been pre-filled. You can save this token now.</AlertDescription>
+                            <AlertDescription>Found on: <strong>{fetchState.metadata?.source}</strong>. Verify the details below. A matching logo from your global library has been pre-filled.</AlertDescription>
                         </Alert>
                     )}
 
