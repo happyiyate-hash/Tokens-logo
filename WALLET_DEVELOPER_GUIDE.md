@@ -66,37 +66,31 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 Here are the two primary functions your wallet will need. Import the `supabase` client you created above to use them.
 
-#### A. Fetching a Specific Logo URL by Symbol and Name
+#### A. Fetching a Specific Logo URL by Name (Most Reliable Method)
 
-To get a logo for any cryptocurrency, you query the `token_logos` table. This is the most reliable way to find a logo.
+To get a logo for any cryptocurrency, you should query the `token_logos` table using the **token's name**. This is the most reliable way to find a logo and avoids conflicts with shared symbols (like 'ETH').
 
 *   **Table to Query**: `token_logos`
 
 ```javascript
 /**
- * Fetches a token's logo URL directly from the Supabase 'token_logos' table.
+ * Fetches a token's logo URL directly from the Supabase 'token_logos' table using its name.
+ * This is the recommended method to avoid symbol conflicts.
  *
- * @param {string} symbol - The symbol of the token (e.g., 'ETH').
- * @param {string} name - The name of the token (e.g., 'Ethereum') for a more precise match.
+ * @param {string} name - The full name of the token (e.g., 'Arbitrum One', 'Wrapped Ether').
  * @returns {Promise<string|null>} A promise that resolves to the public logo URL, or null if not found.
  */
-async function fetchLogoUrlByNameAndSymbol(symbol, name) {
-  // .ilike() is used for case-insensitive matching, which is more robust.
-  let query = supabase
+async function fetchLogoUrlByName(name) {
+  // .ilike() is used for case-insensitive matching.
+  const { data, error } = await supabase
     .from('token_logos') // The exact table name
     .select('public_url') // We only need the public URL
-    .ilike('symbol', symbol);
-
-  // If a name is provided, add it to the query to get a more accurate result.
-  if (name) {
-    query = query.ilike('name', `%${name}%`);
-  }
-
-  // Execute the query to get the first matching result.
-  const { data, error } = await query.limit(1).single();
+    .ilike('name', name) // Use the name for the most accurate result
+    .limit(1)
+    .single();
 
   if (error) {
-    console.error('Error fetching logo from Supabase:', error.message);
+    console.error('Error fetching logo by name from Supabase:', error.message);
     return null;
   }
 
@@ -105,11 +99,11 @@ async function fetchLogoUrlByNameAndSymbol(symbol, name) {
 }
 
 // --- Example Usage in Wallet App ---
-// fetchLogoUrlByNameAndSymbol('ETH', 'Ethereum').then(logoUrl => {
+// fetchLogoUrlByName('Arbitrum One').then(logoUrl => {
 //   if (logoUrl) {
-//     console.log('Found Ethereum logo:', logoUrl);
+//     console.log('Found Arbitrum One logo:', logoUrl);
 //     // Now use this URL directly in an <img> tag in your UI.
-//     // For example: <img src={logoUrl} alt="Ethereum logo" />
+//     // For example: <img src={logoUrl} alt="Arbitrum One logo" />
 //   }
 // });
 ```
