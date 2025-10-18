@@ -133,7 +133,7 @@ export async function fetchLogoFromCoinGeckoBySymbol(symbol: string): Promise<st
     
     if (!coinToFetch || !coinToFetch.id) return null;
     
-    const { data: details } = await axios.get(`${coingeckoApiUrl}/coins/${coinToFetch.id}`);
+    const { data: details } = await axios.get(`${coingegeckoApiUrl}/coins/${coinToFetch.id}`);
     return details?.image?.large || details?.image?.small || details?.image?.thumb || null;
   } catch (e: any) {
     console.error(`CoinGecko search failed for symbol ${symbol}:`, e.message);
