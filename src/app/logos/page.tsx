@@ -10,11 +10,15 @@ import Link from "next/link";
 import { EditLogoDialog } from "@/components/admin/edit-logo-dialog";
 
 async function getLogos(): Promise<TokenLogo[]> {
-  // Use a direct RPC call for robustness, which is less likely to fail silently.
-  const { data, error } = await supabaseAdmin.rpc('get_all_token_logos');
+  // Directly query the 'token_logos' table, which is more reliable.
+  const { data, error } = await supabaseAdmin
+    .from('token_logos')
+    .select('*')
+    .order('name', { ascending: true });
 
   if (error) {
-    console.error("Error fetching global logos via RPC:", error);
+    // Log the actual error for debugging.
+    console.error("[ Server ] Error fetching global logos:", error);
     return [];
   }
   return data || [];
