@@ -196,7 +196,7 @@ export async function updateGlobalLogo(
 
             const fileContents = await logoFile.arrayBuffer();
             const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
-            const sanitizedName = name.toLowerCase().replace(/\s+/g, '-');
+            const sanitizedName = name.toLowerCase().replace(/\s/g, '-');
             const filePath = `global/${sanitizedName}-${symbol.toLowerCase()}.${ext}`;
 
             const { error: uploadError } = await supabaseAdmin.storage
@@ -273,7 +273,7 @@ export type AddTokenState = {
 const addTokenSchema = z.object({
   name: z.string().min(1, "Token name is required."),
   symbol: z.string().min(1, "Token symbol is required."),
-  networkId: z.string().min(1, "Network ID is required."),
+  chainId: z.coerce.number().min(1, "Chain ID is required."),
   decimals: z.coerce.number().int().min(0).default(18),
   contract: z.string().min(1, "Contract address is required."),
 });
@@ -286,7 +286,7 @@ export async function addToken(
   const validated = addTokenSchema.safeParse({
       name: formData.get('name'),
       symbol: formData.get('symbol'),
-      networkId: formData.get('networkId'),
+      chainId: formData.get('chainId'),
       decimals: formData.get('decimals'),
       contract: formData.get('contract'), 
   });
@@ -297,20 +297,16 @@ export async function addToken(
     return { status: "error", message: firstError || "Invalid input." };
   }
   
-  const { symbol, name, decimals, networkId, contract } = validated.data;
+  const { symbol, name, decimals, chainId, contract } = validated.data;
   
   try {
     const finalLogoUrl = getCdnLogoUrl(name, symbol);
     
-    // Use the networkId to get the network name directly from the database.
-    const { data: network, error: networkError } = await supabaseAdmin
-      .from('networks')
-      .select('name')
-      .eq('id', networkId)
-      .single();
+    // Find the network name from the hardcoded JSON file.
+    const network = chainsConfig.find(c => c.chainId === chainId);
 
-    if (networkError || !network) {
-      throw new Error("Network not found for the provided ID.");
+    if (!network) {
+      throw new Error("Network not found for the provided Chain ID.");
     }
 
     const tokenDetails: TokenDetails = { name, symbol, decimals };
@@ -510,7 +506,7 @@ export async function addNetwork(prevState: AddNetworkState | undefined, formDat
         name: validated.data.name,
         chain_id: validated.data.chain_id,
         explorer_api_base_url: validated.data.explorer_api_base_url || null,
-        explorer_api_key_env_var: 'ETHERSCAN_API_KEY' // Always use the main key
+        explorer_api_key_env_var: 'ETHERSCAN_V2_API_KEY' // Always use the main key
     });
     if (error) {
       if (error.code === '23505') {
@@ -654,13 +650,13 @@ export type FetchMetadataState = {
   status: "idle" | "success" | "error";
   message?: string;
   metadata?: TokenFetchResult;
-  networkId?: string;
+  chainId?: string;
   contractAddress?: string;
 }
 
 const fetchMetadataSchema = z.object({
   contractAddress: z.string().min(1, "Contract address is required."),
-  networkId: z.string().min(1, "Network selection is required."),
+  chainId: z.coerce.string().min(1, "Network selection is required."),
 });
 
 async function getCachedToken(contract: string, networkName: string): Promise<TokenMetadata | null> {
@@ -686,16 +682,13 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
         return { status: "error", message: "Contract address and network are required." };
     }
 
-    const { contractAddress, networkId } = validated.data;
+    const { contractAddress, chainId } = validated.data;
     const forceRefresh = formData.get("forceRefresh") === "true";
+    const numericChainId = Number(chainId);
 
-    const { data: network, error: networkError } = await supabaseAdmin
-        .from('networks')
-        .select('name, chain_id')
-        .eq('id', networkId)
-        .single();
+    const network = chainsConfig.find(c => c.chainId === numericChainId);
 
-    if (networkError || !network) {
+    if (!network) {
       return { status: "error", message: "Invalid network selected." };
     }
   
@@ -706,13 +699,13 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
               return {
                   status: "success",
                   metadata: { ...cached.token_details, logoUrl: cached.logo_url, source: `cache (${cached.source})` },
-                  networkId: networkId,
+                  chainId: chainId,
                   contractAddress,
               };
           }
       }
       
-      const metadata = await fetchTokenMetadataFromSources(contractAddress, network.chain_id);
+      const metadata = await fetchTokenMetadataFromSources(contractAddress, numericChainId);
       
       if (metadata && metadata.symbol && metadata.name && metadata.decimals !== undefined) {
           const { data: logoResult } = await autoFetchMissingLogo({ tokenSymbol: metadata.symbol, tokenName: metadata.name });
@@ -728,7 +721,7 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
           return { 
             status: "success", 
             metadata: result, 
-            networkId: networkId,
+            chainId: chainId,
             contractAddress 
           };
       } else {
@@ -738,5 +731,3 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
         return { status: "error", message: `Could not find token with address ${contractAddress} on ${network.name}. Error: ${error.message}` };
     }
 }
-
-    

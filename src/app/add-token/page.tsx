@@ -1,31 +1,22 @@
 
 import { AddTokenWizard } from "@/components/admin/add-token-wizard";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import chainsConfig from "@/lib/chains.json";
+import type { Network } from "@/lib/types";
 
-// We can simplify this. The component only needs the id and name.
-type DropdownNetwork = {
-  id: string; // The UUID from the 'networks' table
-  name: string;
-};
 
-// This function now reads from the 'networks' table in Supabase
-async function getNetworks(): Promise<DropdownNetwork[]> {
-    const { data, error } = await supabaseAdmin
-        .from("networks")
-        .select("id, name") // Select the UUID 'id' and 'name'
-        .order("name", { ascending: true });
-    
-    if (error) {
-        console.error("[AddTokenPage] Error fetching networks:", error);
-        return [];
-    }
-    
-    // The data is already in the correct format { id, name }
-    return data;
+// We now use the hardcoded chains.json file as the single source of truth.
+function getNetworks(): Omit<Network, 'explorer_api_base_url' | 'explorer_api_key_env_var' | 'created_at' | 'logo_url'>[] {
+    // We only need a subset of the fields for the dropdown.
+    // The wizard expects an 'id' and 'name'. We will use chainId as the 'id'.
+    return chainsConfig.map(chain => ({
+        id: chain.chainId.toString(),
+        name: chain.name,
+        chain_id: chain.chainId
+    }));
 }
 
 export default async function AddTokenPage() {
-    const networks = await getNetworks();
+    const networks = getNetworks();
 
     return (
         <div className="w-full space-y-8">
@@ -39,5 +30,3 @@ export default async function AddTokenPage() {
         </div>
     )
 }
-
-    

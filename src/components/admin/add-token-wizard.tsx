@@ -24,9 +24,9 @@ const initialSaveState: AddTokenState = {
     status: "idle",
 }
 
-// The component receives networks with { id, name }
+// The component now receives networks with id (as chainId string) and name
 type DropdownNetwork = {
-  id: string; // This is the UUID from the database
+  id: string; // This is now the chainId from the JSON file
   name:string;
 };
 
@@ -119,9 +119,10 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
                 <form action={fetchAction} className="space-y-6">
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                           <Label htmlFor="networkId">Network</Label>
-                           <Select name="networkId" required>
-                                <SelectTrigger id="networkId">
+                           {/* The name is now `chainId` to match the backend expectation */}
+                           <Label htmlFor="chainId">Network</Label>
+                           <Select name="chainId" required>
+                                <SelectTrigger id="chainId">
                                     <SelectValue placeholder="Select a network..." />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -155,7 +156,8 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
             ) : (
                 <form ref={formRef} action={saveAction} className="space-y-6">
                     <input type="hidden" name="contract" value={fetchState.contractAddress} />
-                    <input type="hidden" name="networkId" value={fetchState.networkId} />
+                    {/* We now pass chainId to the save action */}
+                    <input type="hidden" name="chainId" value={fetchState.chainId} />
                     
                     {fetchState.status === "success" && (
                         <Alert>
@@ -220,5 +222,3 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
     </Card>
   )
 }
-
-    
