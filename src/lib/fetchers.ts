@@ -13,30 +13,25 @@ const findChainByName = (networkName: string) => {
     return chainsConfig.find(c => c.name.toLowerCase() === lowercasedName);
 };
 
-// --- Helper to get ABI from Etherscan-like APIs ---
+// --- Helper to get ABI from Etherscan-like APIs (FOR FALLBACK ONLY) ---
+// This is kept for potential future use or for non-standard tokens, but the primary
+// logic will now use a minimal ABI.
 async function getContractAbi(chain: any, contractAddress: string): Promise<any> {
     const apikey = process.env.ETHERSCAN_API_KEY || "";
     if (!chain.explorerApi) {
-        throw new Error(`No explorer API configured for ${chain.name}`);
+        // If no explorer, we MUST use the minimal ABI.
+        return [
+            "function name() view returns (string)",
+            "function symbol() view returns (string)",
+            "function decimals() view returns (uint8)",
+        ];
     }
-
-    // A map for explorers that have slightly different API structures.
-    const apiAdapter: { [key: string]: { module: string, action: string } } = {
-        'api.gnosisscan.io': { module: 'contract', action: 'getabi' },
-        'api.ftmscan.com': { module: 'contract', action: 'getabi' },
-        'api.arbiscan.io': { module: 'contract', action: 'getabi' },
-        // Default to Etherscan standard
-        'default': { module: 'contract', action: 'getabi' },
-    };
-
-    const explorerHost = new URL(chain.explorerApi).hostname;
-    const adapter = apiAdapter[explorerHost] || apiAdapter['default'];
 
     try {
         const { data } = await axios.get(chain.explorerApi, {
             params: {
-                module: adapter.module,
-                action: adapter.action,
+                module: 'contract',
+                action: 'getabi',
                 address: contractAddress,
                 apikey,
             },
@@ -44,17 +39,20 @@ async function getContractAbi(chain: any, contractAddress: string): Promise<any>
         });
 
         if (data.status === "1" || (data.message === "OK" && data.result)) {
+            // ABI fetched successfully
             return JSON.parse(data.result);
         } else {
-            // Handle cases where API returns "NOTOK" with a useful message
-            const errorMessage = data.result || data.message || 'Failed to fetch ABI';
-            throw new Error(`Explorer API Error for ${chain.name}: ${errorMessage}`);
+             // If API fails, fall back to minimal ABI.
+            console.warn(`Explorer API failed for ${chain.name}, falling back to minimal ABI.`);
+            return [
+                "function name() view returns (string)",
+                "function symbol() view returns (string)",
+                "function decimals() view returns (uint8)",
+            ];
         }
     } catch (e: any) {
-        console.error(`ABI fetch failed for ${contractAddress} on ${chain.name}: ${e.message}`);
-        // As a fallback, we can use a minimal ABI. This ensures that even if the explorer API is down,
-        // we can still fetch data for standard ERC20 tokens.
-        console.warn(`Falling back to minimal ABI for ${contractAddress}`);
+        console.error(`ABI fetch via explorer failed for ${contractAddress} on ${chain.name}: ${e.message}`);
+        // Fallback to minimal ABI on any error.
         return [
             "function name() view returns (string)",
             "function symbol() view returns (string)",
@@ -68,11 +66,17 @@ async function fetchFromRpc(chain: any, contractAddress: string): Promise<Partia
     if (!chain.rpc) {
         throw new Error(`No RPC URL configured for network: ${chain.name}`);
     }
+    
+    // As per the guide, we directly use the standard ABI.
+    const standardAbi = [
+        'function name() view returns (string)',
+        'function symbol() view returns (string)',
+        'function decimals() view returns (uint8)'
+    ];
 
     try {
-        const abi = await getContractAbi(chain, contractAddress);
         const provider = new ethers.providers.JsonRpcProvider(chain.rpc);
-        const token = new ethers.Contract(contractAddress, abi, provider);
+        const token = new ethers.Contract(contractAddress, standardAbi, provider);
 
         const fetchWithRetry = (fn: () => Promise<any>) => pRetry(fn, { 
             retries: 2, 
@@ -104,7 +108,7 @@ async function fetchFromRpc(chain: any, contractAddress: string): Promise<Partia
         };
     } catch (e: any) {
         console.error(`RPC call failed for ${contractAddress} on ${chain.name}:`, e.message);
-        throw new Error(`Could not fetch complete token metadata from ${chain.name}.`);
+        throw new Error(`Could not fetch token details. Ensure the address is a valid token contract on the selected network.`);
     }
 }
 
@@ -113,7 +117,7 @@ export async function fetchTokenMetadataFromSources(contractAddress: string, net
     const chain = findChainByName(networkName);
     if (!chain) throw new Error(`Unsupported network: ${networkName}`);
     
-    // The new logic directly uses the more robust RPC-based fetching with ABI lookup.
+    // Per the new guide, we now use the direct RPC fetching method as the primary source.
     return fetchFromRpc(chain, contractAddress);
 }
 
