@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { TokenMetadata, Network } from "@/lib/types";
@@ -9,7 +8,7 @@ import { DeleteTokenButton } from "@/components/admin/delete-token-button";
 import { NetworkSelector } from "@/components/admin/network-selector";
 import { PlusCircle } from "lucide-react";
 import Link from "next/link";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { supabase } from "@/lib/supabase/client";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { useEffect, useState } from "react";
@@ -18,10 +17,10 @@ import { useSearchParams } from "next/navigation";
 const defaultLogo = PlaceHolderImages.find(p => p.id === 'default-token-logo')!;
 
 async function getTokens(networkId: string): Promise<TokenMetadata[]> {
-  let query = supabaseAdmin.from("token_metadata").select("*");
+  let query = supabase.from("token_metadata").select("*");
 
   if (networkId) {
-    const { data: networkData, error: networkError } = await supabaseAdmin
+    const { data: networkData, error: networkError } = await supabase
       .from("networks")
       .select("name")
       .eq("id", networkId)
@@ -46,7 +45,7 @@ async function getTokens(networkId: string): Promise<TokenMetadata[]> {
 }
 
 async function getNetworks(): Promise<Network[]> {
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabase
     .from("networks")
     .select("id, name")
     .order("name");

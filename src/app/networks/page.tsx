@@ -1,10 +1,9 @@
-
 "use client";
 
 import { NetworkForm } from "@/components/admin/network-form";
 import { DeleteNetworkButton } from "@/components/admin/delete-network-button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { supabase } from "@/lib/supabase/client";
 import type { Network } from "@/lib/types";
 import Image from "next/image";
 import { UploadNetworkLogoDialog } from "@/components/admin/upload-network-logo-dialog";
@@ -15,7 +14,7 @@ const defaultLogo = PlaceHolderImages.find(p => p.id === 'default-token-logo')!;
 
 
 async function getNetworks(): Promise<Network[]> {
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabase
     .from("networks")
     .select("*")
     .order("name", { ascending: true });

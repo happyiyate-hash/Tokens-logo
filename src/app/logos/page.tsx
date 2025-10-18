@@ -1,7 +1,6 @@
-
 "use client";
 
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { supabase } from "@/lib/supabase/client";
 import type { TokenLogo } from "@/lib/types";
 import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -14,7 +13,7 @@ import { useEffect, useState } from "react";
 
 // This is a client component, so we fetch data in a useEffect hook.
 async function getLogos(): Promise<TokenLogo[]> {
-  const { data, error } = await supabaseAdmin.rpc('get_all_token_logos');
+  const { data, error } = await supabase.rpc('get_all_token_logos');
 
   if (error) {
     console.error("[Client] Error fetching global logos:", error);
