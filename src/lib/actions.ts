@@ -440,7 +440,7 @@ export type AddNetworkState = {
 const addNetworkSchema = z.object({
   name: z.string().min(1, "Network name is required."),
   chain_id: z.coerce.number().int("Chain ID must be an integer."),
-  explorer_api_base_url: z.string().url("Must be a valid URL."),
+  explorer_api_base_url: z.string().url("Must be a valid URL.").optional().or(z.literal('')),
 });
 
 export async function addNetwork(prevState: AddNetworkState | undefined, formData: FormData): Promise<AddNetworkState> {
@@ -454,7 +454,9 @@ export async function addNetwork(prevState: AddNetworkState | undefined, formDat
 
   try {
     const { error } = await supabaseAdmin.from("networks").insert({
-        ...validated.data,
+        name: validated.data.name,
+        chain_id: validated.data.chain_id,
+        explorer_api_base_url: validated.data.explorer_api_base_url || null,
         explorer_api_key_env_var: 'ETHERSCAN_API_KEY' // Always use the main key
     });
     if (error) {

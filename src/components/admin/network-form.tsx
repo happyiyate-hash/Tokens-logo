@@ -82,13 +82,13 @@ export function NetworkForm() {
                     </div>
                 </div>
                  <div className="space-y-2">
-                    <Label htmlFor="explorer_api_base_url_display">API Base URL</Label>
+                    <Label htmlFor="explorer_api_base_url_display">API Base URL (Optional)</Label>
                     <Input 
                       id="explorer_api_base_url_display" 
-                      placeholder="https://api.etherscan.io/api" 
-                      required 
+                      placeholder="e.g., https://api.etherscan.io/api or leave blank"
                       value={selectedChain?.explorerApi || ''}
                       readOnly
+                      disabled={!selectedChain}
                     />
                 </div>
                 <SubmitButton disabled={!selectedChain}>Add Network</SubmitButton>
