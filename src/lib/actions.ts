@@ -199,6 +199,7 @@ export async function updateGlobalLogo(
             storage_path: newStoragePath
         };
         
+        // 1. Update the global logo record
         const { error: updateError } = await supabaseAdmin
             .from("token_logos")
             .update(updateData)
@@ -208,7 +209,19 @@ export async function updateGlobalLogo(
             throw new Error(`Database update error: ${updateError.message}`);
         }
 
+        // 2. (NEW) Sync this change to the networks table if it's a native currency
+        const { error: networkUpdateError } = await supabaseAdmin
+            .from("networks")
+            .update({ logo_url: newPublicUrl })
+            .eq("name", name); // Match by name, as native currency symbol might not be unique
+
+        if (networkUpdateError) {
+            // This is not a critical failure, so we just log it
+            console.warn(`Could not sync logo update to networks table for ${name}: ${networkUpdateError.message}`);
+        }
+
         revalidatePath("/logos");
+        revalidatePath("/networks"); // Also revalidate the networks page
         return { status: "success", message: "Logo updated successfully!" };
 
     } catch (e: any) {
@@ -510,16 +523,19 @@ export async function updateNetworkLogo(
 
       const fileContents = await logoFile.arrayBuffer();
       const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
-      const filePath = `networks/${network.name.toLowerCase().replace(/\s/g, '-')}-${Date.now()}.${ext}`;
+      const sanitizedNetworkName = network.name.toLowerCase().replace(/\s/g, '-');
+      
+      // Use a consistent path for the network logo itself
+      const networkLogoPath = `networks/${sanitizedNetworkName}.${ext}`;
 
       // 1. Upload logo for the network
       const { error: uploadError } = await supabaseAdmin.storage
         .from(STORAGE_BUCKET)
-        .upload(filePath, fileContents, { contentType: logoFile.type, upsert: true });
+        .upload(networkLogoPath, fileContents, { contentType: logoFile.type, upsert: true });
 
       if (uploadError) throw new Error(`Storage upload failed: ${uploadError.message}`);
 
-      const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+      const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(networkLogoPath);
 
       // 2. Update the logo_url in the networks table
       const { error: dbUpdateError } = await supabaseAdmin
@@ -529,58 +545,25 @@ export async function updateNetworkLogo(
 
       if (dbUpdateError) throw new Error(`Database update for network logo failed: ${dbUpdateError.message}`);
 
-      // 3. (NEW) Upsert the native currency logo into the global token_logos table
+      // 3. (NEW & IMPROVED) Upsert the native currency logo into the global token_logos table
       const chainConfig = chainsConfig.find(c => c.chainId === network.chain_id);
       if (chainConfig && chainConfig.nativeCurrencySymbol) {
-          const globalLogoPath = `global/${network.name.toLowerCase().replace(/\s/g, '-')}-${chainConfig.nativeCurrencySymbol.toLowerCase()}.${ext}`;
+        
+          const globalLogoData = {
+              symbol: chainConfig.nativeCurrencySymbol,
+              name: network.name, // Use network name for the token name
+              public_url: publicUrlData.publicUrl,
+              storage_path: networkLogoPath, // The global logo shares the same storage path
+          };
 
-          // Copy the recently uploaded network logo to a new path for the global logo
-          const { error: copyError } = await supabaseAdmin.storage
-            .from(STORAGE_BUCKET)
-            .copy(filePath, globalLogoPath, { upsert: true });
+          const { error: globalUpsertError } = await supabaseAdmin
+            .from("token_logos")
+            .upsert(globalLogoData, { onConflict: 'name, symbol' }); // Use the correct unique constraint
 
-          if (copyError) {
-              console.warn(`Could not copy network logo to global logo path: ${copyError.message}`);
-          } else {
-            const { data: globalPublicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(globalLogoPath);
-            
-            // Check if a logo for this NAME already exists
-            const { data: existingLogo, error: existingLogoError } = await supabaseAdmin
-                .from("token_logos")
-                .select("id")
-                .ilike("name", network.name)
-                .limit(1)
-                .maybeSingle();
-
-            if(existingLogoError) {
-              console.error(`Error checking for existing global logo for ${network.name}: ${existingLogoError.message}`);
-            } else {
-              const upsertData = {
-                  symbol: chainConfig.nativeCurrencySymbol,
-                  name: network.name, // Use network name for the token name
-                  public_url: globalPublicUrlData.publicUrl,
-                  storage_path: globalLogoPath,
-              };
-
-              if (existingLogo) {
-                  // Update existing
-                  const { error: globalUpdateError } = await supabaseAdmin
-                      .from("token_logos")
-                      .update(upsertData)
-                      .eq("id", existingLogo.id);
-                  if (globalUpdateError) console.error(`Failed to update global logo for ${network.name}: ${globalUpdateError.message}`);
-
-              } else {
-                  // Insert new
-                  const { error: globalInsertError } = await supabaseAdmin
-                      .from("token_logos")
-                      .insert(upsertData);
-                  if (globalInsertError) console.error(`Failed to insert global logo for ${network.name}: ${globalInsertError.message}`);
-              }
-            }
+          if (globalUpsertError) {
+              console.error(`Failed to upsert global logo for ${network.name}: ${globalUpsertError.message}`);
           }
       }
-
 
       revalidatePath("/networks");
       revalidatePath("/logos"); // Also revalidate the logos page
