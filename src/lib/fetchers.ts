@@ -13,61 +13,11 @@ const findChainByName = (networkName: string) => {
     return chainsConfig.find(c => c.name.toLowerCase() === lowercasedName);
 };
 
-// --- Helper to get ABI from Etherscan-like APIs (FOR FALLBACK ONLY) ---
-// This is kept for potential future use or for non-standard tokens, but the primary
-// logic will now use a minimal ABI.
-async function getContractAbi(chain: any, contractAddress: string): Promise<any> {
-    const apikey = process.env.ETHERSCAN_API_KEY || "";
-    if (!chain.explorerApi) {
-        // If no explorer, we MUST use the minimal ABI.
-        return [
-            "function name() view returns (string)",
-            "function symbol() view returns (string)",
-            "function decimals() view returns (uint8)",
-        ];
-    }
-
-    try {
-        const { data } = await axios.get(chain.explorerApi, {
-            params: {
-                module: 'contract',
-                action: 'getabi',
-                address: contractAddress,
-                apikey,
-            },
-            timeout: 7000 // 7-second timeout
-        });
-
-        if (data.status === "1" || (data.message === "OK" && data.result)) {
-            // ABI fetched successfully
-            return JSON.parse(data.result);
-        } else {
-             // If API fails, fall back to minimal ABI.
-            console.warn(`Explorer API failed for ${chain.name}, falling back to minimal ABI.`);
-            return [
-                "function name() view returns (string)",
-                "function symbol() view returns (string)",
-                "function decimals() view returns (uint8)",
-            ];
-        }
-    } catch (e: any) {
-        console.error(`ABI fetch via explorer failed for ${contractAddress} on ${chain.name}: ${e.message}`);
-        // Fallback to minimal ABI on any error.
-        return [
-            "function name() view returns (string)",
-            "function symbol() view returns (string)",
-            "function decimals() view returns (uint8)",
-        ];
-    }
-}
-
-
 async function fetchFromRpc(chain: any, contractAddress: string): Promise<Partial<TokenFetchResult>> {
     if (!chain.rpc) {
         throw new Error(`No RPC URL configured for network: ${chain.name}`);
     }
     
-    // As per the guide, we directly use the standard ABI.
     const standardAbi = [
         'function name() view returns (string)',
         'function symbol() view returns (string)',
@@ -117,7 +67,7 @@ export async function fetchTokenMetadataFromSources(contractAddress: string, net
     const chain = findChainByName(networkName);
     if (!chain) throw new Error(`Unsupported network: ${networkName}`);
     
-    // Per the new guide, we now use the direct RPC fetching method as the primary source.
+    // Per your direction, we now ONLY use the direct RPC fetching method. No fallbacks.
     return fetchFromRpc(chain, contractAddress);
 }
 
