@@ -88,9 +88,9 @@ const guide2Code = `
  * Fetches the logo URL for a token. This is a direct lookup in the
  * global logo library. For best results, provide both a symbol and a name
  * to avoid ambiguity with tokens that share symbols.
- * @param {string} symbol - The token's symbol (e.g., 'WETH').
+ * @param {string} symbol - The token's symbol (e.g., 'ETH').
  * @param {string} apiKey - Your generated API key.
- * @param {string} [name] - Optional. The token's name (e.g., 'Wrapped Ether') to find the exact logo.
+ * @param {string} [name] - Optional. The token's name (e.g., 'Arbitrum One') to find the exact logo.
  * @returns {Promise<string|null>} The logo URL or null on error.
  */
 async function getLogoBySymbolAndName(symbol, apiKey, name) {
@@ -122,9 +122,9 @@ async function getLogoBySymbolAndName(symbol, apiKey, name) {
 // --- Example Usage ---
 // const apiKey = 'wevina_...'; // Your generated API key
 //
-// // 1. Get a logo with only the symbol (might be ambiguous)
-// getLogoBySymbolAndName('WETH', apiKey).then(logoUrl => {
-//   console.log('WETH Logo URL:', logoUrl);
+// // 1. Get the specific logo for 'Arbitrum One' with symbol 'ETH'
+// getLogoBySymbolAndName('ETH', apiKey, 'Arbitrum One').then(logoUrl => {
+//   console.log('Specific ETH (Arbitrum) Logo URL:', logoUrl);
 // });
 //
 // // 2. Get the specific logo for 'Tether USD' with symbol 'USDT' (most reliable)
@@ -227,8 +227,8 @@ export default function ApiKeysPage() {
                             <p className="font-mono text-sm bg-muted p-2 rounded-md my-2"><code>GET /api/logo</code></p>
                             <p className="text-muted-foreground">Directly looks up a logo URL from the global logo library. This is the fastest way to get a logo if you already know the token's name and symbol. It is the recommended way to resolve logos for tokens with shared symbols.</p>
                             <ul className="list-disc pl-5 mt-2 text-muted-foreground space-y-1">
-                                <li><code>symbol</code> (query param, required): The token symbol (e.g., <code>USDC</code>, <code>WETH</code>).</li>
-                                <li><code>name</code> (query param, optional but recommended): The token name to find the exact logo match (e.g., 'Tether USD').</li>
+                                <li><code>symbol</code> (query param, required): The token symbol (e.g., <code>USDC</code>, <code>ETH</code>).</li>
+                                <li><code>name</code> (query param, optional but recommended): The token name to find the exact logo match (e.g., 'Arbitrum One', 'Tether USD').</li>
                             </ul>
                         </div>
                          <div className="space-y-2">
