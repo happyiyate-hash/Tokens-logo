@@ -471,7 +471,7 @@ export async function updateNetworkLogo(
   try {
       const { data: network, error: fetchError } = await supabaseAdmin
         .from("networks")
-        .select("name, logo_url")
+        .select("name, chain_id")
         .eq("id", networkId)
         .single();
       
@@ -481,6 +481,7 @@ export async function updateNetworkLogo(
       const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
       const filePath = `networks/${network.name.toLowerCase().replace(/\s/g, '-')}-${Date.now()}.${ext}`;
 
+      // 1. Upload logo for the network
       const { error: uploadError } = await supabaseAdmin.storage
         .from(STORAGE_BUCKET)
         .upload(filePath, fileContents, { contentType: logoFile.type, upsert: true });
@@ -489,15 +490,48 @@ export async function updateNetworkLogo(
 
       const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
 
+      // 2. Update the logo_url in the networks table
       const { error: dbUpdateError } = await supabaseAdmin
         .from("networks")
         .update({ logo_url: publicUrlData.publicUrl })
         .eq("id", networkId);
 
-      if (dbUpdateError) throw new Error(`Database update failed: ${dbUpdateError.message}`);
+      if (dbUpdateError) throw new Error(`Database update for network logo failed: ${dbUpdateError.message}`);
+
+      // 3. (NEW) Upsert the native currency logo into the global token_logos table
+      const chainConfig = chainsConfig.find(c => c.chainId === network.chain_id);
+      if (chainConfig && chainConfig.nativeCurrencySymbol) {
+          const globalLogoPath = `global/${chainConfig.nativeCurrencySymbol.toLowerCase()}.${ext}`;
+
+          // Copy the recently uploaded network logo to a new path for the global logo
+          const { error: copyError } = await supabaseAdmin.storage
+            .from(STORAGE_BUCKET)
+            .copy(filePath, globalLogoPath, { upsert: true });
+
+          if (copyError) {
+              console.warn(`Could not copy network logo to global logo path: ${copyError.message}`);
+          } else {
+            const { data: globalPublicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(globalLogoPath);
+
+            const { error: globalUpsertError } = await supabaseAdmin
+              .from("token_logos")
+              .upsert({
+                  symbol: chainConfig.nativeCurrencySymbol,
+                  name: network.name, // Use network name for the token name
+                  public_url: globalPublicUrlData.publicUrl,
+                  storage_path: globalLogoPath,
+              }, { onConflict: 'symbol', ignoreDuplicates: false });
+            
+            if (globalUpsertError) {
+                console.error(`Failed to upsert global logo for ${chainConfig.nativeCurrencySymbol}: ${globalUpsertError.message}`);
+            }
+          }
+      }
+
 
       revalidatePath("/networks");
-      return { status: "success", message: "Network logo updated successfully!" };
+      revalidatePath("/logos"); // Also revalidate the logos page
+      return { status: "success", message: "Network logo updated and native token logo saved!" };
 
   } catch(e: any) {
     console.error('[updateNetworkLogo Error]', e);
@@ -627,3 +661,5 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
         return { status: "error", message: `Could not find token with address ${contractAddress} on ${chainConfig.name}. Error: ${error.message}` };
     }
 }
+
+    
