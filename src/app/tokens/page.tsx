@@ -113,21 +113,22 @@ export default async function TokensListPage({
               </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-4">
             {tokens.map((token) => (
               <Card key={token.id} className="group relative flex flex-col overflow-hidden">
                 <CardHeader className="flex-col items-center justify-center p-4">
-                  <Image
-                    src={token.logo_url || defaultLogo.imageUrl}
-                    alt={`${token.token_details.name} logo`}
-                    width={80}
-                    height={80}
-                    className="rounded-full bg-muted object-cover aspect-square"
-                    unoptimized
-                  />
+                   <div className="relative h-16 w-16 sm:h-20 sm:w-20">
+                    <Image
+                        src={token.logo_url || defaultLogo.imageUrl}
+                        alt={`${token.token_details.name} logo`}
+                        fill
+                        className="rounded-full bg-muted object-cover"
+                        unoptimized
+                    />
+                  </div>
                 </CardHeader>
                 <CardContent className="flex-1 space-y-1 p-4 pt-0 text-center">
-                   <CardTitle className="text-lg font-bold truncate">{token.token_details.name}</CardTitle>
+                   <CardTitle className="text-base sm:text-lg font-bold truncate">{token.token_details.name}</CardTitle>
                    <div className="flex justify-center items-center gap-2">
                      <Badge variant="secondary">{token.token_details.symbol}</Badge>
                      <Badge variant="outline">{token.network}</Badge>

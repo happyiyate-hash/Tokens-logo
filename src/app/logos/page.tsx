@@ -52,21 +52,22 @@ export default async function LogosPage() {
               </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-4">
             {logos.map((logo) => (
               <Card key={logo.id} className="group relative flex flex-col overflow-hidden text-center">
                 <CardHeader className="flex-col items-center justify-center p-4">
-                  <Image
-                    src={logo.public_url}
-                    alt={`${logo.symbol} logo`}
-                    width={80}
-                    height={80}
-                    className="rounded-full bg-muted object-cover aspect-square"
-                    unoptimized
-                  />
+                  <div className="relative h-16 w-16 sm:h-20 sm:w-20">
+                    <Image
+                      src={logo.public_url}
+                      alt={`${logo.symbol} logo`}
+                      fill
+                      className="rounded-full bg-muted object-cover"
+                      unoptimized
+                    />
+                  </div>
                 </CardHeader>
                 <CardContent className="flex-1 space-y-2 p-4 pt-0">
-                   <CardTitle className="text-lg font-bold truncate">{logo.name || logo.symbol}</CardTitle>
+                   <CardTitle className="text-base sm:text-lg font-bold truncate">{logo.name || logo.symbol}</CardTitle>
                 </CardContent>
                  <CardFooter className="p-2 bg-muted/50">
                     <Badge variant="secondary" className="mx-auto">{logo.symbol}</Badge>
