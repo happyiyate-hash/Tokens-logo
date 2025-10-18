@@ -79,15 +79,14 @@ export async function addGlobalLogo(
       
       const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
       
-      // Upsert based on the NAME column to allow different logos for the same symbol.
       const { error: insertError } = await supabaseAdmin
         .from('token_logos')
         .upsert({ 
             symbol: upperCaseSymbol, 
-            name: name, // The name is now the unique key for this operation
+            name: name,
             public_url: publicUrlData.publicUrl,
             storage_path: filePath,
-        }, { onConflict: 'name', ignoreDuplicates: false });
+        }, { onConflict: 'symbol', ignoreDuplicates: false });
 
 
       if (insertError) {
@@ -524,18 +523,40 @@ export async function updateNetworkLogo(
               console.warn(`Could not copy network logo to global logo path: ${copyError.message}`);
           } else {
             const { data: globalPublicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(globalLogoPath);
+            
+            // Check if a logo for this symbol already exists
+            const { data: existingLogo, error: existingLogoError } = await supabaseAdmin
+                .from("token_logos")
+                .select("id")
+                .eq("symbol", chainConfig.nativeCurrencySymbol)
+                .limit(1)
+                .maybeSingle();
 
-            const { error: globalUpsertError } = await supabaseAdmin
-              .from("token_logos")
-              .upsert({
+            if(existingLogoError) {
+              console.error(`Error checking for existing global logo for ${chainConfig.nativeCurrencySymbol}: ${existingLogoError.message}`);
+            } else {
+              const upsertData = {
                   symbol: chainConfig.nativeCurrencySymbol,
                   name: network.name, // Use network name for the token name
                   public_url: globalPublicUrlData.publicUrl,
                   storage_path: globalLogoPath,
-              }, { onConflict: 'symbol', ignoreDuplicates: false });
-            
-            if (globalUpsertError) {
-                console.error(`Failed to upsert global logo for ${chainConfig.nativeCurrencySymbol}: ${globalUpsertError.message}`);
+              };
+
+              if (existingLogo) {
+                  // Update existing
+                  const { error: globalUpdateError } = await supabaseAdmin
+                      .from("token_logos")
+                      .update(upsertData)
+                      .eq("symbol", chainConfig.nativeCurrencySymbol);
+                  if (globalUpdateError) console.error(`Failed to update global logo for ${chainConfig.nativeCurrencySymbol}: ${globalUpdateError.message}`);
+
+              } else {
+                  // Insert new
+                  const { error: globalInsertError } = await supabaseAdmin
+                      .from("token_logos")
+                      .insert(upsertData);
+                  if (globalInsertError) console.error(`Failed to insert global logo for ${chainConfig.nativeCurrencySymbol}: ${globalInsertError.message}`);
+              }
             }
           }
       }
