@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { fetchTokenMetadata, addToken, type FetchMetadataState, type AddTokenState } from "@/lib/actions";
 import { autoFetchMissingLogo } from "@/ai/flows/auto-fetch-missing-logos";
 
@@ -140,7 +140,7 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
             toast({ title: "AI Found a Logo!", description: `Found a logo for ${symbol}.` });
             setIsLogoAvailable(true);
           } else {
-            toast({ variant: "destructive", title: "No Logo Found", description: `Could not find a logo for ${symbol}. Click the logo area to upload one manually.` });
+            toast({ variant: "default", title: "No Logo Found", description: `Could not find a logo for ${symbol}. Click the logo area to upload one manually.` });
             setIsLogoAvailable(false);
           }
         })
@@ -161,7 +161,6 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
     setPreviewUrl(null);
     setIsLogoAvailable(false);
     setManualLogoFile(null);
-    // Resetting state is managed by useActionState's lifecycle
   };
   
   const canSave = formData.name && formData.symbol && formData.chainId && formData.contractAddress && isLogoAvailable && !isAiSearching;
