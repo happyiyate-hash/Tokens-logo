@@ -27,27 +27,21 @@ async function getTokens(networkId: string): Promise<TokenMetadata[]> {
     return cachedTokens[cacheKey];
   }
 
-  let query = supabase.from("token_metadata").select("*");
+  let query;
 
   if (networkId) {
-    const { data: networkData, error: networkError } = await supabase
-      .from("networks")
-      .select("name")
-      .eq("id", networkId)
-      .single();
-
-    if (networkError || !networkData) {
-      console.error("Error fetching network name:", networkError);
-      return [];
-    }
-    
-    query = query.eq("network", networkData.name.toLowerCase());
+    // **FIX**: Use a more robust RPC call to fetch tokens by the network's UUID (id),
+    // which is more reliable than using the network name.
+    query = supabase.rpc('get_tokens_by_network_id', { net_id: networkId });
+  } else {
+    // If no network is selected, fetch all tokens.
+    query = supabase.from("token_metadata").select("*");
   }
 
   const { data, error } = await query.order("updated_at", { ascending: false });
 
   if (error) {
-    console.error("Error fetching tokens:", error);
+    console.error(`[Client] Error fetching tokens for network ${networkId}:`, error);
     return [];
   }
 
@@ -80,6 +74,10 @@ export default function TokensListPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Invalidate cache when component mounts for fresh data, can be optimized later
+    cachedTokens = {};
+    cachedNetworks = null;
+    
     setLoading(true);
     // Fetch networks and tokens in parallel
     Promise.all([getNetworks(), getTokens(selectedNetworkId)]).then(([nets, toks]) => {
@@ -179,3 +177,5 @@ export default function TokensListPage() {
     </div>
   );
 }
+
+    
