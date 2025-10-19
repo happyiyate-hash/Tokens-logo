@@ -276,6 +276,7 @@ const addTokenSchema = z.object({
   chainId: z.coerce.number().min(1, "Chain ID is required."),
   decimals: z.coerce.number().int().min(0).default(18),
   contract: z.string().min(1, "Contract address is required."),
+  logo: z.instanceof(File).optional(),
 });
 
 
@@ -288,7 +289,8 @@ export async function addToken(
       symbol: formData.get('symbol'),
       chainId: formData.get('chainId'),
       decimals: formData.get('decimals'),
-      contract: formData.get('contract'), 
+      contract: formData.get('contract'),
+      logo: formData.get('logo'),
   });
 
   if (!validated.success) {
@@ -297,10 +299,23 @@ export async function addToken(
     return { status: "error", message: firstError || "Invalid input." };
   }
   
-  const { symbol, name, decimals, chainId, contract } = validated.data;
+  const { symbol, name, decimals, chainId, contract, logo: logoFile } = validated.data;
   
   try {
-    const finalLogoUrl = getCdnLogoUrl(name, symbol);
+    let finalLogoUrl = getCdnLogoUrl(name, symbol);
+
+    // If a logo file was manually uploaded, save it first.
+    if (logoFile && logoFile.size > 0) {
+        const logoFormData = new FormData();
+        logoFormData.append('name', name);
+        logoFormData.append('symbol', symbol);
+        logoFormData.append('logo', logoFile);
+
+        const addLogoState = await addGlobalLogo(undefined, logoFormData);
+        if (addLogoState.status === 'error') {
+            throw new Error(`Failed to save manually uploaded logo: ${addLogoState.message}`);
+        }
+    }
     
     // Find the network name from the hardcoded JSON file.
     const network = chainsConfig.find(c => c.chainId === chainId);
@@ -730,7 +745,7 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
               symbol: metadata.symbol,
               decimals: metadata.decimals,
               logoUrl: finalLogoUrl,
-              source: `${metadata.source} on ${network.name}`,
+              source: `${metadata.source}`,
           };
           
           return { 
@@ -744,3 +759,5 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
         return { status: "error", message: `Could not find token with address ${contractAddress} on ${network.name}. Error: ${error.message}` };
     }
 }
+
+    
