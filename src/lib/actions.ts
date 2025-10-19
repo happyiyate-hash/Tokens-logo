@@ -324,10 +324,10 @@ export async function addToken(
     // We construct the final, consistent CDN URL for the metadata linking.
     const finalLogoUrl = getCdnLogoUrl(name, symbol);
     
-    // Find the network name from the hardcoded JSON file.
+    // **BUG FIX**: Find the network name using the chainId from the hardcoded JSON file.
     const network = chainsConfig.find(c => c.chainId === chainId);
     if (!network) {
-      throw new Error("Network not found for the provided Chain ID.");
+      throw new Error(`Network not found for the provided Chain ID: ${chainId}.`);
     }
 
     const tokenDetails: TokenDetails = { name, symbol, decimals };
