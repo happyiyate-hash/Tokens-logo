@@ -55,7 +55,6 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
   const [isAiSearching, setIsAiSearching] = useState(false);
   const [isLogoAvailable, setIsLogoAvailable] = useState(false);
   const [manualLogoFile, setManualLogoFile] = useState<File | null>(null);
-  const [startSaveTransition, isSavePending] = useTransition();
 
   // Handle form input changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -87,13 +86,13 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
   };
 
   // Custom save handler to include manual logo file
-  const handleSave = (formData: FormData) => {
+  const handleSaveAction = (formDataWithNativeFields: FormData) => {
+      // Append the manual logo file if it exists
       if (manualLogoFile) {
-          formData.append('logo', manualLogoFile);
+        formDataWithNativeFields.append('logo', manualLogoFile);
       }
-      startSaveTransition(() => {
-        saveAction(formData);
-      });
+      // Call the original server action
+      saveAction(formDataWithNativeFields);
   };
 
   // Effect to display toast on save action result
@@ -162,17 +161,10 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
     setPreviewUrl(null);
     setIsLogoAvailable(false);
     setManualLogoFile(null);
-    // Reset action states by re-initializing them if possible, or just reset UI
-    // The useActionState doesn't provide a direct reset method, so we manage UI state
-    // To prevent the old success/error messages from showing.
-    // This is a simplified approach. A more complex one might involve a key change on the component.
-    const form = document.createElement('form');
-    // Note: The direct calls to fetchAction/saveAction were incorrect and have been removed.
-    // The state will naturally be "idle" on the next invocation.
+    // Resetting state is managed by useActionState's lifecycle
   };
   
   const canSave = formData.name && formData.symbol && formData.chainId && formData.contractAddress && isLogoAvailable && !isAiSearching;
-  const isSavingActive = isSaving || isSavePending;
 
   return (
     <Card className="w-full max-w-3xl mx-auto">
@@ -216,7 +208,7 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
             <div className="border-t pt-8">
                 <h3 className="text-lg font-semibold mb-4">Token Details (Verify or Enter Manually)</h3>
                 {/* --- SAVER FORM --- */}
-                <form ref={saveFormRef} action={handleSave} className="space-y-6">
+                <form ref={saveFormRef} action={handleSaveAction} className="space-y-6">
                     {/* Hidden fields to pass all required data to the save action */}
                     <input type="hidden" name="contract" value={formData.contractAddress} />
                     <input type="hidden" name="chainId" value={formData.chainId} />
@@ -250,8 +242,8 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
                         <div className="flex-shrink-0 text-center">
                             <Label>{isAiSearching ? "AI Searching..." : "Logo Preview"}</Label>
                             <input
-                                id="logo"
-                                name="logo"
+                                id="logo_manual_upload"
+                                name="logo_manual_upload"
                                 type="file"
                                 ref={fileInputRef}
                                 accept="image/png, image/jpeg, image/svg+xml, image/webp"
@@ -278,8 +270,8 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
                         </div>
                     </div>
 
-                    <SubmitButton className="w-full" disabled={!canSave || isSavingActive}>
-                        {(isSavingActive) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    <SubmitButton className="w-full" disabled={!canSave || isSaving}>
+                        {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         {isAiSearching ? "AI is working..." : !isLogoAvailable ? "Cannot Save Without Logo" : <><Save className="mr-2 h-4 w-4" /> Save Token </> }
                     </SubmitButton>
 
