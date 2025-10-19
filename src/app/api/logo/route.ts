@@ -60,3 +60,5 @@ export async function GET(req: Request) {
   // Return the URL to our caching CDN layer
   return NextResponse.json({ logo_url: cdnUrl });
 }
+
+    
