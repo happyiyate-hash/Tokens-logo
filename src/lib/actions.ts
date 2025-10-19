@@ -1,4 +1,3 @@
-
 "use server";
 
 import { z } from "zod";
@@ -9,6 +8,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { fetchTokenMetadataFromSources } from "@/lib/fetchers";
 import axios from 'axios';
 import { autoFetchMissingLogo } from '@/ai/flows/auto-fetch-missing-logos';
+import { randomUUID } from "crypto";
 
 const STORAGE_BUCKET = "token_logos";
 const CACHE_TTL = Number(process.env.CACHE_TTL_MS || 7 * 24 * 3600 * 1000);
@@ -324,7 +324,6 @@ export async function addToken(
     // We construct the final, consistent CDN URL for the metadata linking.
     const finalLogoUrl = getCdnLogoUrl(name, symbol);
     
-    // **BUG FIX**: Find the network name using the chainId from the hardcoded JSON file.
     const network = chainsConfig.find(c => c.chainId === chainId);
     if (!network) {
       throw new Error(`Network not found for the provided Chain ID: ${chainId}.`);
@@ -398,10 +397,9 @@ export async function generateNewApiKey(
   }
   
   try {
-    // Generate the key directly in the server action. This is more robust.
-    const { data: uuidData } = await supabaseAdmin.rpc('uuid_generate_v4');
-    if (!uuidData) throw new Error("Failed to generate UUID from database.");
-    const newKey = `wevina_${uuidData.replace(/-/g, '')}`;
+    // **FIX**: Generate UUID in the server action using crypto module, removing the database dependency.
+    const uuid = randomUUID();
+    const newKey = `wevina_${uuid.replace(/-/g, '')}`;
 
     const { data, error } = await supabaseAdmin
         .from('api_clients')
