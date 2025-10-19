@@ -7,131 +7,74 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Check, Copy } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 
-const guide1Code = `
-/**
- * Fetches all tokens for a given network.
- * The response includes the pre-linked 'logo_url' for each token.
- * @param {string} network - The name of the network (e.g., 'polygon').
- * @param {string} apiKey - Your generated API key.
- * @returns {Promise<Array<object>|null>} A list of token objects or null on error.
- */
-async function getAllTokensByNetwork(network, apiKey) {
-  const baseUrl = window.location.origin;
-  const url = \`\${baseUrl}/api/tokens/\${network.toLowerCase()}\`;
+const walletGuideCode = `
+// --- .env.local ---
+// Public Supabase credentials for the wallet app.
+// These keys are safe to expose in a client-side (browser) application.
 
-  try {
-    const response = await fetch(url, {
-      headers: { 'x-api-key': apiKey }
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error(\`API Error (\${response.status}): \${errorData.error}\`);
-      return null;
-    }
-    return response.json();
-  } catch (error) {
-    console.error('Error fetching token list:', error);
-    return null;
-  }
+// Find this in your Supabase Dashboard > Project Settings > API > Project URL
+NEXT_PUBLIC_SUPABASE_URL="YOUR_SUPABASE_PROJECT_URL"
+
+// Find this in your Supabase Dashboard > Project Settings > API > Project API Keys > anon (public)
+NEXT_PUBLIC_SUPABASE_ANON_KEY="YOUR_SUPABASE_PUBLIC_ANON_KEY"
+`;
+
+const walletGuideCode2 = `
+// Example file: src/lib/supabaseClient.js
+
+import { createClient } from '@supabase/supabase-js';
+
+// Get the variables from your .env.local file
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error("Supabase URL and Anon Key must be provided in your .env.local file.");
 }
 
-/**
- * Fetches a single token's metadata by its symbol on a specific network.
- * The response includes the pre-linked 'logo_url'.
- * @param {string} network - The name of the network (e.g., 'ethereum').
- * @param {string} symbol - The token's symbol (e.g., 'USDT').
- * @param {string} apiKey - Your generated API key.
- * @returns {Promise<object|null>} A single token object or null on error.
- */
-async function getTokenBySymbol(network, symbol, apiKey) {
-  const baseUrl = window.location.origin;
-  const url = new URL(\`\${baseUrl}/api/tokens/\${network.toLowerCase()}\`);
-  url.searchParams.set('symbol', symbol);
+// Create a single, reusable Supabase client instance
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+`;
 
-  try {
-    const response = await fetch(url.toString(), {
-      headers: { 'x-api-key': apiKey }
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error(\`API Error (\${response.status}): \${errorData.error}\`);
-      return null;
-    }
-    return response.json();
-  } catch (error) {
-    console.error('Error fetching token:', error);
+const walletGuideCode3 = `
+/**
+ * Fetches the complete metadata for all tokens on a specific network.
+ * This is the primary function to get all data for a chain.
+ *
+ * @param {string} network - The name of the network in lowercase (e.g., 'polygon').
+ * @returns {Promise<Array<object>|null>} A promise that resolves to a list of full token metadata objects, or null on error.
+ */
+async function fetchAllTokenMetadataForNetwork(network) {
+  const { data, error } = await supabase
+    .from('token_metadata') // The exact table name
+    .select('*') // Select all columns
+    .eq('network', network.toLowerCase());
+
+  if (error) {
+    console.error('Error fetching all token metadata from Supabase:', error.message);
     return null;
   }
+  
+  // The 'data' variable is now an array of all token records for the network.
+  // Each record contains 'logo_url', 'contract_address', and 'token_details' (which has name, symbol, decimals).
+  // You can now store this array in your wallet's local storage for instant access.
+  return data;
 }
 
-// --- Example Usage ---
-// const apiKey = 'wevina_...'; // Your generated API key
-//
-// // 1. Get all tokens on Polygon
-// getAllTokensByNetwork('polygon', apiKey).then(tokens => {
-//   console.log('All Polygon Tokens:', tokens);
-// });
-//
-// // 2. Get a single token's metadata (USDT on Ethereum)
-// getTokenBySymbol('ethereum', 'USDT', apiKey).then(token => {
-//   console.log('Single Token Metadata:', token);
+// --- Example Usage in Wallet App ---
+// This would run when your wallet app starts up for each supported network.
+// fetchAllTokenMetadataForNetwork('polygon').then(allPolygonTokens => {
+//   if (allPolygonTokens) {
+//     console.log('Fetched all tokens for Polygon:', allPolygonTokens);
+//     // Now, save 'allPolygonTokens' to the device's local storage
+//     // so you don't have to fetch it again until you want to refresh.
+//     // For example:
+//     // localStorage.setItem('polygon-tokens', JSON.stringify(allPolygonTokens));
+//   }
 // });
 `;
 
-const guide2Code = `
-/**
- * Fetches the logo URL for a token. This is a direct lookup in the
- * global logo library. For best results, provide both a symbol and a name
- * to avoid ambiguity with tokens that share symbols.
- * @param {string} symbol - The token's symbol (e.g., 'ETH').
- * @param {string} apiKey - Your generated API key.
- * @param {string} [name] - Optional. The token's name (e.g., 'Arbitrum') to find the exact logo.
- * @returns {Promise<string|null>} The logo URL or null on error.
- */
-async function getLogoBySymbolAndName(symbol, apiKey, name) {
-    const baseUrl = window.location.origin;
-    const url = new URL(\`\${baseUrl}/api/logo\`);
-    url.searchParams.set('symbol', symbol);
-    if (name) {
-      url.searchParams.set('name', name);
-    }
-
-    try {
-        const response = await fetch(url.toString(), {
-            headers: { 'x-api-key': apiKey }
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            console.error(\`API Error (\${response.status}): \${errorData.error}\`);
-            return null;
-        }
-        const data = await response.json();
-        return data.logo_url; // The endpoint returns { "logo_url": "..." }
-    } catch (error) {
-        console.error('Error fetching logo:', error);
-        return null;
-    }
-}
-
-// --- Example Usage ---
-// const apiKey = 'wevina_...'; // Your generated API key
-//
-// // 1. Get the specific logo for 'Arbitrum' with symbol 'ETH'
-// getLogoBySymbolAndName('ETH', apiKey, 'Arbitrum').then(logoUrl => {
-//   console.log('Specific ETH (Arbitrum) Logo URL:', logoUrl);
-// });
-//
-// // 2. Get the specific logo for 'Tether USD' with symbol 'USDT' (most reliable)
-// getLogoBySymbolAndName('USDT', apiKey, 'Tether USD').then(logoUrl => {
-//   console.log('Specific USDT Logo URL:', logoUrl);
-// });
-`;
 
 function CodeSnippet({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
@@ -169,79 +112,66 @@ export default function ApiKeysPage() {
     <div className="w-full space-y-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl">
-          API Keys & Integration Guide
+          Direct Database Integration Guide
         </h1>
         <p className="text-muted-foreground">
-          Manage access and learn how to integrate the Token CDN into your apps.
+          Your guide for connecting external wallets directly to the Supabase database to fetch token metadata.
         </p>
       </div>
 
-      <ApiKeyManager />
-
       <Card>
         <CardHeader>
-          <CardTitle>How to Integrate: A Guide for Developers</CardTitle>
+          <CardTitle>How to Integrate: The Direct Database Method</CardTitle>
           <CardDescription>
-            Use the Javascript examples below to fetch token data and logos using your generated API keys.
+            This guide provides the exact method for your wallet application to connect directly to the Supabase database to fetch all necessary token data. This is the most efficient way to sync with the data managed by your CDN dashboard.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-             <Accordion type="single" collapsible className="w-full" defaultValue="how-it-works">
-                <AccordionItem value="how-it-works">
-                    <AccordionTrigger className="text-lg font-medium">How It Works</AccordionTrigger>
-                    <AccordionContent className="prose prose-invert max-w-none text-muted-foreground space-y-2">
-                        <p>This CDN serves as a centralized, high-performance service for your DApps and wallets. Token metadata and logos are handled independently to ensure speed and accuracy.</p>
-                        <ol>
-                            <li><strong>API Keys:</strong> Generate an API key from the manager above. Every request to the API must include this key in the <code>x-api-key</code> HTTP header for authentication.</li>
-                            <li><strong>Uploading Logos:</strong> First, upload your token logos to the "Manage Global Logos" section. Each logo is stored with its name and symbol.</li>
-                            <li><strong>Adding Tokens:</strong> When you add a new token via the "Add Token" wizard, the system fetches its on-chain metadata (name, symbol, decimals). It then uses the fetched name and symbol to find the corresponding logo you already uploaded and links its URL to the token's metadata record.</li>
-                            <li><strong>API Endpoints:</strong> The CDN exposes two separate, simple REST API endpoints to query this data.</li>
-                        </ol>
+             <Accordion type="single" collapsible className="w-full" defaultValue="step-1">
+                <AccordionItem value="step-1">
+                    <AccordionTrigger className="text-lg font-medium">Step 1: Set Up Environment</AccordionTrigger>
+                    <AccordionContent className="prose prose-invert max-w-none text-muted-foreground space-y-4">
+                        <p>In the root directory of your wallet application, create a file named <strong>`.env.local`</strong> and add the public-facing keys from your Supabase project. These keys are safe to use in a client-side application.</p>
+                        <CodeSnippet code={walletGuideCode} />
                     </AccordionContent>
                 </AccordionItem>
 
-                 <AccordionItem value="guide-metadata">
-                    <AccordionTrigger className="text-lg font-medium">Guide 1: Fetching Token Metadata</AccordionTrigger>
+                 <AccordionItem value="step-2">
+                    <AccordionTrigger className="text-lg font-medium">Step 2: Initialize Supabase Client</AccordionTrigger>
                     <AccordionContent className="space-y-6">
-                        <div className="p-4 border rounded-lg bg-background/50">
-                            <h4 className="font-semibold text-card-foreground text-lg mb-2">Endpoint Details</h4>
-                            <p className="font-mono text-sm bg-muted p-2 rounded-md my-2"><code>GET /api/tokens/[network]</code></p>
-                            <p className="text-muted-foreground">Returns token metadata. The response for each token already includes the correct `logo_url` that was linked when the token was added to the CDN.</p>
-                            <ul className="list-disc pl-5 mt-2 text-muted-foreground space-y-1">
-                                <li><code>[network]</code> (in URL path, required): The lowercase name of the network (e.g., <code>ethereum</code>, <code>polygon</code>).</li>
-                                <li><code>symbol</code> (query param, optional): If provided, returns only the token matching that symbol on the specified network.</li>
-                            </ul>
-                        </div>
+                        <p className="text-muted-foreground">Install the Supabase JS library in your wallet project (`npm install @supabase/supabase-js`) and use the code below to create a reusable client.</p>
                         <div className="space-y-2">
-                            <h4 className="font-semibold text-card-foreground">Code Example</h4>
-                            <CodeSnippet code={guide1Code} />
+                            <h4 className="font-semibold text-card-foreground">Code to Initialize</h4>
+                            <CodeSnippet code={walletGuideCode2} />
                         </div>
                     </AccordionContent>
                 </AccordionItem>
 
-                 <AccordionItem value="guide-logo" className="border-b-0">
-                    <AccordionTrigger className="text-lg font-medium">Guide 2: Fetching a Token Logo (Independent)</AccordionTrigger>
+                 <AccordionItem value="step-3" className="border-b-0">
+                    <AccordionTrigger className="text-lg font-medium">Step 3: Fetch All Token Metadata</AccordionTrigger>
                     <AccordionContent className="space-y-6">
-                         <div className="p-4 border rounded-lg bg-background/50">
-                            <h4 className="font-semibold text-card-foreground text-lg mb-2">Endpoint Details</h4>
-                            <p className="font-mono text-sm bg-muted p-2 rounded-md my-2"><code>GET /api/logo</code></p>
-                            <p className="text-muted-foreground">Directly looks up a logo URL from the global logo library. This is the fastest way to get a logo if you already know the token's name and symbol. It is the recommended way to resolve logos for tokens with shared symbols.</p>
-                            <ul className="list-disc pl-5 mt-2 text-muted-foreground space-y-1">
-                                <li><code>symbol</code> (query param, required): The token symbol (e.g., <code>USDC</code>, <code>ETH</code>).</li>
-                                <li><code>name</code> (query param, optional but recommended): The token name to find the exact logo match (e.g., 'Arbitrum', 'Tether USD').</li>
-                            </ul>
-                        </div>
+                        <p className="text-muted-foreground">This is the most important function. It queries the `token_metadata` table to get a complete list of all tokens for a specific network. Your wallet should run this function for each supported network when it starts up and cache the results locally on the user's device.</p>
                          <div className="space-y-2">
-                            <h4 className="font-semibold text-card-foreground">Code Example</h4>
-                            <CodeSnippet code={guide2Code} />
+                            <h4 className="font-semibold text-card-foreground">Code to Fetch Data</h4>
+                            <CodeSnippet code={walletGuideCode3} />
                         </div>
                     </AccordionContent>
                 </AccordionItem>
             </Accordion>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+            <CardTitle>Web API Keys (For Other Services)</CardTitle>
+            <CardDescription>
+                While your wallet uses direct database access, you can generate Web API keys here for other services or applications that may need to access your CDN via standard HTTP endpoints.
+            </CardDescription>
+        </CardHeader>
+        <CardContent>
+             <ApiKeyManager />
+        </CardContent>
+      </Card>
     </div>
   );
 }
-
-    
