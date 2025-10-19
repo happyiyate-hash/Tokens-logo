@@ -650,8 +650,6 @@ export type FetchMetadataState = {
   status: "idle" | "success" | "error";
   message?: string;
   metadata?: TokenFetchResult;
-  chainId?: string;
-  contractAddress?: string;
 }
 
 const fetchMetadataSchema = z.object({
@@ -699,8 +697,6 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
               return {
                   status: "success",
                   metadata: { ...cached.token_details, logoUrl: cached.logo_url, source: `cache (${cached.source})` },
-                  chainId: chainId,
-                  contractAddress,
               };
           }
       }
@@ -708,21 +704,38 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
       const metadata = await fetchTokenMetadataFromSources(contractAddress, numericChainId);
       
       if (metadata && metadata.symbol && metadata.name && metadata.decimals !== undefined) {
-          const { data: logoResult } = await autoFetchMissingLogo({ tokenSymbol: metadata.symbol, tokenName: metadata.name });
+          // Check our internal DB for a logo first.
+          const { data: dbLogo } = await supabaseAdmin
+            .from('token_logos')
+            .select('public_url')
+            .ilike('name', metadata.name)
+            .limit(1)
+            .single();
+
+          let finalLogoUrl = dbLogo?.public_url || null;
+
+          // If no logo is found in our DB, try the AI fetcher.
+          if (!finalLogoUrl) {
+              const { logoUrl: aiLogoUrl } = await autoFetchMissingLogo({ tokenSymbol: metadata.symbol, tokenName: metadata.name });
+              finalLogoUrl = aiLogoUrl;
+          }
+
+          // If still no logo, we fall back to the CDN-generated URL structure.
+          if (!finalLogoUrl) {
+              finalLogoUrl = getCdnLogoUrl(metadata.name, metadata.symbol);
+          }
 
           const result: TokenFetchResult = {
               name: metadata.name,
               symbol: metadata.symbol,
               decimals: metadata.decimals,
-              logoUrl: logoResult?.logoUrl ?? getCdnLogoUrl(metadata.name, metadata.symbol),
+              logoUrl: finalLogoUrl,
               source: `${metadata.source} on ${network.name}`,
           };
           
           return { 
             status: "success", 
             metadata: result, 
-            chainId: chainId,
-            contractAddress 
           };
       } else {
         throw new Error("Incomplete metadata received from sources.");
