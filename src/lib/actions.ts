@@ -284,13 +284,15 @@ export async function addToken(
   prevState: AddTokenState | undefined,
   formData: FormData
 ): Promise<AddTokenState> {
+  const logoFileValue = formData.get('logo');
   const validated = addTokenSchema.safeParse({
       name: formData.get('name'),
       symbol: formData.get('symbol'),
       chainId: formData.get('chainId'),
       decimals: formData.get('decimals'),
       contract: formData.get('contract'),
-      logo: formData.get('logo'),
+      // Ensure logo is only passed if it's a file with content
+      logo: logoFileValue instanceof File && logoFileValue.size > 0 ? logoFileValue : undefined,
   });
 
   if (!validated.success) {
@@ -302,30 +304,35 @@ export async function addToken(
   const { symbol, name, decimals, chainId, contract, logo: logoFile } = validated.data;
   
   try {
-    let finalLogoUrl = getCdnLogoUrl(name, symbol);
-
-    // If a logo file was manually uploaded, save it first.
-    if (logoFile && logoFile.size > 0) {
+    // If a logo file was manually uploaded, save it to the global library first.
+    // This is the core of the user's request.
+    if (logoFile) {
         const logoFormData = new FormData();
         logoFormData.append('name', name);
         logoFormData.append('symbol', symbol);
         logoFormData.append('logo', logoFile);
 
+        // We call our existing robust 'addGlobalLogo' action.
         const addLogoState = await addGlobalLogo(undefined, logoFormData);
         if (addLogoState.status === 'error') {
-            throw new Error(`Failed to save manually uploaded logo: ${addLogoState.message}`);
+            // If saving the logo fails, we stop the whole process.
+            throw new Error(`Failed to save the manually uploaded logo: ${addLogoState.message}`);
         }
     }
     
+    // Now, we can be sure the logo (either pre-existing or newly uploaded) is in the system.
+    // We construct the final, consistent CDN URL for the metadata linking.
+    const finalLogoUrl = getCdnLogoUrl(name, symbol);
+    
     // Find the network name from the hardcoded JSON file.
     const network = chainsConfig.find(c => c.chainId === chainId);
-
     if (!network) {
       throw new Error("Network not found for the provided Chain ID.");
     }
 
     const tokenDetails: TokenDetails = { name, symbol, decimals };
     
+    // Upsert the token metadata. It will link to the correct logo via the CDN URL.
     const { error: upsertError } = await supabaseAdmin
         .from("token_metadata")
         .upsert({ 
@@ -349,6 +356,7 @@ export async function addToken(
     return { status: "success", message: `${symbol.toUpperCase()} token and metadata saved successfully!` };
 
   } catch (e: any) {
+    console.error("[addToken Error]", e);
     return { status: "error", message: e.message };
   }
 }
@@ -759,5 +767,3 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
         return { status: "error", message: `Could not find token with address ${contractAddress} on ${network.name}. Error: ${error.message}` };
     }
 }
-
-    
