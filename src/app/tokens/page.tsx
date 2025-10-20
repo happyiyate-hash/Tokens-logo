@@ -34,7 +34,7 @@ async function getTokens(networkId: string): Promise<TokenMetadata[]> {
   const { data, error } = await query.order("updated_at", { ascending: false });
 
   if (error) {
-    console.error(`[Client] Error fetching tokens for network ${networkId}:`, error);
+    console.error(\`[Client] Error fetching tokens for network \${networkId}:\`, error);
     return [];
   }
 
@@ -79,7 +79,7 @@ export default function ViewTokensPage() {
   }, [selectedNetworkId]);
 
   const selectedNetwork = networks.find(n => n.id === selectedNetworkId);
-  const pageTitle = selectedNetworkId && selectedNetwork ? `Tokens on ${selectedNetwork.name}` : "All Tokens";
+  const pageTitle = selectedNetworkId && selectedNetwork ? \`Tokens on \${selectedNetwork.name}\` : "All Tokens";
 
   return (
     <div className="w-full space-y-8">
@@ -122,7 +122,7 @@ export default function ViewTokensPage() {
                     >
                     <Image
                         src={token.logo_url || defaultLogo.imageUrl}
-                        alt={`${token.token_details.name} logo`}
+                        alt={\`\${token.token_details.name} logo\`}
                         fill
                         className="rounded-full bg-muted object-cover"
                         unoptimized
