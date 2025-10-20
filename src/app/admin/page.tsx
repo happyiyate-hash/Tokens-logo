@@ -1,4 +1,3 @@
-
 import { redirect } from 'next/navigation';
 
 // The root of the admin group redirects to the main admin dashboard page.
