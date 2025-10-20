@@ -20,11 +20,8 @@ const fontSourceCodePro = Source_Code_Pro({
   variable: "--font-code",
 });
 
-// Metadata can still be exported from a client component layout
-export const metadata: Metadata = {
-  title: "Token Logo CDN",
-  description: "A CDN for token logos with Supabase and Next.js",
-};
+// Metadata can NOT be exported from a client component.
+// This is now handled in the page.tsx files or a parent server component layout if needed.
 
 export default function RootLayout({
   children,
