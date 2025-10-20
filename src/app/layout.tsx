@@ -1,3 +1,4 @@
+"use client";
 
 import type { Metadata } from "next";
 import { Inter, Source_Code_Pro } from "next/font/google";
@@ -7,7 +8,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { UserHeader } from "@/components/user/user-header";
 import { UserSidebar } from "@/components/user/user-sidebar";
 import { UserBottomNav } from "@/components/user/user-bottom-nav";
-import { usePathname } from "next/navigation";
 
 
 const fontInter = Inter({
@@ -20,6 +20,7 @@ const fontSourceCodePro = Source_Code_Pro({
   variable: "--font-code",
 });
 
+// Metadata can still be exported from a client component layout
 export const metadata: Metadata = {
   title: "Token Logo CDN",
   description: "A CDN for token logos with Supabase and Next.js",
