@@ -5,6 +5,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { Header } from "@/components/header";
 import { Sidebar } from "@/components/sidebar";
+import { BottomNav } from "@/components/bottom-nav";
 
 const fontInter = Inter({
   subsets: ["latin"],
@@ -39,11 +40,12 @@ export default function RootLayout({
             <Sidebar />
             <div className="flex-1 flex flex-col overflow-hidden">
                 <Header />
-                <main className="flex-1 overflow-x-hidden overflow-y-auto p-6">
+                <main className="flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-6 pb-20 md:pb-6">
                     {children}
                 </main>
             </div>
         </div>
+        <BottomNav />
         <Toaster />
       </body>
     </html>

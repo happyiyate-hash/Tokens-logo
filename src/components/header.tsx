@@ -12,7 +12,7 @@ export function Header() {
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background">
       <div className="container flex h-16 max-w-screen-2xl items-center">
-        <div className="mr-4 hidden md:flex">
+        <div className="mr-4 flex">
           <Link href="/" className="mr-6 flex items-center space-x-2">
             <Logo className="h-6 w-6" />
             <span className="hidden font-bold sm:inline-block">
@@ -20,12 +20,12 @@ export function Header() {
             </span>
           </Link>
         </div>
-        <div className="flex flex-1 items-center justify-end space-x-4">
-            <Button variant="outline" onClick={() => router.push('/add-token')}>
+        <div className="flex flex-1 items-center justify-end space-x-2 md:space-x-4">
+            <Button variant="outline" size="sm" onClick={() => router.push('/add-token')}>
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Add Token
             </Button>
-             <Button onClick={() => router.push('/networks')}>
+             <Button size="sm" onClick={() => router.push('/networks')}>
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Add Network
             </Button>

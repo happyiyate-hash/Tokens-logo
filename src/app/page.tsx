@@ -5,11 +5,11 @@ import { Button } from "@/components/ui/button";
 
 export default function DashboardPage() {
   return (
-    <div className="bg-card p-8 rounded-lg shadow-md">
-      <h1 className="text-3xl font-bold mb-6 text-card-foreground">
+    <div className="bg-card p-6 md:p-8 rounded-lg shadow-md">
+      <h1 className="text-2xl md:text-3xl font-bold mb-6 text-card-foreground">
         Welcome to Your DCDN Dashboard!
       </h1>
-      <p className="text-lg text-muted-foreground mb-4">
+      <p className="text-base md:text-lg text-muted-foreground mb-4">
         This is your central hub for managing token logos and API keys for your
         Decentralized Content Delivery Network.
       </p>
@@ -73,5 +73,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    
