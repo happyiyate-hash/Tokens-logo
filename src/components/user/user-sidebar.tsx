@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { List, KeyRound, LayoutDashboard, Search, Image as ImageIcon, Shield } from "lucide-react";
+import { List, KeyRound, LayoutDashboard, Search, Image as ImageIcon } from "lucide-react";
 import { Logo } from "@/components/logo";
 
 const navigation = [
@@ -45,16 +45,6 @@ export function UserSidebar() {
             </li>
           ))}
         </ul>
-
-         <div className="px-3 pt-2">
-             <Link
-                href="/admin/dashboard"
-                className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-accent/50 border-t border-border pt-4"
-              >
-                <Shield className="h-4 w-4" />
-                Admin Panel
-              </Link>
-        </div>
       </nav>
     </aside>
   );

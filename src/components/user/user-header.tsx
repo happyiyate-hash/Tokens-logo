@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
-import { KeyRound, Shield } from "lucide-react";
+import { KeyRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export function UserHeader() {
@@ -24,10 +24,6 @@ export function UserHeader() {
              <Button size="sm" onClick={() => router.push('/api-keys')}>
                 <KeyRound className="mr-2 h-4 w-4" />
                 Get API Key
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => router.push('/admin/dashboard')}>
-                <Shield className="mr-2 h-4 w-4" />
-                Admin
             </Button>
         </div>
       </div>
