@@ -1,3 +1,4 @@
+
 "use server";
 
 import { z } from "zod";
@@ -183,14 +184,16 @@ export async function updateGlobalLogo(
         let newStoragePath: string = existingLogo.storage_path;
 
         if (logoFile) {
-             // Remove the old file before uploading the new one.
+             // **FIX**: Remove the old file before uploading the new one.
             if(existingLogo.storage_path) {
                 const { error: removeError } = await supabaseAdmin.storage
                     .from(STORAGE_BUCKET)
                     .remove([existingLogo.storage_path]);
                 
+                // If there's an error removing the old file, log it but continue.
+                // It's better to have an orphan file than to block the update.
                 if (removeError) {
-                    console.warn(`Could not remove old logo file '${existingLogo.storage_path}', proceeding anyway: ${removeError.message}`);
+                    console.warn(`Could not remove old logo file '${existingLogo.storage_path}', proceeding with update anyway: ${removeError.message}`);
                 }
             }
 
@@ -241,7 +244,7 @@ export async function updateGlobalLogo(
             console.warn(`Could not sync logo update to token_metadata for ${name}: ${metadataUpdateError.message}`);
         }
         
-        // 2. Sync to networks table (for native currency logos)
+        // 2. Sync to networks table (for native currency logos like MATIC or SOL)
         const { error: networkUpdateError } = await supabaseAdmin
             .from("networks")
             .update({ logo_url: newPublicUrl })
@@ -765,3 +768,5 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
         return { status: "error", message: `Could not find token with address ${contractAddress} on ${network.name}. Error: ${error.message}` };
     }
 }
+
+    
