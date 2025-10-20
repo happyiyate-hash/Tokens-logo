@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import type { Network } from "@/lib/types";
 import {
   Select,
@@ -23,9 +23,21 @@ export function NetworkSelector({
 }: NetworkSelectorProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const handleValueChange = (networkId: string) => {
-    router.push(`${pathname}?network=${networkId}`);
+    const current = new URLSearchParams(Array.from(searchParams.entries()));
+
+    if (!networkId) {
+      current.delete("network");
+    } else {
+      current.set("network", networkId);
+    }
+
+    const search = current.toString();
+    const query = search ? `?${search}` : "";
+
+    router.push(`${pathname}${query}`);
   };
 
   return (
@@ -38,6 +50,7 @@ export function NetworkSelector({
           <SelectValue placeholder="Select a network" />
         </SelectTrigger>
         <SelectContent>
+          <SelectItem value="">All Networks</SelectItem>
           {networks.map((network) => (
             <SelectItem key={network.id} value={network.id}>
               {network.name}

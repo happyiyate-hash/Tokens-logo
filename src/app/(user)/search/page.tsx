@@ -9,7 +9,7 @@ export default function SearchPage() {
           Search for a Token
         </h1>
         <p className="max-w-[700px] text-muted-foreground md:text-xl">
-          Find a token in your database by its symbol (case-insensitive).
+          Find a token in the database by its symbol (case-insensitive).
         </p>
       </div>
       <TokenSearch />

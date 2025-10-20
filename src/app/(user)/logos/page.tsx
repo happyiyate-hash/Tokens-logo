@@ -6,10 +6,6 @@ import type { TokenLogo } from "@/lib/types";
 import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { PlusCircle, Pencil } from "lucide-react";
-import Link from "next/link";
-import { EditLogoDialog } from "@/components/admin/edit-logo-dialog";
 import { useEffect, useState } from "react";
 
 // Simple in-memory cache
@@ -29,7 +25,7 @@ async function getLogos(): Promise<TokenLogo[]> {
   return cachedLogos;
 }
 
-export default function LogosPage() {
+export default function ViewLogosPage() {
   const [logos, setLogos] = useState<TokenLogo[]>(cachedLogos || []);
   const [loading, setLoading] = useState(!cachedLogos);
 
@@ -43,58 +39,27 @@ export default function LogosPage() {
     }
   }, []);
 
-
-  if (loading) {
-    return (
-      <div className="w-full space-y-8">
-        <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-start">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl">
-              Manage Global Logos
-            </h1>
-            <p className="text-muted-foreground">
-              View, edit, and manage all globally available token logos in your collection.
-            </p>
-          </div>
-          <Link href="/upload-token">
-              <Button>
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  Upload New Logo
-              </Button>
-          </Link>
-        </div>
-        <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 bg-card p-12 text-center">
-            <h3 className="text-xl font-semibold tracking-tight">Loading Logos...</h3>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="w-full space-y-8">
-      <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-start">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl">
-            Manage Global Logos
-          </h1>
-          <p className="text-muted-foreground">
-            View, edit, and manage all globally available token logos in your collection.
-          </p>
-        </div>
-        <Link href="/upload-token">
-            <Button>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Upload New Logo
-            </Button>
-        </Link>
+      <div>
+        <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl">
+          Global Logo Library
+        </h1>
+        <p className="text-muted-foreground">
+          Browse all globally available token logos in the CDN collection.
+        </p>
       </div>
 
        <div className="space-y-4">
-        {logos.length === 0 ? (
+        {loading ? (
+             <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 bg-card p-12 text-center">
+                <h3 className="text-xl font-semibold tracking-tight">Loading Logos...</h3>
+            </div>
+        ) : logos.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 bg-card p-12 text-center">
               <h3 className="text-xl font-semibold tracking-tight">No Global Logos Found</h3>
               <p className="text-muted-foreground mt-2">
-                It looks like there are no logos in your database. Use the "Upload Logo" button to add one.
+                The administrator has not added any logos yet.
               </p>
           </div>
         ) : (
@@ -120,13 +85,6 @@ export default function LogosPage() {
                 </CardContent>
                  <CardFooter className="p-2 bg-muted/50">
                     <Badge variant="secondary" className="mx-auto">{logo.symbol}</Badge>
-                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <EditLogoDialog logo={logo}>
-                        <Button variant="ghost" size="icon" title="Edit Logo">
-                            <Pencil className="h-4 w-4" />
-                        </Button>
-                      </EditLogoDialog>
-                    </div>
                 </CardFooter>
               </Card>
             ))}

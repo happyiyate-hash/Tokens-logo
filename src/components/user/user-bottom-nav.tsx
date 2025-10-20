@@ -4,23 +4,22 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { List, KeyRound, LayoutDashboard, Search, Network, Image as ImageIcon } from "lucide-react";
+import { List, KeyRound, LayoutDashboard, Search, Image as ImageIcon } from "lucide-react";
 
 const navigation = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Search", href: "/search", icon: Search },
   { name: "Tokens", href: "/tokens", icon: List },
   { name: "Logos", href: "/logos", icon: ImageIcon },
-  { name: "Networks", href: "/networks", icon: Network },
   { name: "API Keys", href: "/api-keys", icon: KeyRound },
 ];
 
-export function BottomNav() {
+export function UserBottomNav() {
   const pathname = usePathname();
 
   return (
     <div className="md:hidden fixed bottom-0 left-0 z-50 w-full h-16 bg-background border-t">
-      <div className="grid h-full max-w-lg grid-cols-6 mx-auto font-medium">
+      <div className="grid h-full max-w-lg grid-cols-5 mx-auto font-medium">
         {navigation.map((item) => (
           <Link
             key={item.name}

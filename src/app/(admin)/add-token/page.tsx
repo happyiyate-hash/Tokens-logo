@@ -1,4 +1,3 @@
-
 import { AddTokenWizard } from "@/components/admin/add-token-wizard";
 import chainsConfig from "@/lib/chains.json";
 import type { Network } from "@/lib/types";

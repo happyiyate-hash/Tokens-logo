@@ -102,13 +102,13 @@ export default function TokensListPage() {
             </p>
         </div>
          <div className="flex gap-2">
-            <Link href="/add-token">
+            <Link href="/admin/add-token">
                 <Button variant="outline">
                     <PlusCircle className="mr-2 h-4 w-4" />
                     Add (Auto)
                 </Button>
             </Link>
-            <Link href="/upload-token">
+            <Link href="/admin/upload-token">
                 <Button>
                     <PlusCircle className="mr-2 h-4 w-4" />
                     Upload (Manual)
@@ -177,5 +177,3 @@ export default function TokensListPage() {
     </div>
   );
 }
-
-    

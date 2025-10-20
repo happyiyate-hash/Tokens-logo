@@ -12,6 +12,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 const getTokensByNetworkCode = `
 /**
  * Fetches all tokens for a given network using your API key.
+ * Your wallet should call this for each supported network on startup and cache the result locally.
  *
  * @param {string} network - The name of the network (e.g., 'polygon', 'ethereum').
  * @param {string} apiKey - Your generated API key from the dashboard.
@@ -33,6 +34,8 @@ async function getAllTokensByNetwork(network, apiKey) {
       console.error(\`API Error (\${response.status}): \${errorData.error}\`);
       return null;
     }
+    // The response is an array of token objects.
+    // Example object: { "symbol": "USDC", "name": "USD Coin", "decimals": 6, "network": "polygon", "contract": "0x...", "logo_url": "/api/cdn/logo/usd-coin/usdc" }
     return await response.json();
   } catch (error) {
     console.error('Failed to fetch token list:', error);
@@ -50,49 +53,11 @@ async function getAllTokensByNetwork(network, apiKey) {
 // });
 `;
 
-const getTokenBySymbolCode = `
-/**
- * Fetches a single token by its symbol on a specific network.
- *
- * @param {string} network - The network name (e.g., 'ethereum').
- * @param {string} symbol - The token symbol (e.g., 'USDT').
- * @param {string} apiKey - Your generated API key.
- * @returns {Promise<object|null>} A single token object or null if not found.
- */
-async function getTokenBySymbol(network, symbol, apiKey) {
-  const baseUrl = window.location.origin;
-  const url = new URL(\`\${baseUrl}/api/tokens/\${network.toLowerCase()}\`);
-  url.searchParams.set('symbol', symbol);
-
-  try {
-    const response = await fetch(url.toString(), {
-      headers: { 'x-api-key': apiKey }
-    });
-    if (!response.ok) {
-      // ... error handling ...
-      return null;
-    }
-    return await response.json();
-  } catch (error) {
-    // ... error handling ...
-    return null;
-  }
-}
-
-// --- Example ---
-// const myApiKey = 'wevina_...'; // Your key here
-// getTokenBySymbol('ethereum', 'USDT', myApiKey).then(token => {
-//   if (token) {
-//     console.log('USDT on Ethereum:', token);
-//     // token.logo_url will point to your CDN
-//   }
-// });
-`;
-
 const getLogoUrlCode = `
 /**
  * Fetches the CDN URL for a token's logo.
- * It's often better to use getAllTokensByNetwork which already includes the logo URL.
+ * Note: It is more efficient to use 'getAllTokensByNetwork', which already includes the logo URL.
+ * Use this endpoint only if you need to fetch a logo URL independently.
  *
  * @param {string} tokenName - The full name of the token (e.g., 'Wrapped Ether').
  * @param {string} tokenSymbol - The symbol of the token (e.g., 'WETH').
@@ -111,7 +76,9 @@ async function getLogoUrl(tokenName, tokenSymbol, apiKey) {
         });
         if (!response.ok) return null;
         const data = await response.json();
-        return data.logo_url; // This is a URL like /api/cdn/logo/wrapped-ether/weth
+        // This returns a URL path like: /api/cdn/logo/wrapped-ether/weth
+        // Your app should prepend its own domain to use it.
+        return data.logo_url;
     } catch (error) {
         return null;
     }
@@ -154,7 +121,7 @@ export default function ApiKeysPage() {
     <div className="w-full space-y-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl">
-          Web API Integration Guide
+          Developer API Guide
         </h1>
         <p className="text-muted-foreground">
           Use this guide to connect external applications to your CDN via the Web API using generated keys.
@@ -173,27 +140,15 @@ export default function ApiKeysPage() {
                 <AccordionItem value="endpoint-1">
                     <AccordionTrigger className="text-lg font-medium">Endpoint 1: Get All Tokens for a Network</AccordionTrigger>
                     <AccordionContent className="prose prose-invert max-w-none text-muted-foreground space-y-4">
-                        <p>This is the most important endpoint. It fetches a complete list of all tokens for a given network, with their logos already linked. Your wallet should call this for each supported network on startup and cache the result locally.</p>
+                        <p>This is the most important endpoint for wallet integration. It fetches a complete list of all tokens for a given network, with their metadata and logos already linked. Your wallet should call this for each supported network on startup and cache the result locally for performance.</p>
                         <p className="font-semibold">Endpoint: <code className="font-bold text-card-foreground">GET /api/tokens/[network]</code></p>
                         <CodeSnippet code={getTokensByNetworkCode} />
                     </AccordionContent>
                 </AccordionItem>
-
-                 <AccordionItem value="endpoint-2">
-                    <AccordionTrigger className="text-lg font-medium">Endpoint 2: Get a Single Token by Symbol</AccordionTrigger>
+                 <AccordionItem value="endpoint-2" className="border-b-0">
+                    <AccordionTrigger className="text-lg font-medium">Endpoint 2: Get a Logo URL</AccordionTrigger>
                     <AccordionContent className="space-y-6">
-                        <p className="text-muted-foreground">To get information for just one token, you can add its symbol as a query parameter.</p>
-                        <p className="font-semibold">Endpoint: <code className="font-bold text-card-foreground">GET /api/tokens/[network]?symbol=[symbol]</code></p>
-                        <div className="space-y-2">
-                            <CodeSnippet code={getTokenBySymbolCode} />
-                        </div>
-                    </AccordionContent>
-                </AccordionItem>
-
-                 <AccordionItem value="endpoint-3" className="border-b-0">
-                    <AccordionTrigger className="text-lg font-medium">Endpoint 3: Get a Logo URL</AccordionTrigger>
-                    <AccordionContent className="space-y-6">
-                        <p className="text-muted-foreground">While it's recommended to get the logo URL from the token metadata endpoints, you can also fetch a logo URL directly. This endpoint returns the path to your caching CDN layer.</p>
+                        <p className="text-muted-foreground">While it's recommended to get the logo URL from the token metadata endpoint, you can also fetch a logo URL directly if needed. This endpoint returns the path to your caching CDN layer.</p>
                         <p className="font-semibold">Endpoint: <code className="font-bold text-card-foreground">GET /api/logo?name=[name]&symbol=[symbol]</code></p>
                          <div className="space-y-2">
                             <CodeSnippet code={getLogoUrlCode} />
@@ -218,5 +173,3 @@ export default function ApiKeysPage() {
     </div>
   );
 }
-
-    
