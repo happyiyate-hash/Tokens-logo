@@ -184,14 +184,11 @@ export async function updateGlobalLogo(
         let newStoragePath: string = existingLogo.storage_path;
 
         if (logoFile) {
-             // **FIX**: Remove the old file before uploading the new one.
             if(existingLogo.storage_path) {
                 const { error: removeError } = await supabaseAdmin.storage
                     .from(STORAGE_BUCKET)
                     .remove([existingLogo.storage_path]);
                 
-                // If there's an error removing the old file, log it but continue.
-                // It's better to have an orphan file than to block the update.
                 if (removeError) {
                     console.warn(`Could not remove old logo file '${existingLogo.storage_path}', proceeding with update anyway: ${removeError.message}`);
                 }
@@ -400,7 +397,6 @@ export async function generateNewApiKey(
   }
   
   try {
-    // **FIX**: Generate UUID in the server action using crypto module, removing the database dependency.
     const uuid = randomUUID();
     const newKey = `wevina_${uuid.replace(/-/g, '')}`;
 
@@ -414,7 +410,6 @@ export async function generateNewApiKey(
         .single();
   
     if (error) {
-      // This will catch unique constraint violations if the key somehow already exists.
       throw new Error(`Failed to insert new key: ${error.message}`);
     }
     
@@ -575,11 +570,33 @@ export async function updateNetworkLogo(
   try {
       const { data: network, error: fetchError } = await supabaseAdmin
         .from("networks")
-        .select("name, chain_id")
+        .select("name, chain_id, logo_url") // Fetch existing logo_url to get storage_path
         .eq("id", networkId)
         .single();
       
       if (fetchError || !network) throw new Error("Network not found.");
+
+      // **BUG FIX:** If an old logo exists, remove it from storage before uploading the new one.
+      if (network.logo_url) {
+        // We need to derive the storage path from the public URL.
+        // Assuming public URLs are in the format: .../storage/v1/object/public/token_logos/networks/polygon.png
+        try {
+            const urlParts = new URL(network.logo_url);
+            // The storage path is the part after the bucket name
+            const storagePath = urlParts.pathname.split(`/${STORAGE_BUCKET}/`)[1];
+            if (storagePath) {
+                 const { error: removeError } = await supabaseAdmin.storage
+                    .from(STORAGE_BUCKET)
+                    .remove([storagePath]);
+                if (removeError) {
+                     console.warn(`Could not remove old network logo file '${storagePath}', proceeding anyway: ${removeError.message}`);
+                }
+            }
+        } catch (e) {
+             console.warn(`Could not parse and remove old logo URL '${network.logo_url}':`, e);
+        }
+      }
+
 
       const fileContents = await logoFile.arrayBuffer();
       const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
