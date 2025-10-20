@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { List, LayoutDashboard, Network as NetworkIcon, PlusCircle, Upload, Image as ImageIcon, Users } from "lucide-react";
+import { List, LayoutDashboard, Network as NetworkIcon, PlusCircle, Upload, Image as ImageIcon } from "lucide-react";
 import { Logo } from "@/components/logo";
 
 const navigation = [
@@ -46,16 +46,12 @@ export function AdminSidebar() {
             </li>
           ))}
         </ul>
-        <div className="px-3 pt-2">
-             <Link
-                href="/dashboard"
-                className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-accent/50 border-t border-border pt-4"
-              >
-                <Users className="h-4 w-4" />
-                Switch to User View
-              </Link>
-        </div>
       </nav>
+       <div className="border-t p-4">
+          <Link href="/dashboard" className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-accent/50">
+            <span>&larr; Exit Admin View</span>
+          </Link>
+      </div>
     </aside>
   );
 }
