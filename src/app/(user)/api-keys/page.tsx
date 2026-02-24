@@ -20,7 +20,7 @@ const getTokensByNetworkCode = `
  */
 async function getAllTokensByNetwork(network, apiKey) {
   const baseUrl = window.location.origin; // Uses your app's URL dynamically
-  const url = \`${baseUrl}/api/tokens/${'${network.toLowerCase()}'}\`;
+  const url = \`\${baseUrl}/api/tokens/\${network.toLowerCase()}\`;
 
   try {
     const response = await fetch(url, {
@@ -31,7 +31,7 @@ async function getAllTokensByNetwork(network, apiKey) {
 
     if (!response.ok) {
       const errorData = await response.json();
-      console.error(\`API Error (${'${response.status}'}): ${'${errorData.error}'}\`);
+      console.error(\`API Error (\${response.status}): \${errorData.error}\`);
       return null;
     }
     // The response is an array of token objects.
@@ -66,7 +66,7 @@ const getLogoUrlCode = `
  */
 async function getLogoUrl(tokenName, tokenSymbol, apiKey) {
     const baseUrl = window.location.origin;
-    const url = new URL(\`${baseUrl}/api/logo\`);
+    const url = new URL(\`\${baseUrl}/api/logo\`);
     url.searchParams.set('name', tokenName);
     url.searchParams.set('symbol', tokenSymbol);
 
