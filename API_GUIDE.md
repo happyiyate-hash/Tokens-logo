@@ -27,7 +27,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 ## 2. Fetching All Tokens for a Network
 
-This is the most efficient way to get a list of all supported tokens for a given blockchain network. You should call this for each network your wallet supports and cache the results.
+This is the most efficient way to get a list of all supported tokens for a given blockchain network, including their pricing information. You should call this for each network your wallet supports and cache the results.
 
 -   **Table**: `token_metadata`
 -   **Input**: `networkName` (string, e.g., `polygon`, `ethereum`). Case-insensitive.
@@ -62,7 +62,9 @@ async function getAllTokensForNetwork(supabase, networkName) {
     decimals: token.token_details.decimals,
     network: token.network,
     contract: token.contract_address,
-    logo_url: token.logo_url // CRITICAL: See note below
+    logo_url: token.logo_url,
+    priceSource: token.token_details.priceSource, // e.g., "coingecko"
+    priceId: token.token_details.priceId,       // e.g., "wrapped-bitcoin"
   }));
 }
 
@@ -72,12 +74,14 @@ async function getAllTokensForNetwork(supabase, networkName) {
 //     console.log('Fetched Polygon tokens:', tokens);
 //     // Example token object:
 //     // {
-//     //   "symbol": "USDC",
-//     //   "name": "USD Coin",
-//     //   "decimals": 6,
+//     //   "symbol": "WBTC",
+//     //   "name": "Wrapped Bitcoin",
+//     //   "decimals": 8,
 //     //   "network": "polygon",
-//     //   "contract": "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359",
-//     //   "logo_url": "/api/cdn/logo/usd-coin/usdc"
+//     //   "contract": "0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6",
+//     //   "logo_url": "/api/cdn/logo/wrapped-bitcoin/wbtc",
+//     //   "priceSource": "coingecko",
+//     //   "priceId": "wrapped-bitcoin"
 //     // }
 //   }
 // });
@@ -85,13 +89,13 @@ async function getAllTokensForNetwork(supabase, networkName) {
 
 ### **CRITICAL NOTE on `logo_url`**
 
-The `logo_url` returned by this function is a **relative path** that points to the CDN application's caching layer (e.g., `/api/cdn/logo/usd-coin/usdc`).
+The `logo_url` returned by this function is a **relative path** that points to the CDN application's caching layer (e.g., `/api/cdn/logo/wrapped-bitcoin/wbtc`).
 
 To use this URL, you **MUST** prepend the base URL of the main Token CDN application.
 
 **Example:**
 If the Token CDN application is hosted at `https://my-token-cdn.com`, the full image URL would be:
-`https://my-token-cdn.com/api/cdn/logo/usd-coin/usdc`
+`https://my-token-cdn.com/api/cdn/logo/wrapped-bitcoin/wbtc`
 
 Using the CDN app's URL is recommended for performance and reliability.
 
