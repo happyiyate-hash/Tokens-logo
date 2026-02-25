@@ -3,6 +3,8 @@ export type TokenDetails = {
   name: string;
   symbol: string;
   decimals: number;
+  priceSource?: string;
+  priceId?: string;
 };
 
 export type TokenMetadata = {
@@ -55,4 +57,6 @@ export type TokenFetchResult = {
     decimals: number;
     logoUrl?: string | null;
     source?: string;
+    priceSource?: string;
+    priceId?: string;
 };

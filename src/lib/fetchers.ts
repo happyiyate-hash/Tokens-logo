@@ -67,10 +67,65 @@ async function fetchFromEtherscanV2(chainId: number, contractAddress: string): P
     }
 }
 
+async function getCoinGeckoIdByName(tokenName: string, tokenSymbol: string): Promise<string | null> {
+    try {
+        const searchUrl = `https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(tokenName)}`;
+        const { data: searchData } = await pRetry(() => axios.get(searchUrl, { timeout: 5000 }), { retries: 1 });
+        
+        if (searchData.coins && searchData.coins.length > 0) {
+            const exactMatch = searchData.coins.find((c: any) => c.symbol?.toLowerCase() === tokenSymbol.toLowerCase());
+            if (exactMatch) return exactMatch.id;
+            return searchData.coins[0].id; // Fallback to first result
+        }
+        return null;
+    } catch (e) {
+        console.warn(`CoinGecko search by name failed for ${tokenName}:`, e);
+        return null;
+    }
+}
+
 
 export async function fetchTokenMetadataFromSources(contractAddress: string, chainId: number): Promise<Partial<TokenFetchResult>> {
-    // Only use the corrected Etherscan V2 fetcher.
-    return fetchFromEtherscanV2(chainId, contractAddress);
+    // Step 1: Get base metadata (name, symbol, decimals) from an explorer
+    const baseMetadata = await fetchFromEtherscanV2(chainId, contractAddress);
+    
+    if (!baseMetadata.name || !baseMetadata.symbol) {
+        throw new Error("Could not fetch base metadata (name, symbol) from explorer.");
+    }
+
+    // Step 2: Auto-detect Price ID and Source (from CoinGecko)
+    const chain = chainsConfig.find(c => c.chainId === chainId);
+    const coingeckoPlatformId = chain?.cgPlatform;
+    let priceId: string | null = null;
+    let priceSource: string | null = null;
+
+    // First, try the most reliable method: lookup by contract on the specific platform
+    if (coingeckoPlatformId) {
+        try {
+            const { data: cgData } = await pRetry(() => axios.get(`https://api.coingecko.com/api/v3/coins/${coingeckoPlatformId}/contract/${contractAddress.toLowerCase()}`), { retries: 1 });
+            if (cgData.id) {
+                priceId = cgData.id;
+                priceSource = 'coingecko';
+            }
+        } catch (e) {
+            console.warn(`CoinGecko lookup by contract for ${contractAddress} failed, falling back to search by name.`);
+        }
+    }
+
+    // If contract lookup fails or is not possible, fall back to searching by name
+    if (!priceId) {
+        const foundId = await getCoinGeckoIdByName(baseMetadata.name, baseMetadata.symbol);
+        if (foundId) {
+            priceId = foundId;
+            priceSource = 'coingecko';
+        }
+    }
+
+    return {
+        ...baseMetadata,
+        priceId: priceId ?? undefined,
+        priceSource: priceSource ?? 'unknown',
+    };
 }
 
 

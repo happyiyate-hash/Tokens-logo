@@ -277,6 +277,8 @@ const addTokenSchema = z.object({
   decimals: z.coerce.number().int().min(0).default(18),
   contract: z.string().min(1, "Contract address is required."),
   logo: z.instanceof(File).optional(),
+  priceSource: z.string().optional(),
+  priceId: z.string().optional(),
 });
 
 
@@ -291,6 +293,8 @@ export async function addToken(
       chainId: formData.get('chainId'),
       decimals: formData.get('decimals'),
       contract: formData.get('contract'),
+      priceSource: formData.get('priceSource'),
+      priceId: formData.get('priceId'),
       // Ensure logo is only passed if it's a file with content
       logo: logoFileValue instanceof File && logoFileValue.size > 0 ? logoFileValue : undefined,
   });
@@ -301,7 +305,7 @@ export async function addToken(
     return { status: "error", message: firstError || "Invalid input." };
   }
   
-  const { symbol, name, decimals, chainId, contract, logo: logoFile } = validated.data;
+  const { symbol, name, decimals, chainId, contract, logo: logoFile, priceSource, priceId } = validated.data;
   
   try {
     // If a logo file was manually uploaded, save it to the global library first.
@@ -329,7 +333,13 @@ export async function addToken(
       throw new Error(`Network not found for the provided Chain ID: ${chainId}.`);
     }
 
-    const tokenDetails: TokenDetails = { name, symbol, decimals };
+    const tokenDetails: TokenDetails = { 
+      name, 
+      symbol, 
+      decimals,
+      priceSource: priceSource || 'unknown',
+      priceId: priceId || undefined
+    };
     
     // Upsert the token metadata. It will link to the correct logo via the CDN URL.
     const { error: upsertError } = await supabaseAdmin
@@ -735,10 +745,12 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
       if (!forceRefresh) {
           const cached = await getCachedToken(contractAddress, network.name);
           if (cached && (Date.now() - new Date(cached.fetched_at).getTime()) < CACHE_TTL) {
-              return {
-                  status: "success",
-                  metadata: { ...cached.token_details, logoUrl: cached.logo_url, source: `cache (${cached.source})` },
+              const metadata: TokenFetchResult = {
+                ...cached.token_details,
+                logoUrl: cached.logo_url,
+                source: `cache (${cached.source})`
               };
+              return { status: "success", metadata };
           }
       }
       
@@ -772,6 +784,8 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
               decimals: metadata.decimals,
               logoUrl: finalLogoUrl,
               source: `${metadata.source}`,
+              priceId: metadata.priceId,
+              priceSource: metadata.priceSource,
           };
           
           return { 
@@ -785,5 +799,3 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
         return { status: "error", message: `Could not find token with address ${contractAddress} on ${network.name}. Error: ${error.message}` };
     }
 }
-
-    

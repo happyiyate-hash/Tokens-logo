@@ -31,6 +31,8 @@ interface TokenFormData {
     decimals: string;
     contractAddress: string;
     chainId: string;
+    priceSource: string;
+    priceId: string;
 }
 
 const initialFormData: TokenFormData = {
@@ -39,6 +41,8 @@ const initialFormData: TokenFormData = {
     decimals: "",
     contractAddress: "",
     chainId: "",
+    priceSource: "",
+    priceId: "",
 };
 
 export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
@@ -114,6 +118,8 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
             name: fetchState.metadata?.name || "",
             symbol: fetchState.metadata?.symbol || "",
             decimals: fetchState.metadata?.decimals?.toString() || "18",
+            priceSource: fetchState.metadata?.priceSource || 'unknown',
+            priceId: fetchState.metadata?.priceId || '',
         }));
         // Trigger logo search after metadata is populated
         handleLogoSearch(fetchState.metadata.name, fetchState.metadata.symbol, fetchState.metadata.logoUrl);
@@ -226,6 +232,16 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
                         <Label htmlFor="decimals">Decimals</Label>
                         <Input id="decimals" name="decimals" type="number" value={formData.decimals} onChange={handleInputChange} placeholder="e.g., 6" required />
                     </div>
+                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="priceSource">Price Source</Label>
+                            <Input id="priceSource" name="priceSource" value={formData.priceSource} onChange={handleInputChange} placeholder="e.g., coingecko" />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="priceId">Price ID</Label>
+                            <Input id="priceId" name="priceId" value={formData.priceId} onChange={handleInputChange} placeholder="e.g., wrapped-bitcoin" />
+                        </div>
+                    </div>
                      <div className="space-y-2">
                         <Label htmlFor="contractAddress_display">Contract Address</Label>
                         <Input id="contractAddress_display" value={formData.contractAddress} readOnly disabled className="font-mono bg-muted/50" />
@@ -287,5 +303,3 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
     </Card>
   )
 }
-
-    
