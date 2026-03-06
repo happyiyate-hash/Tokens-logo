@@ -1,16 +1,31 @@
+
+const CACHE_NAME = 'token-cdn-cache-v1';
+const urlsToCache = [
+  '/',
+  '/manifest.json'
+];
+
 self.addEventListener('install', event => {
+  // Perform install steps
   event.waitUntil(
-    caches.open('app-cache').then(cache => cache.addAll([
-      '/',
-      '/manifest.json',
-      'https://picsum.photos/seed/pwa-icon-192/192/192',
-      'https://picsum.photos/seed/pwa-icon-512/512/512'
-    ]))
+    caches.open(CACHE_NAME)
+      .then(function(cache) {
+        console.log('Opened cache');
+        return cache.addAll(urlsToCache);
+      })
   );
 });
 
 self.addEventListener('fetch', event => {
   event.respondWith(
-    caches.match(event.request).then(resp => resp || fetch(event.request))
+    caches.match(event.request)
+      .then(function(response) {
+        // Cache hit - return response
+        if (response) {
+          return response;
+        }
+        return fetch(event.request);
+      }
+    )
   );
 });
