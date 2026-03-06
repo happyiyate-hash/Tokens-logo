@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { List, KeyRound, LayoutDashboard, Search, Image as ImageIcon } from "lucide-react";
+import { List, KeyRound, LayoutDashboard, Search, Image as ImageIcon, AppWindow } from "lucide-react";
 import { Logo } from "@/components/logo";
 
 const navigation = [
@@ -12,6 +12,7 @@ const navigation = [
   { name: "Search", href: "/search", icon: Search },
   { name: "View Tokens", href: "/tokens", icon: List },
   { name: "View Logos", href: "/logos", icon: ImageIcon },
+  { name: "View Apps", href: "/view-apps", icon: AppWindow },
   { name: "API Keys", href: "/api-keys", icon: KeyRound },
 ];
 

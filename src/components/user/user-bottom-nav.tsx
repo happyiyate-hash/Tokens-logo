@@ -4,13 +4,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { List, KeyRound, LayoutDashboard, Search, Image as ImageIcon } from "lucide-react";
+import { List, KeyRound, LayoutDashboard, Search, AppWindow } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Search", href: "/search", icon: Search },
   { name: "Tokens", href: "/tokens", icon: List },
-  { name: "Logos", href: "/logos", icon: ImageIcon },
+  { name: "Apps", href: "/view-apps", icon: AppWindow },
   { name: "API Keys", href: "/api-keys", icon: KeyRound },
 ];
 

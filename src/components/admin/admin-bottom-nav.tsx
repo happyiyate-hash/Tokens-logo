@@ -4,15 +4,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { List, KeyRound, LayoutDashboard, Search, Network, Image as ImageIcon, PlusCircle, Upload } from "lucide-react";
+import { List, LayoutDashboard, Network, Image as ImageIcon, PlusCircle, Upload, PackagePlus } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
   { name: "Tokens", href: "/admin/tokens", icon: List },
   { name: "Logos", href: "/admin/logos", icon: ImageIcon },
-  { name: "Networks", href: "/admin/networks", icon: Network },
+  { name: "Post App", href: "/admin/post-apps", icon: PackagePlus },
   { name: "Add Token", href: "/admin/add-token", icon: PlusCircle },
-  { name: "Upload", href: "/admin/upload-token", icon: Upload },
+  { name: "Networks", href: "/admin/networks", icon: Network },
 ];
 
 export function AdminBottomNav() {

@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { List, LayoutDashboard, Network as NetworkIcon, PlusCircle, Upload, Image as ImageIcon } from "lucide-react";
+import { List, LayoutDashboard, Network as NetworkIcon, PlusCircle, Upload, Image as ImageIcon, PackagePlus } from "lucide-react";
 import { Logo } from "@/components/logo";
 
 const navigation = [
@@ -13,6 +13,7 @@ const navigation = [
   { name: "Manage Logos", href: "/admin/logos", icon: ImageIcon },
   { name: "Add Token (Auto)", href: "/admin/add-token", icon: PlusCircle },
   { name: "Upload Logo (Manual)", href: "/admin/upload-token", icon: Upload },
+  { name: "Post PWA App", href: "/admin/post-apps", icon: PackagePlus },
   { name: "Manage Networks", href: "/admin/networks", icon: NetworkIcon },
 ];
 
