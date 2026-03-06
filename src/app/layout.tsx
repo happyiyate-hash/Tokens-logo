@@ -24,6 +24,8 @@ export default function RootLayout({
       <head>
         <title>Token Logo CDN</title>
         <meta name="description" content="A CDN for token logos with Supabase and Next.js" />
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#8066e6" />
       </head>
       <body
         className={cn(
@@ -34,6 +36,22 @@ export default function RootLayout({
       >
         {children}
         <Toaster />
+        <script
+          id="service-worker-registration"
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                  navigator.serviceWorker.register('/sw.js').then(registration => {
+                    console.log('SW registered: ', registration);
+                  }).catch(registrationError => {
+                    console.log('SW registration failed: ', registrationError);
+                  });
+                });
+              }
+            `,
+          }}
+        />
       </body>
     </html>
   );
