@@ -61,13 +61,8 @@ export async function addGlobalLogo(
 
   const { logoFile, symbol, name } = validated.data;
   const upperCaseSymbol = symbol.toUpperCase();
-  const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
   
-  const sanitizedName = name.toLowerCase().replace(/\s+/g, '-');
-  const filePath = `global/${sanitizedName}-${upperCaseSymbol.toLowerCase()}.${ext}`;
-
   try {
-      // Check if a logo with the same NAME already exists.
       const { data: existingLogo, error: fetchError } = await supabaseAdmin
         .from('token_logos')
         .select('id, storage_path')
@@ -75,13 +70,8 @@ export async function addGlobalLogo(
         .limit(1)
         .maybeSingle();
 
-      if (fetchError) {
-        throw new Error(`Database fetch error: ${fetchError.message}`);
-      }
+      if (fetchError) throw new Error(`Database fetch error: ${fetchError.message}`);
 
-      const fileContents = await logoFile.arrayBuffer();
-      
-      // If an existing logo is found, remove the old file before uploading the new one
       if (existingLogo?.storage_path) {
           const { error: removeError } = await supabaseAdmin.storage
               .from(STORAGE_BUCKET)
@@ -91,13 +81,17 @@ export async function addGlobalLogo(
           }
       }
 
+      const fileContents = await logoFile.arrayBuffer();
+      const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
+      const sanitizedName = name.toLowerCase().replace(/\s+/g, '-');
+      const uniqueId = randomUUID().slice(0, 8);
+      const filePath = `global/${sanitizedName}-${upperCaseSymbol.toLowerCase()}-${uniqueId}.${ext}`;
+
       const { error: uploadError } = await supabaseAdmin.storage
         .from(STORAGE_BUCKET)
-        .upload(filePath, fileContents, { contentType: logoFile.type, upsert: true });
+        .upload(filePath, fileContents, { contentType: logoFile.type, upsert: false });
 
-      if (uploadError) {
-        throw new Error(`Storage upload error: ${uploadError.message}`);
-      }
+      if (uploadError) throw new Error(`Storage upload error: ${uploadError.message}`);
       
       const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
       
@@ -109,14 +103,12 @@ export async function addGlobalLogo(
       };
 
       if (existingLogo) {
-          // UPDATE existing logo found by name
           const { error: updateError } = await supabaseAdmin
               .from('token_logos')
               .update(upsertData)
               .eq('id', existingLogo.id);
           if (updateError) throw new Error(`Database update error: ${updateError.message}`);
       } else {
-          // INSERT new logo
           const { error: insertError } = await supabaseAdmin
               .from('token_logos')
               .insert(upsertData);
@@ -126,6 +118,7 @@ export async function addGlobalLogo(
       revalidatePath("/tokens");
       revalidatePath("/upload-token");
       revalidatePath("/logos");
+      revalidatePath("/admin/logos");
       return { status: "success", message: `Logo for ${name} (${upperCaseSymbol}) saved successfully!` };
 
   } catch (e: any) {
@@ -176,9 +169,7 @@ export async function updateGlobalLogo(
             .eq("id", logoId)
             .single();
 
-        if (fetchError || !existingLogo) {
-            throw new Error("Original logo record not found.");
-        }
+        if (fetchError || !existingLogo) throw new Error("Original logo record not found.");
 
         let newPublicUrl: string = existingLogo.public_url;
         let newStoragePath: string = existingLogo.storage_path;
@@ -188,7 +179,6 @@ export async function updateGlobalLogo(
                 const { error: removeError } = await supabaseAdmin.storage
                     .from(STORAGE_BUCKET)
                     .remove([existingLogo.storage_path]);
-                
                 if (removeError) {
                     console.warn(`Could not remove old logo file '${existingLogo.storage_path}', proceeding with update anyway: ${removeError.message}`);
                 }
@@ -197,15 +187,14 @@ export async function updateGlobalLogo(
             const fileContents = await logoFile.arrayBuffer();
             const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
             const sanitizedName = name.toLowerCase().replace(/\s/g, '-');
-            const filePath = `global/${sanitizedName}-${symbol.toLowerCase()}.${ext}`;
+            const uniqueId = randomUUID().slice(0,8);
+            const filePath = `global/${sanitizedName}-${symbol.toLowerCase()}-${uniqueId}.${ext}`;
 
             const { error: uploadError } = await supabaseAdmin.storage
                 .from(STORAGE_BUCKET)
-                .upload(filePath, fileContents, { contentType: logoFile.type, upsert: true });
+                .upload(filePath, fileContents, { contentType: logoFile.type, upsert: false });
 
-            if (uploadError) {
-                throw new Error(`Storage upload error: ${uploadError.message}`);
-            }
+            if (uploadError) throw new Error(`Storage upload error: ${uploadError.message}`);
 
             const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
             newPublicUrl = publicUrlData.publicUrl;
@@ -223,15 +212,10 @@ export async function updateGlobalLogo(
             .update(updateData)
             .eq("id", logoId);
 
-        if (updateError) {
-            throw new Error(`Database update error: ${updateError.message}`);
-        }
+        if (updateError) throw new Error(`Database update error: ${updateError.message}`);
         
-        // --- SYNC LOGIC ---
-        // After successfully updating the token_logos table, we must sync this change.
         const cdnUrl = getCdnLogoUrl(name, symbol);
         
-        // 1. Sync to token_metadata table
         const { error: metadataUpdateError } = await supabaseAdmin
             .from("token_metadata")
             .update({ logo_url: cdnUrl })
@@ -241,7 +225,6 @@ export async function updateGlobalLogo(
             console.warn(`Could not sync logo update to token_metadata for ${name}: ${metadataUpdateError.message}`);
         }
         
-        // 2. Sync to networks table (for native currency logos like MATIC or SOL)
         const { error: networkUpdateError } = await supabaseAdmin
             .from("networks")
             .update({ logo_url: newPublicUrl })
@@ -254,12 +237,69 @@ export async function updateGlobalLogo(
         revalidatePath("/logos");
         revalidatePath("/tokens");
         revalidatePath("/networks");
+        revalidatePath("/admin/logos");
         return { status: "success", message: "Logo updated and synced successfully!" };
 
     } catch (e: any) {
         console.error("[updateGlobalLogo Error]", e);
         return { status: "error", message: e.message };
     }
+}
+
+
+export async function deleteGlobalLogo(logoId: string): Promise<{ status: "success" | "error", message: string }> {
+  try {
+    const { data: logo, error: fetchError } = await supabaseAdmin
+      .from("token_logos")
+      .select("storage_path, name")
+      .eq("id", logoId)
+      .single();
+
+    if (fetchError || !logo) {
+      throw new Error("Logo not found in database.");
+    }
+
+    const { data: tokens, error: tokenCheckError } = await supabaseAdmin
+      .from("token_metadata")
+      .select('id')
+      .ilike('token_details->>name', logo.name)
+      .limit(1);
+
+    if (tokenCheckError) {
+      throw new Error(`Failed to check for associated tokens: ${tokenCheckError.message}`);
+    }
+
+    if (tokens && tokens.length > 0) {
+      throw new Error("Cannot delete logo. It is currently associated with one or more tokens. Please update those tokens to use a different logo first.");
+    }
+    
+    if (logo.storage_path) {
+      const { error: storageError } = await supabaseAdmin.storage
+        .from(STORAGE_BUCKET)
+        .remove([logo.storage_path]);
+      
+      if (storageError) {
+        console.warn(`Could not delete logo file from storage, but proceeding with DB delete: ${storageError.message}`);
+      }
+    }
+
+    const { error: dbError } = await supabaseAdmin
+      .from("token_logos")
+      .delete()
+      .eq("id", logoId);
+
+    if (dbError) {
+      throw new Error(`Failed to delete logo record from database: ${dbError.message}`);
+    }
+    
+    revalidatePath("/admin/logos");
+    revalidatePath("/logos");
+    return { status: "success", message: "Global logo deleted successfully." };
+
+  } catch(e: any) {
+    console.error("[deleteGlobalLogo Error]", e);
+    return { status: "error", message: e.message };
+  }
 }
 
 
@@ -308,24 +348,18 @@ export async function addToken(
   const { symbol, name, decimals, chainId, contract, logo: logoFile, priceSource, priceId } = validated.data;
   
   try {
-    // If a logo file was manually uploaded, save it to the global library first.
-    // This is the core of the user's request.
     if (logoFile) {
         const logoFormData = new FormData();
         logoFormData.append('name', name);
         logoFormData.append('symbol', symbol);
         logoFormData.append('logo', logoFile);
 
-        // We call our existing robust 'addGlobalLogo' action.
         const addLogoState = await addGlobalLogo(undefined, logoFormData);
         if (addLogoState.status === 'error') {
-            // If saving the logo fails, we stop the whole process.
             throw new Error(`Failed to save the manually uploaded logo: ${addLogoState.message}`);
         }
     }
     
-    // Now, we can be sure the logo (either pre-existing or newly uploaded) is in the system.
-    // We construct the final, consistent CDN URL for the metadata linking.
     const finalLogoUrl = getCdnLogoUrl(name, symbol);
     
     const network = chainsConfig.find(c => c.chainId === chainId);
@@ -341,7 +375,6 @@ export async function addToken(
       priceId: priceId || undefined
     };
     
-    // Upsert the token metadata. It will link to the correct logo via the CDN URL.
     const { error: upsertError } = await supabaseAdmin
         .from("token_metadata")
         .upsert({ 
@@ -580,19 +613,15 @@ export async function updateNetworkLogo(
   try {
       const { data: network, error: fetchError } = await supabaseAdmin
         .from("networks")
-        .select("name, chain_id, logo_url") // Fetch existing logo_url to get storage_path
+        .select("name, chain_id, logo_url") 
         .eq("id", networkId)
         .single();
       
       if (fetchError || !network) throw new Error("Network not found.");
 
-      // **BUG FIX:** If an old logo exists, remove it from storage before uploading the new one.
       if (network.logo_url) {
-        // We need to derive the storage path from the public URL.
-        // Assuming public URLs are in the format: .../storage/v1/object/public/token_logos/networks/polygon.png
         try {
             const urlParts = new URL(network.logo_url);
-            // The storage path is the part after the bucket name
             const storagePath = urlParts.pathname.split(`/${STORAGE_BUCKET}/`)[1];
             if (storagePath) {
                  const { error: removeError } = await supabaseAdmin.storage
@@ -611,12 +640,12 @@ export async function updateNetworkLogo(
       const fileContents = await logoFile.arrayBuffer();
       const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
       const sanitizedNetworkName = network.name.toLowerCase().replace(/\s/g, '-');
-      
-      const networkLogoPath = `networks/${sanitizedNetworkName}.${ext}`;
+      const uniqueId = randomUUID().slice(0,8);
+      const networkLogoPath = `networks/${sanitizedNetworkName}-${uniqueId}.${ext}`;
 
       const { error: uploadError } = await supabaseAdmin.storage
         .from(STORAGE_BUCKET)
-        .upload(networkLogoPath, fileContents, { contentType: logoFile.type, upsert: true });
+        .upload(networkLogoPath, fileContents, { contentType: logoFile.type, upsert: false });
 
       if (uploadError) throw new Error(`Storage upload failed: ${uploadError.message}`);
 
@@ -650,6 +679,7 @@ export async function updateNetworkLogo(
 
       revalidatePath("/networks");
       revalidatePath("/logos");
+      revalidatePath("/admin/logos");
       return { status: "success", message: "Network logo updated and native token logo saved!" };
 
   } catch(e: any) {
@@ -799,3 +829,5 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
         return { status: "error", message: `Could not find token with address ${contractAddress} on ${network.name}. Error: ${error.message}` };
     }
 }
+
+    

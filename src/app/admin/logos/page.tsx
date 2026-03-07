@@ -11,6 +11,7 @@ import { PlusCircle, Pencil } from "lucide-react";
 import Link from "next/link";
 import { EditLogoDialog } from "@/components/admin/edit-logo-dialog";
 import { useEffect, useState } from "react";
+import { DeleteLogoButton } from "@/components/admin/delete-logo-button";
 
 // Simple in-memory cache
 let cachedLogos: TokenLogo[] | null = null;
@@ -120,12 +121,13 @@ export default function LogosPage() {
                 </CardContent>
                  <CardFooter className="p-2 bg-muted/50">
                     <Badge variant="secondary" className="mx-auto">{logo.symbol}</Badge>
-                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center">
                       <EditLogoDialog logo={logo}>
                         <Button variant="ghost" size="icon" title="Edit Logo">
                             <Pencil className="h-4 w-4" />
                         </Button>
                       </EditLogoDialog>
+                      <DeleteLogoButton logoId={logo.id} />
                     </div>
                 </CardFooter>
               </Card>
@@ -136,3 +138,5 @@ export default function LogosPage() {
     </div>
   );
 }
+
+    
