@@ -83,7 +83,7 @@ export async function addGlobalLogo(
 
       const fileContents = await logoFile.arrayBuffer();
       const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
-      const sanitizedName = name.toLowerCase().replace(/\s+/g, '-');
+      const sanitizedName = name.toLowerCase().replace(/\s/g, '-');
       const uniqueId = randomUUID().slice(0, 8);
       const filePath = `global/${sanitizedName}-${upperCaseSymbol.toLowerCase()}-${uniqueId}.${ext}`;
 
@@ -161,6 +161,7 @@ export async function updateGlobalLogo(
     }
 
     const { logoId, symbol, name, logoFile } = validated.data;
+    const upperCaseSymbol = symbol.toUpperCase();
 
     try {
         const { data: existingLogo, error: fetchError } = await supabaseAdmin
@@ -188,7 +189,7 @@ export async function updateGlobalLogo(
             const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
             const sanitizedName = name.toLowerCase().replace(/\s/g, '-');
             const uniqueId = randomUUID().slice(0,8);
-            const filePath = `global/${sanitizedName}-${symbol.toLowerCase()}-${uniqueId}.${ext}`;
+            const filePath = `global/${sanitizedName}-${upperCaseSymbol.toLowerCase()}-${uniqueId}.${ext}`;
 
             const { error: uploadError } = await supabaseAdmin.storage
                 .from(STORAGE_BUCKET)
@@ -203,6 +204,7 @@ export async function updateGlobalLogo(
 
         const updateData = {
             name: name,
+            symbol: upperCaseSymbol,
             public_url: newPublicUrl,
             storage_path: newStoragePath,
         };
@@ -212,9 +214,14 @@ export async function updateGlobalLogo(
             .update(updateData)
             .eq("id", logoId);
 
-        if (updateError) throw new Error(`Database update error: ${updateError.message}`);
+        if (updateError) {
+            if (updateError.code === '23505') { // Handle unique constraint violation
+                throw new Error(`A logo with the name '${name}' and symbol '${upperCaseSymbol}' already exists.`);
+            }
+            throw new Error(`Database update error: ${updateError.message}`);
+        }
         
-        const cdnUrl = getCdnLogoUrl(name, symbol);
+        const cdnUrl = getCdnLogoUrl(name, upperCaseSymbol);
         
         const { error: metadataUpdateError } = await supabaseAdmin
             .from("token_metadata")
@@ -829,5 +836,3 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
         return { status: "error", message: `Could not find token with address ${contractAddress} on ${network.name}. Error: ${error.message}` };
     }
 }
-
-    

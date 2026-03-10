@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
@@ -88,13 +87,12 @@ export function EditLogoDialog({ logo, children }: EditLogoDialogProps) {
         <DialogHeader>
           <DialogTitle>Edit Global Logo: {logo.symbol}</DialogTitle>
           <DialogDescription>
-            Update the name or upload a new image for this symbol. This change will affect all instances where this global logo is used.
+            Update the name, symbol, or upload a new image. This change will affect all instances where this global logo is used.
           </DialogDescription>
         </DialogHeader>
 
         <form ref={formRef} action={handleSubmit} className="grid gap-6 py-4">
             <input type="hidden" name="logoId" value={logo.id} />
-            <input type="hidden" name="symbol" value={logo.symbol} />
 
             <div className="flex justify-center">
                  <input 
@@ -132,8 +130,8 @@ export function EditLogoDialog({ logo, children }: EditLogoDialogProps) {
             </div>
 
             <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="symbol_display" className="text-right">Symbol</Label>
-                <Input id="symbol_display" value={logo.symbol} readOnly className="col-span-3 bg-muted/50" />
+                <Label htmlFor="symbol" className="text-right">Symbol</Label>
+                <Input id="symbol" name="symbol" defaultValue={logo.symbol} className="col-span-3" />
             </div>
              <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="name" className="text-right">Name</Label>
