@@ -39,18 +39,17 @@ export type AddGlobalLogoState = {
 const addGlobalLogoSchema = z.object({
   symbol: z.string().min(1, "Token symbol is required."),
   name: z.string().min(1, "Token name is required."),
-  logoFile: z.instanceof(File).refine(file => file.size > 0, 'Logo file is required.'),
+  logo: z.instanceof(File).refine(file => file.size > 0, 'Logo file is required.'),
 });
 
 export async function addGlobalLogo(
   prevState: AddGlobalLogoState | undefined,
   formData: FormData
 ): Promise<AddGlobalLogoState> {
-  const logoFileValue = formData.get('logo');
   const validated = addGlobalLogoSchema.safeParse({
       symbol: formData.get('symbol'),
       name: formData.get('name'),
-      logoFile: logoFileValue instanceof File ? logoFileValue : undefined,
+      logo: formData.get('logo'),
   });
 
   if (!validated.success) {
@@ -59,7 +58,7 @@ export async function addGlobalLogo(
       return { status: "error", message: firstError || "Invalid input." };
   }
 
-  const { logoFile, symbol, name } = validated.data;
+  const { logo, symbol, name } = validated.data;
   const upperCaseSymbol = symbol.toUpperCase();
   
   try {
@@ -81,15 +80,15 @@ export async function addGlobalLogo(
           }
       }
 
-      const fileContents = await logoFile.arrayBuffer();
-      const ext = logoFile.name.split('.').pop()?.toLowerCase() || 'png';
+      const fileContents = await logo.arrayBuffer();
+      const ext = logo.name.split('.').pop()?.toLowerCase() || 'png';
       const sanitizedName = name.toLowerCase().replace(/\s/g, '-');
       const uniqueId = randomUUID().slice(0, 8);
       const filePath = `global/${sanitizedName}-${upperCaseSymbol.toLowerCase()}-${uniqueId}.${ext}`;
 
       const { error: uploadError } = await supabaseAdmin.storage
         .from(STORAGE_BUCKET)
-        .upload(filePath, fileContents, { contentType: logoFile.type, upsert: false });
+        .upload(filePath, fileContents, { contentType: logo.type, upsert: false });
 
       if (uploadError) throw new Error(`Storage upload error: ${uploadError.message}`);
       
