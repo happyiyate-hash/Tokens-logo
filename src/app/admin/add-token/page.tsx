@@ -13,7 +13,7 @@ function getNetworks(): Omit<Network, 'explorer_api_base_url' | 'explorer_api_ke
     }));
 }
 
-export default async function AddTokenPage() {
+export default function AddTokenPage() {
     const networks = getNetworks();
 
     return (
