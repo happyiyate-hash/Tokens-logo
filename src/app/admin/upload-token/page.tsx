@@ -1,7 +1,7 @@
 
 import { UploadForm } from "@/components/admin/upload-form";
 
-export default async function UploadTokenPage() {
+export default function UploadTokenPage() {
 
   return (
     <div className="w-full space-y-8 flex flex-col items-center">
