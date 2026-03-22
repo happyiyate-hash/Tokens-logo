@@ -13,16 +13,17 @@ export async function GET(
   req: Request,
   { params }: { params: { symbol: string[] } } // The param can be a path array
 ) {
-  // The route is now /api/cdn/logo/[...symbol], so params.symbol is an array.
-  // e.g., /api/cdn/logo/arbitrum/eth -> ['arbitrum', 'eth']
-  // e.g., /api/cdn/logo/ethereum -> ['ethereum'] (for old single-param routes)
+  // The route is /api/cdn/logo/[...symbol], so params.symbol is an array.
+  // e.g., /api/cdn/logo/wrapped-bitcoin/wbtc -> ['wrapped-bitcoin', 'wbtc']
+  // e.g., /api/cdn/logo/ethereum -> ['ethereum']
   const pathParts = params.symbol;
 
   if (!pathParts || pathParts.length === 0) {
     return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
   }
 
-  // New logic: Handle both new and old URL formats
+  // The sanitized name is included in the path to handle cases where
+  // different tokens share the same symbol.
   const hasName = pathParts.length > 1;
   const name = hasName ? pathParts[0] : null;
   const symbol = hasName ? pathParts[1] : pathParts[0];
@@ -45,44 +46,40 @@ export async function GET(
   }
 
   try {
-    // 2. If not in cache, fetch the logo metadata from the database
-    let query = supabaseAdmin
+    // 2. If not in cache, fetch all potential logo matches by symbol.
+    const { data: logoMatches, error: dbError } = await supabaseAdmin
       .from('token_logos')
-      .select('storage_path');
-      
-    // ** NEW: Prioritize name for lookup if it exists **
-    if (name) {
-      query = query.ilike('name', name);
-    } else {
-      query = query.ilike('symbol', symbol);
+      .select('storage_path, name')
+      .ilike('symbol', symbol);
+
+    if (dbError || !logoMatches || logoMatches.length === 0) {
+      return NextResponse.json({ error: `Logo not found for symbol: ${symbol}` }, { status: 404 });
     }
 
-    let { data: logoData, error: dbError } = await query.limit(1).single();
+    let targetLogo: { storage_path: string; name: string | null } | undefined;
 
-    if (dbError || !logoData) {
-       // If lookup by name fails, try a fallback to just the symbol
-       if (name) {
-           const { data: fallbackData, error: fallbackError } = await supabaseAdmin
-            .from('token_logos')
-            .select('storage_path')
-            .ilike('symbol', symbol)
-            .limit(1)
-            .single();
-          
-          if (fallbackError || !fallbackData) {
-            return NextResponse.json({ error: 'Logo not found in database' }, { status: 404 });
-          }
-          // Use the fallback data if the primary query fails
-          logoData = fallbackData;
-       } else {
-          return NextResponse.json({ error: 'Logo not found in database' }, { status: 404 });
-       }
+    // If a name is provided in the URL, use it to find the specific logo.
+    // This is crucial for symbols used by multiple tokens (e.g., 'ETH' on different networks).
+    if (name) {
+      targetLogo = logoMatches.find(logo => 
+        logo.name && logo.name.toLowerCase().replace(/\s+/g, '-') === name
+      );
+    } else if (logoMatches.length === 1) {
+      // If no name is in the URL, we can only proceed if the symbol is unique.
+      targetLogo = logoMatches[0];
+    }
+
+    if (!targetLogo) {
+      const errorMessage = name 
+        ? `No logo found for name '${name}' and symbol '${symbol}'`
+        : `Ambiguous symbol '${symbol}'. Please use the full name/symbol URL path.`;
+      return NextResponse.json({ error: errorMessage }, { status: 404 });
     }
 
     // 3. Fetch the actual image file from Supabase Storage (our Origin)
     const { data: storageData, error: storageError } = await supabaseAdmin.storage
       .from(STORAGE_BUCKET)
-      .download(logoData.storage_path);
+      .download(targetLogo.storage_path);
 
     if (storageError || !storageData) {
       throw new Error('Failed to download logo from origin storage.');
@@ -107,7 +104,7 @@ export async function GET(
     });
 
   } catch (error: any) {
-    console.error(`[CDN LOGO FETCH ERROR] for ${name}/${symbol}:`, error);
+    console.error(`[CDN LOGO FETCH ERROR] for ${name || 'unknown'}/${symbol}:`, error);
     // Serve a default placeholder or return an error
     return NextResponse.json({ error: 'Failed to fetch logo.' }, { status: 500 });
   }
