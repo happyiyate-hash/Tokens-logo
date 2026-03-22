@@ -27,10 +27,10 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 ## 2. Fetching All Tokens for a Network (The FAST and CORRECT Way)
 
-This is the most efficient and recommended way to get a list of all supported tokens for a given blockchain network. It includes pre-linked, cached logo URLs for instant loading. Your wallet should call this function for each network it supports (e.g., on startup) and cache the results locally.
+This is the most efficient and recommended way to get a list of all supported tokens for a given blockchain network. It includes pre-linked, cached logo URLs for instant loading and prevents data mix-ups between networks. Your wallet should call this function for each network it supports (e.g., on startup) and cache the results locally.
 
 -   **Table**: `token_metadata`
--   **Input**: `networkName` (string, e.g., `polygon`, `ethereum`). Case-insensitive.
+-   **Input**: `networkName` (string, e.g., `polygon`, `ethereum`). This is case-insensitive.
 
 ### Example Code
 
@@ -70,7 +70,9 @@ async function getAllTokensForNetwork(supabase, networkName) {
 }
 
 // --- Example Usage ---
-// const cdnAppBaseUrl = 'https://your-cdn-app-domain.com'; // IMPORTANT: Set this to the CDN's domain.
+// This is the base URL where THIS Token CDN application is hosted.
+// Your wallet app MUST know this URL.
+// const cdnAppBaseUrl = 'https://your-cdn-app-domain.com'; 
 
 // getAllTokensForNetwork(supabase, 'polygon').then(tokens => {
 //   if (tokens) {
@@ -84,11 +86,11 @@ async function getAllTokensForNetwork(supabase, networkName) {
 // });
 ```
 
-### **CRITICAL NOTE: How to Render Logos Correctly**
+### **CRITICAL NOTE: How to Render Logos Correctly (The Fast Way)**
 
-The `logo_url` returned by this function is a **relative path** that points to this CDN application's fast caching layer (e.g., `/api/cdn/logo/wrapped-bitcoin/wbtc`). **This is intentional and is the key to fast logo loading.** The path includes both the token name and symbol (e.g., `/api/cdn/logo/[name]/[symbol]`) to uniquely identify the correct logo, even when different tokens share the same symbol.
+The `logo_url` returned by the function above is a **relative path** that points to this CDN application's fast caching layer (e.g., `/api/cdn/logo/wrapped-bitcoin/wbtc`). **This is intentional and is the key to instant logo loading.**
 
-To use this URL in your wallet's `<img>` tags, you **MUST** prepend the base URL of the main Token CDN application. Using the relative path directly will result in a broken image.
+To use this URL in your wallet's `<img>` tags, you **MUST** prepend the base URL of this main Token CDN application. Using the relative path directly in your wallet app will result in a broken image because your app doesn't know what server to ask.
 
 **Example:**
 If this Token CDN application is hosted at `https://my-token-cdn.com`, the full, fast image URL would be:
