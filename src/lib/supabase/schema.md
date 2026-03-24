@@ -1,3 +1,4 @@
+
 # Supabase Database Schema for Token CDN
 
 This document provides all the necessary SQL statements to set up a new Supabase project for the Token CDN application.
