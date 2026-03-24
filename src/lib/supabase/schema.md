@@ -111,10 +111,13 @@ Stores metadata for externally hosted Progressive Web Apps.
 CREATE TABLE public.pwa_apps (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     name text NOT NULL,
+    slug text NOT NULL UNIQUE,
     description text NULL,
-    app_url text NOT NULL,
-    icon_url text NOT NULL,
-    storage_path text NOT NULL,
+    manifest_url text NOT NULL,
+    icon_192_url text NOT NULL,
+    icon_512_url text NOT NULL,
+    service_worker_url text NOT NULL,
+    apk_url text NULL,
     created_at timestamptz NULL DEFAULT now()
 );
 ```

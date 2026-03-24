@@ -769,27 +769,26 @@ export type PostPwaAppState = {
 
 const postPwaAppSchema = z.object({
   name: z.string().min(1, "App Name is required."),
-  app_url: z.string().url("A valid App URL is required."),
+  slug: z.string().min(1, "App Slug is required.").regex(/^[a-z0-9-]+$/, 'Slug can only contain lowercase letters, numbers, and hyphens.'),
   description: z.string().optional(),
-  icon: z.instanceof(File).refine(file => file.size > 0, 'App icon is required.'),
+  manifest: z.string().min(1, 'Manifest JSON is required.'),
+  serviceWorker: z.string().min(1, 'Service Worker JS is required.'),
+  icon192: z.instanceof(File).refine(file => file.size > 0, '192x192 icon is required.'),
+  icon512: z.instanceof(File).refine(file => file.size > 0, '512x512 icon is required.'),
+  apk_url: z.string().url().optional().or(z.literal('')),
 });
 
 
-async function uploadPwaAsset(file: File, appId: string, assetName: string): Promise<{ publicUrl: string, storagePath: string }> {
-    const fileContents = await file.arrayBuffer();
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
-    const filePath = `pwa_assets/${appId}/${assetName}.${ext}`;
-
+async function uploadPwaAsset(fileBuffer: ArrayBuffer, contentType: string, path: string): Promise<string> {
     const { error: uploadError } = await supabaseAdmin.storage
       .from(STORAGE_BUCKET)
-      .upload(filePath, fileContents, { contentType: file.type, upsert: true });
+      .upload(path, fileBuffer, { contentType, upsert: true });
 
-    if (uploadError) throw new Error(`Storage upload error for ${assetName}: ${uploadError.message}`);
+    if (uploadError) throw new Error(`Storage upload error for ${path}: ${uploadError.message}`);
     
-    const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
-    return { publicUrl: publicUrlData.publicUrl, storagePath: filePath };
+    const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+    return publicUrlData.publicUrl;
 }
-
 
 export async function postPwaApp(
   prevState: PostPwaAppState | undefined,
@@ -797,9 +796,13 @@ export async function postPwaApp(
 ): Promise<PostPwaAppState> {
   const validated = postPwaAppSchema.safeParse({
       name: formData.get('name'),
-      app_url: formData.get('app_url'),
+      slug: formData.get('slug'),
       description: formData.get('description'),
-      icon: formData.get('icon'),
+      manifest: formData.get('manifest'),
+      serviceWorker: formData.get('serviceWorker'),
+      icon192: formData.get('icon192'),
+      icon512: formData.get('icon512'),
+      apk_url: formData.get('apk_url')
   });
 
   if (!validated.success) {
@@ -808,22 +811,38 @@ export async function postPwaApp(
       return { status: "error", message: firstError || "Invalid input." };
   }
 
-  const { name, app_url, description, icon } = validated.data;
-  const appId = randomUUID();
+  const { name, slug, description, manifest, serviceWorker, icon192, icon512, apk_url } = validated.data;
+  const storageBasePath = `pwa_assets/${slug}`;
 
   try {
-    const { publicUrl: iconUrl, storagePath } = await uploadPwaAsset(icon, appId, 'icon-512');
+    // Upload all assets in parallel
+    const [
+        manifestUrl,
+        serviceWorkerUrl,
+        icon192Url,
+        icon512Url,
+    ] = await Promise.all([
+        uploadPwaAsset(Buffer.from(manifest, 'utf-8'), 'application/json', `${storageBasePath}/manifest.json`),
+        uploadPwaAsset(Buffer.from(serviceWorker, 'utf-8'), 'application/javascript', `${storageBasePath}/sw.js`),
+        uploadPwaAsset(await icon192.arrayBuffer(), icon192.type, `${storageBasePath}/icon-192.png`),
+        uploadPwaAsset(await icon512.arrayBuffer(), icon512.type, `${storageBasePath}/icon-512.png`),
+    ]);
 
     const { error: dbError } = await supabaseAdmin.from("pwa_apps").insert({
-        id: appId,
         name,
+        slug,
         description: description || null,
-        app_url,
-        icon_url: iconUrl,
-        storage_path: storagePath,
+        manifest_url: manifestUrl,
+        icon_192_url: icon192Url,
+        icon_512_url: icon512Url,
+        service_worker_url: serviceWorkerUrl,
+        apk_url: apk_url || null,
     });
 
     if (dbError) {
+      if (dbError.code === '23505') { // Unique constraint violation on slug
+         throw new Error(`An app with the slug '${slug}' already exists. Please choose a unique slug.`);
+      }
       throw new Error(`Database insert error: ${dbError.message}`);
     }
     

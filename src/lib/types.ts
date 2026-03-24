@@ -71,8 +71,12 @@ export type TokenFetchResult = {
 export type PwaApp = {
   id: string;
   name: string;
+  slug: string;
   description: string | null;
-  app_url: string;
-  icon_url: string;
+  manifest_url: string;
+  icon_192_url: string;
+  icon_512_url: string;
+  service_worker_url: string;
+  apk_url: string | null;
   created_at: string;
-}
+};
