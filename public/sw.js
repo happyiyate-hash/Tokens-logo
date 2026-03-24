@@ -1,25 +1,27 @@
-
-const CACHE_NAME = 'token-cdn-cache-v1';
+// A basic service worker for caching assets
+const CACHE_NAME = 'wnc-wallet-cache-v1';
 const urlsToCache = [
   '/',
-  '/manifest.json'
+  '/manifest.json',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png'
 ];
 
-self.addEventListener('install', event => {
+self.addEventListener('install', (event) => {
   // Perform install steps
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(function(cache) {
+      .then((cache) => {
         console.log('Opened cache');
         return cache.addAll(urlsToCache);
       })
   );
 });
 
-self.addEventListener('fetch', event => {
+self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request)
-      .then(function(response) {
+      .then((response) => {
         // Cache hit - return response
         if (response) {
           return response;
