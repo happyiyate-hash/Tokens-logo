@@ -844,19 +844,14 @@ export type PostPwaAppState = {
 };
 
 const postPwaAppSchema = z.object({
-  name: z.string().min(1, "App Full Name is required."),
-  short_name: z.string().min(1, "Short Name is required."),
+  name: z.string().min(1, "App Name is required."),
+  app_url: z.string().url("A valid App URL is required."),
   description: z.string().optional(),
-  theme_color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Must be a valid hex color").optional(),
-  start_url: z.string().min(1, "Start URL is required."),
-  icon_192: z.instanceof(File).refine(file => file.size > 0, '192x192 icon is required.'),
-  icon_512: z.instanceof(File).refine(file => file.size > 0, '512x512 icon is required.'),
-  screenshot_1: z.instanceof(File).optional(),
-  screenshot_2: z.instanceof(File).optional(),
+  icon: z.instanceof(File).refine(file => file.size > 0, 'App icon is required.'),
 });
 
 
-async function uploadAsset(file: File, appId: string, assetName: string): Promise<string> {
+async function uploadPwaAsset(file: File, appId: string, assetName: string): Promise<{ publicUrl: string, storagePath: string }> {
     const fileContents = await file.arrayBuffer();
     const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
     const filePath = `pwa_assets/${appId}/${assetName}.${ext}`;
@@ -868,7 +863,7 @@ async function uploadAsset(file: File, appId: string, assetName: string): Promis
     if (uploadError) throw new Error(`Storage upload error for ${assetName}: ${uploadError.message}`);
     
     const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
-    return publicUrlData.publicUrl;
+    return { publicUrl: publicUrlData.publicUrl, storagePath: filePath };
 }
 
 
@@ -878,14 +873,9 @@ export async function postPwaApp(
 ): Promise<PostPwaAppState> {
   const validated = postPwaAppSchema.safeParse({
       name: formData.get('name'),
-      short_name: formData.get('short_name'),
+      app_url: formData.get('app_url'),
       description: formData.get('description'),
-      theme_color: formData.get('theme_color'),
-      start_url: formData.get('start_url'),
-      icon_192: formData.get('icon_192'),
-      icon_512: formData.get('icon_512'),
-      screenshot_1: formData.get('screenshot_1'),
-      screenshot_2: formData.get('screenshot_2'),
+      icon: formData.get('icon'),
   });
 
   if (!validated.success) {
@@ -894,26 +884,19 @@ export async function postPwaApp(
       return { status: "error", message: firstError || "Invalid input." };
   }
 
-  const { name, short_name, description, theme_color, start_url, icon_192, icon_512, screenshot_1, screenshot_2 } = validated.data;
+  const { name, app_url, description, icon } = validated.data;
   const appId = randomUUID();
 
   try {
-    const icon192Url = await uploadAsset(icon_192, appId, 'icon-192');
-    const icon512Url = await uploadAsset(icon_512, appId, 'icon-512');
-    const screenshot1Url = screenshot_1 ? await uploadAsset(screenshot_1, appId, 'screenshot-1') : null;
-    const screenshot2Url = screenshot_2 ? await uploadAsset(screenshot_2, appId, 'screenshot-2') : null;
+    const { publicUrl: iconUrl, storagePath } = await uploadPwaAsset(icon, appId, 'icon-512');
 
     const { error: dbError } = await supabaseAdmin.from("pwa_apps").insert({
         id: appId,
         name,
-        short_name,
         description: description || null,
-        theme_color: theme_color || '#8A2BE2',
-        start_url,
-        icon_192_url: icon192Url,
-        icon_512_url: icon512Url,
-        screenshot_1_url: screenshot1Url,
-        screenshot_2_url: screenshot2Url,
+        app_url,
+        icon_url: iconUrl,
+        storage_path: storagePath,
     });
 
     if (dbError) {

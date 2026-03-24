@@ -106,19 +106,15 @@ CREATE TABLE public.token_metadata (
 ```
 
 ### `pwa_apps` Table
-Stores the metadata and assets for installable Progressive Web Apps.
+Stores metadata for externally hosted Progressive Web Apps.
 ```sql
 CREATE TABLE public.pwa_apps (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     name text NOT NULL,
-    short_name text NOT NULL,
     description text NULL,
-    theme_color text NULL DEFAULT '#8A2BE2',
-    start_url text NOT NULL DEFAULT '/',
-    icon_192_url text NULL,
-    icon_512_url text NULL,
-    screenshot_1_url text NULL,
-    screenshot_2_url text NULL,
+    app_url text NOT NULL,
+    icon_url text NOT NULL,
+    storage_path text NOT NULL,
     created_at timestamptz NULL DEFAULT now()
 );
 ```
