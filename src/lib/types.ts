@@ -5,6 +5,7 @@ export type TokenDetails = {
   decimals: number;
   priceSource?: string;
   priceId?: string;
+  totalSupply?: string;
 };
 
 export type TokenMetadata = {
@@ -59,6 +60,12 @@ export type TokenFetchResult = {
     source?: string;
     priceSource?: string;
     priceId?: string;
+    // New fields
+    networkName?: string;
+    chainId?: number;
+    verified?: boolean;
+    price?: number;
+    totalSupply?: string;
 };
 
 export type PwaApp = {

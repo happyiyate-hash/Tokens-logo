@@ -10,20 +10,20 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SubmitButton } from "@/components/submit-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Terminal, CheckCircle, Loader2, Sparkles, Search, Save, UploadCloud } from "lucide-react";
+import { Terminal, CheckCircle, Loader2, Sparkles, Search, Save, UploadCloud, BadgeCheck, BadgeAlert } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 const initialFetchState: FetchMetadataState = { status: "idle" };
 const initialSaveState: AddTokenState = { status: "idle" };
 
 type DropdownNetwork = {
-  id: string; // This is the chainId from the JSON file
+  id: string;
   name:string;
 };
 
-// Form data state
 interface TokenFormData {
     name: string;
     symbol: string;
@@ -32,6 +32,10 @@ interface TokenFormData {
     chainId: string;
     priceSource: string;
     priceId: string;
+    totalSupply: string;
+    networkName: string;
+    price: number;
+    verified: boolean;
 }
 
 const initialFormData: TokenFormData = {
@@ -42,6 +46,10 @@ const initialFormData: TokenFormData = {
     chainId: "",
     priceSource: "",
     priceId: "",
+    totalSupply: "",
+    networkName: "",
+    price: 0,
+    verified: false,
 };
 
 export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
@@ -58,14 +66,28 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
   const [isLogoAvailable, setIsLogoAvailable] = useState(false);
   const [manualLogoFile, setManualLogoFile] = useState<File | null>(null);
 
-  // Handle form input changes
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement> | React.ChangeEvent<HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({...prev, [name]: value}));
   };
+  
+  const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({...prev, [name]: value}));
+    if (value.length === 42) {
+      const newFormData = new FormData();
+      newFormData.append('contractAddress', value);
+      fetchAction(newFormData);
+    }
+  }
 
   const handleSelectChange = (value: string) => {
-    setFormData(prev => ({...prev, chainId: value}));
+    const selectedNetwork = networks.find(n => n.id === value);
+    setFormData(prev => ({
+        ...prev, 
+        chainId: value,
+        networkName: selectedNetwork?.name || "",
+    }));
   };
 
   const handleLogoClick = () => {
@@ -85,17 +107,13 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
     }
   };
 
-  // Custom save handler to include manual logo file
   const handleSaveAction = (formDataWithNativeFields: FormData) => {
-      // Append the manual logo file if it exists
       if (manualLogoFile) {
         formDataWithNativeFields.append('logo', manualLogoFile);
       }
-      // Call the original server action
       saveAction(formDataWithNativeFields);
   };
 
-  // Effect to display toast on save action result
   useEffect(() => {
     if (saveState.status === 'success') {
         toast({ title: "Success", description: saveState.message });
@@ -105,35 +123,40 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
     }
   }, [saveState, toast]);
 
-  // Effect to process the result of the fetch action
   useEffect(() => {
     if (fetchState.status === 'success' && fetchState.metadata) {
-        toast({ title: "Metadata Found!", description: `Found on: ${fetchState.metadata.source}. You can now save or edit.`});
+        toast({ title: "Token Detected!", description: `Found on: ${fetchState.metadata.networkName}. You can now save or edit.`});
         setFormData(prev => ({
             ...prev,
             name: fetchState.metadata?.name || "",
             symbol: fetchState.metadata?.symbol || "",
             decimals: fetchState.metadata?.decimals?.toString() || "18",
-            priceSource: fetchState.metadata?.priceSource || 'unknown',
+            priceSource: fetchState.metadata?.priceSource || 'coingecko',
             priceId: fetchState.metadata?.priceId || '',
+            totalSupply: fetchState.metadata?.totalSupply || '',
+            networkName: fetchState.metadata?.networkName || '',
+            chainId: fetchState.metadata?.chainId?.toString() || '',
+            price: fetchState.metadata?.price || 0,
+            verified: fetchState.metadata?.verified || false,
         }));
-        // Trigger logo search after metadata is populated
-        handleLogoSearch(fetchState.metadata.logoUrl);
+        if (fetchState.metadata.logoUrl) {
+            setPreviewUrl(fetchState.metadata.logoUrl);
+            setIsLogoAvailable(true);
+        } else {
+             toast({ variant: "default", title: "No Logo Found", description: `You can upload a logo manually.` });
+             setIsLogoAvailable(false);
+             setPreviewUrl(null);
+        }
     } else if (fetchState.status === 'error') {
-        toast({ variant: "destructive", title: "Fetch Error", description: fetchState.message });
-        // Keep the form fields editable for manual entry
+        toast({ variant: "destructive", title: "Detection Error", description: fetchState.message });
+        // Reset relevant fields but keep contract address
+        setFormData(prev => ({
+            ...initialFormData,
+            contractAddress: prev.contractAddress,
+        }));
     }
   }, [fetchState, toast]);
 
-  const handleLogoSearch = (existingLogoUrl?: string | null) => {
-      if (existingLogoUrl) {
-          setPreviewUrl(existingLogoUrl);
-          setIsLogoAvailable(true);
-      } else {
-          toast({ variant: "default", title: "No Pre-existing Logo Found", description: `You can upload a logo manually.` });
-          setIsLogoAvailable(false);
-      }
-  };
 
   const handleReset = () => {
     setFormData(initialFormData);
@@ -151,47 +174,30 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
         <CardHeader>
             <CardTitle className="text-2xl">Find or Add Token</CardTitle>
             <CardDescription>
-                First, try to find a token by its contract address. If that fails, or if you need to make corrections, you can enter the details manually below before saving.
+                Paste a contract address to auto-detect token details across all supported networks. You can verify or edit the details before saving.
             </CardDescription>
         </CardHeader>
         <CardContent className="space-y-8">
-            {/* --- FINDER FORM --- */}
             <form ref={fetchFormRef} action={fetchAction} className="space-y-4 p-4 border rounded-lg bg-background/50">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                    <div className="space-y-2 md:col-span-1">
-                        <Label htmlFor="find_chainId">Network</Label>
-                        <Select name="chainId" onValueChange={handleSelectChange} required>
-                            <SelectTrigger id="find_chainId">
-                                <SelectValue placeholder="Select network" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {networks.map((network) => (
-                                <SelectItem key={network.id} value={network.id}>
-                                    {network.name}
-                                </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-2 md:col-span-2">
-                        <Label htmlFor="find_contractAddress">Token Contract Address</Label>
-                        <Input id="find_contractAddress" name="contractAddress" placeholder="0x..." onChange={handleInputChange} required />
+                <div className="space-y-2">
+                    <Label htmlFor="find_contractAddress">Token Contract Address</Label>
+                    <div className="flex gap-2">
+                        <Input id="find_contractAddress" name="contractAddress" placeholder="0x... (paste here to auto-detect)" onChange={handleAddressChange} required value={formData.contractAddress} />
+                        <SubmitButton disabled={isFetching || !formData.contractAddress}>
+                            {isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                            Detect
+                        </SubmitButton>
                     </div>
                 </div>
-                <SubmitButton className="w-full" disabled={isFetching || !formData.chainId || !formData.contractAddress}>
-                    {isFetching && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    <Search className="mr-2 h-4 w-4" />
-                    Find Token by Contract
-                </SubmitButton>
             </form>
 
+            { (fetchState.status !== 'idle' || formData.name) && (
             <div className="border-t pt-8">
                 <h3 className="text-lg font-semibold mb-4">Token Details (Verify or Enter Manually)</h3>
-                {/* --- SAVER FORM --- */}
                 <form ref={saveFormRef} action={handleSaveAction} className="space-y-6">
-                    {/* Hidden fields to pass all required data to the save action */}
                     <input type="hidden" name="contract" value={formData.contractAddress} />
                     <input type="hidden" name="chainId" value={formData.chainId} />
+                    <input type="hidden" name="totalSupply" value={formData.totalSupply} />
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
@@ -203,18 +209,38 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
                             <Input id="symbol" name="symbol" value={formData.symbol} onChange={handleInputChange} placeholder="e.g., USDT" required />
                         </div>
                     </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="decimals">Decimals</Label>
-                        <Input id="decimals" name="decimals" type="number" value={formData.decimals} onChange={handleInputChange} placeholder="e.g., 6" required />
-                    </div>
-                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                     <div className="flex items-center gap-4">
+                        <div className="space-y-2 flex-1">
+                            <Label htmlFor="networkName">Detected Network</Label>
+                            <Input id="networkName" name="networkName" value={formData.networkName} readOnly disabled />
+                        </div>
+                         <div className="space-y-2">
+                            <Label>Verified</Label>
+                            <div>
+                            {formData.verified ? (
+                                <Badge variant="default" className="bg-green-600 hover:bg-green-700">
+                                    <BadgeCheck className="mr-2 h-4 w-4" /> Verified
+                                </Badge>
+                            ) : (
+                                <Badge variant="destructive">
+                                    <BadgeAlert className="mr-2 h-4 w-4" /> Unverified
+                                </Badge>
+                            )}
+                            </div>
+                        </div>
+                     </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="space-y-2">
-                            <Label htmlFor="priceSource">Price Source</Label>
-                            <Input id="priceSource" name="priceSource" value={formData.priceSource} onChange={handleInputChange} placeholder="e.g., coingecko" />
+                            <Label htmlFor="decimals">Decimals</Label>
+                            <Input id="decimals" name="decimals" type="number" value={formData.decimals} onChange={handleInputChange} placeholder="e.g., 6" required />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="priceId">Price ID</Label>
-                            <Input id="priceId" name="priceId" value={formData.priceId} onChange={handleInputChange} placeholder="e.g., wrapped-bitcoin" />
+                            <Label htmlFor="price">Price (USD)</Label>
+                            <Input id="price" name="price" type="number" value={formData.price || ''} onChange={handleInputChange} placeholder="e.g., 1.00" />
+                        </div>
+                         <div className="space-y-2 col-span-2">
+                            <Label htmlFor="priceId">CoinGecko Price ID</Label>
+                            <Input id="priceId" name="priceId" value={formData.priceId} onChange={handleInputChange} placeholder="e.g., tether" />
                         </div>
                     </div>
                      <div className="space-y-2">
@@ -270,6 +296,7 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
                     )}
                 </form>
             </div>
+            )}
         </CardContent>
     </Card>
   )

@@ -11,7 +11,6 @@ import axios from 'axios';
 import { randomUUID } from "crypto";
 
 const STORAGE_BUCKET = "token_logos";
-const CACHE_TTL = Number(process.env.CACHE_TTL_MS || 7 * 24 * 3600 * 1000);
 
 
 // --- Internal Centralized Logo URL Generator ---
@@ -23,7 +22,7 @@ const CACHE_TTL = Number(process.env.CACHE_TTL_MS || 7 * 24 * 3600 * 1000);
  * @returns The CDN URL for the logo.
  */
 function getCdnLogoUrl(name: string, symbol: string): string {
-    const sanitizedName = name.toLowerCase().replace(/\s+/g, '-');
+    const sanitizedName = name.toLowerCase().replace(/\s/g, '-');
     return `/api/cdn/logo/${sanitizedName}/${symbol.toLowerCase()}`;
 }
 
@@ -324,6 +323,7 @@ const addTokenSchema = z.object({
   logo: z.instanceof(File).optional(),
   priceSource: z.string().optional(),
   priceId: z.string().optional(),
+  totalSupply: z.string().optional(),
 });
 
 
@@ -340,7 +340,7 @@ export async function addToken(
       contract: formData.get('contract'),
       priceSource: formData.get('priceSource'),
       priceId: formData.get('priceId'),
-      // Ensure logo is only passed if it's a file with content
+      totalSupply: formData.get('totalSupply'),
       logo: logoFileValue instanceof File && logoFileValue.size > 0 ? logoFileValue : undefined,
   });
 
@@ -350,7 +350,7 @@ export async function addToken(
     return { status: "error", message: firstError || "Invalid input." };
   }
   
-  const { symbol, name, decimals, chainId, contract, logo: logoFile, priceSource, priceId } = validated.data;
+  const { symbol, name, decimals, chainId, contract, logo: logoFile, priceSource, priceId, totalSupply } = validated.data;
   
   try {
     if (logoFile) {
@@ -377,7 +377,8 @@ export async function addToken(
       symbol, 
       decimals,
       priceSource: priceSource || 'unknown',
-      priceId: priceId || undefined
+      priceId: priceId || undefined,
+      totalSupply: totalSupply || undefined,
     };
     
     const { error: upsertError } = await supabaseAdmin
@@ -386,7 +387,7 @@ export async function addToken(
             contract_address: contract.toLowerCase(),
             network: network.name.toLowerCase(),
             token_details: tokenDetails,
-            logo_url: finalLogoUrl, // The linked CDN URL
+            logo_url: finalLogoUrl,
             source: "manual",
             verified: true,
             fetched_at: new Date().toISOString(),
@@ -527,7 +528,6 @@ export async function searchToken(
   const upperCaseSymbol = tokenSymbol.toUpperCase();
 
   try {
-    // This search is on the metadata table which has the pre-linked logo_url
     const { data, error } = await supabaseAdmin
       .from("token_metadata")
       .select("*")
@@ -740,88 +740,23 @@ export type FetchMetadataState = {
 
 const fetchMetadataSchema = z.object({
   contractAddress: z.string().min(1, "Contract address is required."),
-  chainId: z.coerce.string().min(1, "Network selection is required."),
 });
 
-async function getCachedToken(contract: string, networkName: string): Promise<TokenMetadata | null> {
-    const { data, error } = await supabaseAdmin
-        .from("token_metadata")
-        .select("*")
-        .eq("contract_address", contract.toLowerCase())
-        .eq("network", networkName.toLowerCase())
-        .maybeSingle();
-    
-    if (error) {
-        console.error("Error fetching cached token:", error);
-        return null;
-    };
-
-    return data;
-}
 
 export async function fetchTokenMetadata(prevState: FetchMetadataState | undefined, formData: FormData): Promise<FetchMetadataState> {
     const validated = fetchMetadataSchema.safeParse(Object.fromEntries(formData.entries()));
 
     if (!validated.success) {
-        return { status: "error", message: "Contract address and network are required." };
+        return { status: "error", message: "Contract address is required." };
     }
 
-    const { contractAddress, chainId } = validated.data;
-    const forceRefresh = formData.get("forceRefresh") === "true";
-    const numericChainId = Number(chainId);
-
-    const network = chainsConfig.find(c => c.chainId === numericChainId);
-
-    if (!network) {
-      return { status: "error", message: "Invalid network selected." };
-    }
+    const { contractAddress } = validated.data;
   
     try {
-      if (!forceRefresh) {
-          const cached = await getCachedToken(contractAddress, network.name);
-          if (cached && (Date.now() - new Date(cached.fetched_at).getTime()) < CACHE_TTL) {
-              const metadata: TokenFetchResult = {
-                ...cached.token_details,
-                logoUrl: cached.logo_url,
-                source: `cache (${cached.source})`
-              };
-              return { status: "success", metadata };
-          }
-      }
-      
-      const metadata = await fetchTokenMetadataFromSources(contractAddress, numericChainId);
-      
-      if (metadata && metadata.symbol && metadata.name && metadata.decimals !== undefined) {
-          // Check our internal DB for a logo first.
-          const { data: dbLogo } = await supabaseAdmin
-            .from('token_logos')
-            .select('public_url')
-            .ilike('name', metadata.name)
-            .limit(1)
-            .single();
-
-          // If a logo is found in our DB, use it. Otherwise, fall back to the CDN-generated URL structure.
-          const finalLogoUrl = dbLogo?.public_url || getCdnLogoUrl(metadata.name, metadata.symbol);
-
-          const result: TokenFetchResult = {
-              name: metadata.name,
-              symbol: metadata.symbol,
-              decimals: metadata.decimals,
-              logoUrl: finalLogoUrl,
-              source: `${metadata.source}`,
-              priceId: metadata.priceId,
-              priceSource: metadata.priceSource,
-          };
-          
-          return { 
-            status: "success", 
-            metadata: result, 
-          };
-      } else {
-        throw new Error("Incomplete metadata received from sources.");
-      }
+      const metadata = await fetchTokenMetadataFromSources(contractAddress);
+      return { status: "success", metadata };
     } catch (error: any) {
-        return { status: "error", message: `Could not find token with address ${contractAddress} on ${network.name}. Error: ${error.message}` };
+        return { status: "error", message: `Could not find token with address ${contractAddress}. Error: ${error.message}` };
     }
 }
 
