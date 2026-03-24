@@ -1,13 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 
-// WARNING: Hardcoding secret keys like the service_role key is a significant security risk.
-// These should be loaded from secure environment variables, not committed to code.
-// This change is made based on a direct request.
-const supabaseUrl = "YOUR_SUPABASE_URL_HERE"; // Replace with your actual Supabase URL
-const supabaseServiceKey = "YOUR_SUPABASE_SERVICE_ROLE_KEY_HERE"; // Replace with your actual Service Role Key
+// This file uses environment variables to connect to Supabase.
+// The service_role key is a secret and is ONLY available on the server.
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl || !supabaseServiceKey || supabaseUrl.includes("YOUR_SUPABASE_URL_HERE")) {
-  throw new Error("Supabase admin keys are hardcoded but not set. Please edit src/lib/supabase/admin.ts and replace placeholder values.");
+if (!supabaseUrl || !supabaseServiceKey) {
+  throw new Error("Supabase admin environment variables are not set. Please check your .env file.");
 }
 
 export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
