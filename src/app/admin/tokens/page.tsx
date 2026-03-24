@@ -12,7 +12,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
 const defaultLogo = PlaceHolderImages.find(p => p.id === 'default-token-logo')!;
@@ -65,7 +65,7 @@ async function getNetworks(): Promise<Network[]> {
   return data;
 }
 
-export default function TokensListPage() {
+function TokensListPageContent() {
   const searchParams = useSearchParams();
   const selectedNetworkId = searchParams.get("network") ?? "";
   
@@ -177,3 +177,13 @@ export default function TokensListPage() {
     </div>
   );
 }
+
+export default function TokensListPage() {
+  // Wrap the component that uses `useSearchParams` in a Suspense boundary.
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <TokensListPageContent />
+    </Suspense>
+  )
+}
+
