@@ -105,6 +105,25 @@ CREATE TABLE public.token_metadata (
 );
 ```
 
+### `pwa_apps` Table
+Stores the metadata and assets for installable Progressive Web Apps.
+```sql
+CREATE TABLE public.pwa_apps (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name text NOT NULL,
+    short_name text NOT NULL,
+    description text NULL,
+    theme_color text NULL DEFAULT '#8A2BE2',
+    start_url text NOT NULL DEFAULT '/',
+    icon_192_url text NULL,
+    icon_512_url text NULL,
+    screenshot_1_url text NULL,
+    screenshot_2_url text NULL,
+    created_at timestamptz NULL DEFAULT now()
+);
+```
+
+
 ---
 
 ## 3. Create Database Functions (RPC)
@@ -189,6 +208,16 @@ CREATE POLICY "Enable public read access for all users"
 ON public.token_metadata FOR SELECT
 USING (true);
 ```
+
+### Enable RLS on `pwa_apps`
+```sql
+ALTER TABLE public.pwa_apps ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Enable public read access for all users on pwa_apps"
+ON public.pwa_apps FOR SELECT
+USING (true);
+```
+
 
 ---
 

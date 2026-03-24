@@ -835,3 +835,97 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
         return { status: "error", message: `Could not find token with address ${contractAddress} on ${network.name}. Error: ${error.message}` };
     }
 }
+
+
+// --- PWA App Management ---
+export type PostPwaAppState = {
+  status: "idle" | "success" | "error";
+  message?: string;
+};
+
+const postPwaAppSchema = z.object({
+  name: z.string().min(1, "App Full Name is required."),
+  short_name: z.string().min(1, "Short Name is required."),
+  description: z.string().optional(),
+  theme_color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Must be a valid hex color").optional(),
+  start_url: z.string().min(1, "Start URL is required."),
+  icon_192: z.instanceof(File).refine(file => file.size > 0, '192x192 icon is required.'),
+  icon_512: z.instanceof(File).refine(file => file.size > 0, '512x512 icon is required.'),
+  screenshot_1: z.instanceof(File).optional(),
+  screenshot_2: z.instanceof(File).optional(),
+});
+
+
+async function uploadAsset(file: File, appId: string, assetName: string): Promise<string> {
+    const fileContents = await file.arrayBuffer();
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
+    const filePath = `pwa_assets/${appId}/${assetName}.${ext}`;
+
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from(STORAGE_BUCKET)
+      .upload(filePath, fileContents, { contentType: file.type, upsert: true });
+
+    if (uploadError) throw new Error(`Storage upload error for ${assetName}: ${uploadError.message}`);
+    
+    const { data: publicUrlData } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+    return publicUrlData.publicUrl;
+}
+
+
+export async function postPwaApp(
+  prevState: PostPwaAppState | undefined,
+  formData: FormData
+): Promise<PostPwaAppState> {
+  const validated = postPwaAppSchema.safeParse({
+      name: formData.get('name'),
+      short_name: formData.get('short_name'),
+      description: formData.get('description'),
+      theme_color: formData.get('theme_color'),
+      start_url: formData.get('start_url'),
+      icon_192: formData.get('icon_192'),
+      icon_512: formData.get('icon_512'),
+      screenshot_1: formData.get('screenshot_1'),
+      screenshot_2: formData.get('screenshot_2'),
+  });
+
+  if (!validated.success) {
+      const fieldErrors = validated.error.flatten().fieldErrors;
+      const firstError = Object.values(fieldErrors)[0]?.[0];
+      return { status: "error", message: firstError || "Invalid input." };
+  }
+
+  const { name, short_name, description, theme_color, start_url, icon_192, icon_512, screenshot_1, screenshot_2 } = validated.data;
+  const appId = randomUUID();
+
+  try {
+    const icon192Url = await uploadAsset(icon_192, appId, 'icon-192');
+    const icon512Url = await uploadAsset(icon_512, appId, 'icon-512');
+    const screenshot1Url = screenshot_1 ? await uploadAsset(screenshot_1, appId, 'screenshot-1') : null;
+    const screenshot2Url = screenshot_2 ? await uploadAsset(screenshot_2, appId, 'screenshot-2') : null;
+
+    const { error: dbError } = await supabaseAdmin.from("pwa_apps").insert({
+        id: appId,
+        name,
+        short_name,
+        description: description || null,
+        theme_color: theme_color || '#8A2BE2',
+        start_url,
+        icon_192_url: icon192Url,
+        icon_512_url: icon512Url,
+        screenshot_1_url: screenshot1Url,
+        screenshot_2_url: screenshot2Url,
+    });
+
+    if (dbError) {
+      throw new Error(`Database insert error: ${dbError.message}`);
+    }
+    
+    revalidatePath("/admin/post-apps");
+    revalidatePath("/view-apps");
+    return { status: "success", message: `App '${name}' posted successfully!` };
+
+  } catch (e: any) {
+      console.error("[postPwaApp Error]", e);
+      return { status: "error", message: e.message };
+  }
+}
