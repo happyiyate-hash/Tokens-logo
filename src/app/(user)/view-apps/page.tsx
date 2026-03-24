@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -82,11 +81,10 @@ export default function ViewAppsPage() {
                         </div>
                     </CardHeader>
                     <CardFooter>
-                       {/* TODO: This should link to a dynamic install page like /install/[slug] */}
-                       <Button asChild className="w-full" disabled>
-                          <Link href="#">
+                       <Button asChild className="w-full">
+                          <Link href={`/install/${app.slug}`}>
                               <Download className="mr-2 h-4 w-4" />
-                              Install App (Coming Soon)
+                              View & Install
                           </Link>
                         </Button>
                     </CardFooter>
