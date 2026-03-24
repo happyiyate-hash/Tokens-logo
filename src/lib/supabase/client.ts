@@ -1,10 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+// Hardcoded Supabase configuration for the client-side.
+// The 'anon' key is designed to be public and is visible in the browser.
+const supabaseUrl = "YOUR_SUPABASE_URL_HERE"; // Replace with your actual Supabase URL
+const supabaseAnonKey = "YOUR_SUPABASE_ANON_KEY_HERE"; // Replace with your actual Supabase anon key
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error("Missing Supabase client environment variables. Please check your .env.local file and ensure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are set.");
+if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes("YOUR_SUPABASE_URL_HERE")) {
+  throw new Error("Supabase client variables are hardcoded but not set. Please edit src/lib/supabase/client.ts and replace placeholder values.");
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
