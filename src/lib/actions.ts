@@ -8,7 +8,6 @@ import chainsConfig from "@/lib/chains.json";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { fetchTokenMetadataFromSources } from "@/lib/fetchers";
 import axios from 'axios';
-import { autoFetchMissingLogo } from '@/ai/flows/auto-fetch-missing-logos';
 import { randomUUID } from "crypto";
 
 const STORAGE_BUCKET = "token_logos";
@@ -319,7 +318,7 @@ export type AddTokenState = {
 const addTokenSchema = z.object({
   name: z.string().min(1, "Token name is required."),
   symbol: z.string().min(1, "Token symbol is required."),
-  chainId: z.coerce.number().min(1, "Chain ID is required."),
+  chainId: z.coerce.number().int().min(1, "Chain ID is required."),
   decimals: z.coerce.number().int().min(0).default(18),
   contract: z.string().min(1, "Contract address is required."),
   logo: z.instanceof(File).optional(),
@@ -801,18 +800,8 @@ export async function fetchTokenMetadata(prevState: FetchMetadataState | undefin
             .limit(1)
             .single();
 
-          let finalLogoUrl = dbLogo?.public_url || null;
-
-          // If no logo is found in our DB, try the AI fetcher.
-          if (!finalLogoUrl) {
-              const { logoUrl: aiLogoUrl } = await autoFetchMissingLogo({ tokenSymbol: metadata.symbol, tokenName: metadata.name });
-              finalLogoUrl = aiLogoUrl;
-          }
-
-          // If still no logo, we fall back to the CDN-generated URL structure.
-          if (!finalLogoUrl) {
-              finalLogoUrl = getCdnLogoUrl(metadata.name, metadata.symbol);
-          }
+          // If a logo is found in our DB, use it. Otherwise, fall back to the CDN-generated URL structure.
+          const finalLogoUrl = dbLogo?.public_url || getCdnLogoUrl(metadata.name, metadata.symbol);
 
           const result: TokenFetchResult = {
               name: metadata.name,

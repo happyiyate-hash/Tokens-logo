@@ -3,7 +3,6 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { fetchTokenMetadata, addToken, type FetchMetadataState, type AddTokenState } from "@/lib/actions";
-import { autoFetchMissingLogo } from "@/ai/flows/auto-fetch-missing-logos";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -56,7 +55,6 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
 
   const [formData, setFormData] = useState<TokenFormData>(initialFormData);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [isAiSearching, setIsAiSearching] = useState(false);
   const [isLogoAvailable, setIsLogoAvailable] = useState(false);
   const [manualLogoFile, setManualLogoFile] = useState<File | null>(null);
 
@@ -71,9 +69,7 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
   };
 
   const handleLogoClick = () => {
-    if (!previewUrl && !isAiSearching) {
-        fileInputRef.current?.click();
-    }
+    fileInputRef.current?.click();
   }
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -122,42 +118,21 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
             priceId: fetchState.metadata?.priceId || '',
         }));
         // Trigger logo search after metadata is populated
-        handleLogoSearch(fetchState.metadata.name, fetchState.metadata.symbol, fetchState.metadata.logoUrl);
+        handleLogoSearch(fetchState.metadata.logoUrl);
     } else if (fetchState.status === 'error') {
         toast({ variant: "destructive", title: "Fetch Error", description: fetchState.message });
         // Keep the form fields editable for manual entry
     }
   }, [fetchState, toast]);
 
-  const handleLogoSearch = (name: string, symbol: string, existingLogoUrl?: string | null) => {
-      if (!name || !symbol) return;
-
+  const handleLogoSearch = (existingLogoUrl?: string | null) => {
       if (existingLogoUrl) {
           setPreviewUrl(existingLogoUrl);
           setIsLogoAvailable(true);
-          return;
-      }
-      
-      setIsAiSearching(true);
-      autoFetchMissingLogo({ tokenSymbol: symbol, tokenName: name })
-        .then(result => {
-          if (result.logoUrl) {
-            setPreviewUrl(result.logoUrl);
-            toast({ title: "AI Found a Logo!", description: `Found a logo for ${symbol}.` });
-            setIsLogoAvailable(true);
-          } else {
-            toast({ variant: "default", title: "No Logo Found", description: `Could not find a logo for ${symbol}. Click the logo area to upload one manually.` });
-            setIsLogoAvailable(false);
-          }
-        })
-        .catch(err => {
-          console.error("AI logo fetch error:", err);
-          toast({ variant: "destructive", title: "AI Search Failed", description: "The AI agent could not search for a logo."});
+      } else {
+          toast({ variant: "default", title: "No Pre-existing Logo Found", description: `You can upload a logo manually.` });
           setIsLogoAvailable(false);
-        })
-        .finally(() => {
-          setIsAiSearching(false);
-        });
+      }
   };
 
   const handleReset = () => {
@@ -169,7 +144,7 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
     setManualLogoFile(null);
   };
   
-  const canSave = formData.name && formData.symbol && formData.chainId && formData.contractAddress && isLogoAvailable && !isAiSearching;
+  const canSave = formData.name && formData.symbol && formData.chainId && formData.contractAddress && isLogoAvailable;
 
   return (
     <Card className="w-full max-w-3xl mx-auto">
@@ -251,11 +226,11 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
                         <div className="space-y-2 flex-1">
                             <Label>Token Logo</Label>
                             <p className="text-sm text-muted-foreground">
-                                A logo is required. The system will try to find one. If it fails, click the placeholder to upload one manually.
+                                A logo is required. If a logo is not found automatically, click the placeholder to upload one manually.
                             </p>
                         </div>
                         <div className="flex-shrink-0 text-center">
-                            <Label>{isAiSearching ? "AI Searching..." : "Logo Preview"}</Label>
+                            <Label>Logo Preview</Label>
                             <input
                                 id="logo_manual_upload"
                                 name="logo_manual_upload"
@@ -269,11 +244,7 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
                                 className="w-20 h-20 relative mt-2 group"
                                 onClick={handleLogoClick}
                             >
-                                {isAiSearching ? (
-                                    <div className="w-full h-full rounded-full bg-muted flex items-center justify-center">
-                                        <Sparkles className="h-8 w-8 text-primary animate-pulse" />
-                                    </div>
-                                ) : previewUrl ? (
+                                {previewUrl ? (
                                     <Image src={previewUrl} alt="Logo preview" fill className="rounded-full bg-muted object-cover" unoptimized />
                                 ) : (
                                     <div className="w-full h-full rounded-full bg-muted flex flex-col items-center justify-center text-xs text-muted-foreground text-center p-2 border-2 border-dashed border-border cursor-pointer hover:border-primary transition-colors">
@@ -287,7 +258,7 @@ export function AddTokenWizard({ networks }: { networks: DropdownNetwork[] }) {
 
                     <SubmitButton className="w-full" disabled={!canSave || isSaving}>
                         {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        {isAiSearching ? "AI is working..." : !isLogoAvailable ? "Cannot Save Without Logo" : <><Save className="mr-2 h-4 w-4" /> Save Token </> }
+                        {!isLogoAvailable ? "Cannot Save Without Logo" : <><Save className="mr-2 h-4 w-4" /> Save Token </> }
                     </SubmitButton>
 
                     {saveState.status === "error" && (

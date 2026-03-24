@@ -1,7 +1,13 @@
 
-import { createHandler } from '@genkit-ai/next';
-import { ai } from '@/ai/genkit';
-import '@/ai/flows/auto-fetch-missing-logos'; // Ensure flows are registered
+import { NextResponse } from 'next/server';
 
-// Correctly create the handler by passing the ai instance, and export GET/POST
-export const { GET, POST } = createHandler({ ai });
+// This API route has been disabled to resolve a build issue with Genkit dependencies.
+// It can be re-enabled later with a corrected implementation.
+
+export async function GET() {
+  return NextResponse.json({ message: 'Genkit API is currently disabled.' }, { status: 404 });
+}
+
+export async function POST() {
+  return NextResponse.json({ message: 'Genkit API is currently disabled.' }, { status: 404 });
+}
